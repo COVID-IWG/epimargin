@@ -1,31 +1,21 @@
-#import csv
-#import sys
-#import scipy
-#import array
-#from matplotlib import *
-#from pylab import *
-#from scipy import *
+
 import numpy as np
 import matplotlib.pyplot as plt
-
 
 def Introductions(ll,k): # lambda is the average number per unit time, k is the number of times
 # generates the time series of case introductions, not community transmission
     DeltaB = np.random.poisson(ll,k) # simplest model of introductions.
     return DeltaB
 
+pop = 1000000 #population size
+ndays = 200 # number of days
+rintroductions = 0.5 # number of infectious introduced in the population per day
 
+infperiod = 5 # 5 days.
+gamma = 1./infperiod
+m = 0.02 # 2 percent case mortality
 
-
-pop=1000000 #population size
-ndays=200 # number of days
-rintroductions=0.5 # number of infectious introduced in the population per day
-
-infperiod=5 # 5 days.
-gamma=1./infperiod
-m=0.02 # 2 percent case mortaliy
-
-DeltaB=Introductions(1,ndays)
+DeltaB = Introductions(1, ndays)
 
 RR=np.ones(ndays)
 b=[]
