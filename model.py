@@ -47,7 +47,7 @@ class ModelUnit():
         # self.delta_R = [0]
 
     # period 1: intra-state community transmission
-    def tick_internal(self) -> Tuple[int]: 
+    def tick_internal(self) -> Tuple[int, int, int]: 
         # get previous state 
         S, I, R, D, P = (vector[-1] for vector in (self.S, self.I, self.R, self.D, self.P))
 
@@ -75,10 +75,13 @@ class ModelUnit():
         if I < 0: I = 0
         if S < 0: S = 0
 
-        P = S + I + R 
-        M_total = round(self.mu * P) # total number of people moving out 
-        M_inf   = round(self.mu * I) # number infected 
-        P -= M_total
+        M_sus = round(self.mu * S) # number of susceptible people moving out 
+        M_inf = round(self.mu * I) # number of infected people moving out  
+        M_rec = round(self.mu * R) # number of recovered people moving out  
+        S -= M_sus
+        I -= M_inf
+        R -= M_rec
+        P = S + I + R         
 
         # update state vectors 
         self.RR.append(RR)
@@ -91,13 +94,15 @@ class ModelUnit():
         self.delta_T.append(new_cases)
         self.total_cases.append(I + R + D)
 
-        return (M_total, M_inf)
+        return (M_sus, M_inf, M_rec)
 
     # period 2: migratory transmission
-    def tick_external(self, total_in: int, infected_in: int):
+    def tick_external(self, S_in: int, I_in: int, R_in: int):
         # note: update state *in place* since we consider it the same time period 
-        self.P[-1] += total_in
-        self.I[-1] += infected_in 
+        self.S[-1] += S_in
+        self.I[-1] += I_in
+        self.R[-1] += R_in
+        self.P[-1] += (S_in + I_in + R_in)
 
     def __repr__(self) -> str:
         return f"ModelUnit[{self.name}]"
@@ -109,13 +114,13 @@ class Model():
         self.migrations = migrations
 
     def tick(self):
-        outflux = [m.tick_internal() for m in self.models]
-        total_out, inf_out = zip(*outflux)
-        migrated_out = np.round(total_out * self.migrations)
-        migrated_inf = np.round(inf_out   * self.migrations)
+        S_out, I_out, R_out = zip(*[m.tick_internal() for m in self.models])
+        S_in = np.round(S_out * self.migrations)
+        I_in = np.round(I_out * self.migrations)
+        R_in = np.round(R_out * self.migrations)
 
         for (i, m) in enumerate(self.models):
-            m.tick_external(sum(migrated_out[i, :]), sum(migrated_inf[i, :]))
+            m.tick_external(sum(S_in[i, :]), sum(I_in[i, :]), sum(R_in[i, :]))
 
     def run(self):
         for _ in range(self.num_days):
@@ -124,7 +129,7 @@ class Model():
 
     def plot(self, filename: Optional[str] = None) -> mlp.figure.Figure:
         fig, axes = plt.subplots(1, 4, sharex = True, sharey = True)
-        fig.suptitle('Four-State Toy Example (No Adaptive Controls)')
+        fig.suptitle("Four-State Toy Example (No Adaptive Controls; $R_0^{(0)} = " + str(self.models[0].RR0) + "$)")
         t = list(range(self.num_days + 1))
         for (ax, model) in zip(axes.flat, self.models):
             s = ax.semilogy(t, model.S, alpha=0.75, label="Susceptibles")
@@ -133,16 +138,11 @@ class Model():
             r = ax.semilogy(t, model.R, alpha=0.75, label="Recovered",  )
             ax.set(xlabel = "# days", ylabel = "S/I/R/D", title = f"{model.name} (initial pop: {model.pop0})")
             ax.label_outer()
-            # for tick in ax.get_xticklabels():
-            #     tick.set_fontname("Fira Code Light")
-            # for tick in ax.get_yticklabels():
-            #     tick.set_fontname("Fira Code Light")
-            # ax.tight_layout()
         
         fig.legend([s, i, r, d], labels = ["S", "I", "R", "D"], loc="center right", borderaxespad=0.1)
         plt.subplots_adjust(right=0.85)
-        # if filename: 
-        #     plt.savefig(filename)
+        if filename: 
+            plt.savefig(filename)
         return fig
 
     def show(self, filename: Optional[str] = None) -> mlp.figure.Figure:
