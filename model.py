@@ -1,11 +1,13 @@
-from typing import Sequence, Optional 
+from typing import Optional, Sequence, Tuple
 
+import matplotlib as mlp
 import matplotlib.pyplot as plt
-import matplotlib as mlp 
 import numpy as np
 import seaborn as sns
 
-sns.set_style("white")
+mlp.rcParams['font.sans-serif'] = "PT Sans Regular"
+mlp.rcParams['font.family'] = "sans-serif"
+sns.set_style("whitegrid")
 sns.despine()
 
 def poisson(rate):
@@ -32,8 +34,8 @@ class ModelUnit():
         
         # state and delta vectors 
         I0 = poisson(self.ll) # initial number of cases 
-        self.RR = np.array([RR0])
-        self.b  = np.exp(self.gamma * (self.RR - 1.0))
+        self.RR = [RR0]
+        self.b  = [np.exp(self.gamma * (RR0 - 1.0))]
         self.S  = [population]
         self.I  = [I0] 
         self.R  = [0]
@@ -45,16 +47,16 @@ class ModelUnit():
         # self.delta_R = [0]
 
     # period 1: intra-state community transmission
-    def tick_internal(self) -> int: 
+    def tick_internal(self) -> Tuple[int]: 
         # get previous state 
         S, I, R, D, P = (vector[-1] for vector in (self.S, self.I, self.R, self.D, self.P))
 
         # update state 
         RR = self.RR0 * float(S)/float(P)
-        b  = np.exp(gamma * (RR - 1))
+        b  = np.exp(self.gamma * (RR - 1))
 
-        new_I     = np.exp(self.gamma * (self.RR - 1.0))
-        rate_T    = new_I + b * (self.delta_T[-1] - new_I + RR * gamma * new_I)
+        new_I     = np.exp(self.gamma * (RR - 1.0))
+        rate_T    = new_I + b * (self.delta_T[-1] - new_I + RR * self.gamma * new_I)
         new_cases = poisson(rate_T)
 
         I += new_cases
@@ -75,7 +77,8 @@ class ModelUnit():
 
         P = S + I + R 
         M_total = round(self.mu * P) # total number of people moving out 
-        M_inf   = round(self.mu * I/float(P)) # proportion infected 
+        M_inf   = round(self.mu * I) # number infected 
+        P -= M_total
 
         # update state vectors 
         self.RR.append(RR)
@@ -88,10 +91,13 @@ class ModelUnit():
         self.delta_T.append(new_cases)
         self.total_cases.append(I + R + D)
 
+        return (M_total, M_inf)
+
     # period 2: migratory transmission
-    def tick_external(self, influx):
+    def tick_external(self, total_in: int, infected_in: int):
         # note: update state *in place* since we consider it the same time period 
-        pass 
+        self.P[-1] += total_in
+        self.I[-1] += infected_in 
 
     def __repr__(self) -> str:
         return f"ModelUnit[{self.name}]"
@@ -104,10 +110,12 @@ class Model():
 
     def tick(self):
         outflux = [m.tick_internal() for m in self.models]
-        # resolve outflux
-        influxes = []
-        for (m, i) in zip(self.models, influxes):
-            m.tick_external(i)
+        total_out, inf_out = zip(*outflux)
+        migrated_out = np.round(total_out * self.migrations)
+        migrated_inf = np.round(inf_out   * self.migrations)
+
+        for (i, m) in enumerate(self.models):
+            m.tick_external(sum(migrated_out[i, :]), sum(migrated_inf[i, :]))
 
     def run(self):
         for _ in range(self.num_days):
@@ -115,13 +123,29 @@ class Model():
         return self 
 
     def plot(self, filename: Optional[str] = None) -> mlp.figure.Figure:
-        fig, axes = plt.subplots(2, 2)
-        if filename: 
-            plt.savefig(filename)
+        fig, axes = plt.subplots(1, 4, sharex = True, sharey = True)
+        fig.suptitle('Four-State Toy Example (No Adaptive Controls)')
+        t = list(range(self.num_days + 1))
+        for (ax, model) in zip(axes.flat, self.models):
+            s = ax.semilogy(t, model.S, alpha=0.75, label="Susceptibles")
+            i = ax.semilogy(t, model.I, alpha=0.75, label="Infectious", )
+            d = ax.semilogy(t, model.D, alpha=0.75, label="Deaths",     )
+            r = ax.semilogy(t, model.R, alpha=0.75, label="Recovered",  )
+            ax.set(xlabel = "# days", ylabel = "S/I/R/D", title = f"{model.name} (initial pop: {model.pop0})")
+            ax.label_outer()
+            # for tick in ax.get_xticklabels():
+            #     tick.set_fontname("Fira Code Light")
+            # for tick in ax.get_yticklabels():
+            #     tick.set_fontname("Fira Code Light")
+            # ax.tight_layout()
+        
+        fig.legend([s, i, r, d], labels = ["S", "I", "R", "D"], loc="center right", borderaxespad=0.1)
+        plt.subplots_adjust(right=0.85)
+        # if filename: 
+        #     plt.savefig(filename)
         return fig
 
     def show(self, filename: Optional[str] = None) -> mlp.figure.Figure:
         fig = self.plot(filename)
         plt.show()
         return fig
-
