@@ -7,7 +7,7 @@ a two-stage extension of the SIR model:
 
 ## todo - likelihood update options:
 1. classic (Bettencourt and Ribeiro 2008)
-2. rolling window (Systrom 2020)
+2. rolling window (Systrom 2020 | [iPython notebook](https://github.com/k-sys/covid-19/blob/master/Realtime%20R0.ipynb) [Medium post](http://systrom.com/blog/the-metric-we-need-to-manage-covid-19/) [real-time <i>R</i> estimates for US states](https://rt.live/))
 3. exponential decay (novel here)
 
 ## data source notes
