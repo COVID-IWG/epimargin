@@ -66,6 +66,7 @@ class ModelUnit():
         
         if I < 0: I = 0
         if S < 0: S = 0
+        if D < 0: D = 0
 
         M_sus = round(self.mu * S) # number of susceptible people moving out 
         M_inf = round(self.mu * I) # number of infected people moving out  
