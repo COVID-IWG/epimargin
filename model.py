@@ -1,14 +1,6 @@
 from typing import Optional, Sequence, Tuple
 
-import matplotlib as mlp
-import matplotlib.pyplot as plt
 import numpy as np
-import seaborn as sns
-
-mlp.rcParams['font.sans-serif'] = "PT Sans Regular"
-mlp.rcParams['font.family'] = "sans-serif"
-sns.set_style("whitegrid")
-sns.despine()
 
 def poisson(rate):
     return np.random.poisson(rate, 1)[0]
@@ -108,44 +100,21 @@ class ModelUnit():
         return f"ModelUnit[{self.name}]"
 
 class Model():
-    def __init__(self, num_days: int, models: Sequence[ModelUnit], migrations: np.matrix):
+    def __init__(self, num_days: int, units: Sequence[ModelUnit], migrations: np.matrix):
         self.num_days   = num_days
-        self.models     = models
+        self.units      = units
         self.migrations = migrations
 
     def tick(self):
-        S_out, I_out, R_out = zip(*[m.tick_internal() for m in self.models])
+        S_out, I_out, R_out = zip(*[m.tick_internal() for m in self.units])
         S_in = np.round(S_out * self.migrations)
         I_in = np.round(I_out * self.migrations)
         R_in = np.round(R_out * self.migrations)
 
-        for (i, m) in enumerate(self.models):
+        for (i, m) in enumerate(self.units):
             m.tick_external(sum(S_in[i, :]), sum(I_in[i, :]), sum(R_in[i, :]))
 
     def run(self):
         for _ in range(self.num_days):
             self.tick()
         return self 
-
-    def plot(self, filename: Optional[str] = None) -> mlp.figure.Figure:
-        fig, axes = plt.subplots(1, 4, sharex = True, sharey = True)
-        fig.suptitle("Four-State Toy Example (No Adaptive Controls; $R_0^{(0)} = " + str(self.models[0].RR0) + "$)")
-        t = list(range(self.num_days + 1))
-        for (ax, model) in zip(axes.flat, self.models):
-            s = ax.semilogy(t, model.S, alpha=0.75, label="Susceptibles")
-            i = ax.semilogy(t, model.I, alpha=0.75, label="Infectious", )
-            d = ax.semilogy(t, model.D, alpha=0.75, label="Deaths",     )
-            r = ax.semilogy(t, model.R, alpha=0.75, label="Recovered",  )
-            ax.set(xlabel = "# days", ylabel = "S/I/R/D", title = f"{model.name} (initial pop: {model.pop0})")
-            ax.label_outer()
-        
-        fig.legend([s, i, r, d], labels = ["S", "I", "R", "D"], loc="center right", borderaxespad=0.1)
-        plt.subplots_adjust(right=0.85)
-        if filename: 
-            plt.savefig(filename)
-        return fig
-
-    def show(self, filename: Optional[str] = None) -> mlp.figure.Figure:
-        fig = self.plot(filename)
-        plt.show()
-        return fig
