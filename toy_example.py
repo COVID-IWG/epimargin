@@ -1,5 +1,8 @@
+from typing import Optional
+
 import matplotlib as mlp
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
 from scipy.spatial import distance_matrix
 
@@ -11,7 +14,7 @@ sns.set_style("whitegrid")
 sns.despine()
 
 # setting up plotting 
-def plot(model: Model, filename: Optional[str] = None) -> mlp.figure.Figure:
+def plot_SIRD(model: Model, filename: Optional[str] = None) -> mlp.figure.Figure:
     fig, axes = plt.subplots(1, 4, sharex = True, sharey = True)
     fig.suptitle("Four-State Toy Example (No Adaptive Controls; $R_0^{(0)} = " + str(model.units[0].RR0) + "$)")
     t = list(range(model.num_days + 1))
@@ -29,23 +32,22 @@ def plot(model: Model, filename: Optional[str] = None) -> mlp.figure.Figure:
         plt.savefig(filename)
     return fig
 
-# inverse square law transmission matrix
+names = [f"state{i}" for i in ( 1, 2, 3, 4)]
+pops  = [k * 1000    for k in (10, 1, 2, 2)]
+states = zip(names, pops)
+
+# inverse distance transmission matrix
 centroids = [(0, 0), (1, 0), (0, 1), (2, 0)]
 P = distance_matrix(centroids, centroids)
-P[P != 0] = P[P != 0] ** -2.0
-P /= P.sum(axis = 1)
+P[P != 0] = P[P != 0] ** -1.0 # we tried inverse square but Zünd et al. suggest inverse
+P *= np.array(pops)[:, None]  # weight by destination population
+P /= P.sum(axis = 0)          # normalize 
 
 # states 
-units = lambda rr0 = 1.9: [
-    ModelUnit(name = "state1", population = 10_000, RR0 = rr0),
-    ModelUnit(name = "state2", population =  1_000, RR0 = rr0),
-    ModelUnit(name = "state3", population =  2_000, RR0 = rr0),
-    ModelUnit(name = "state4", population =  2_000, RR0 = rr0)
-]
+units = lambda rr0 = 1.9: [ModelUnit(name = name, population = pop, RR0 = rr0) for (name, pop) in states]
+
 
 # run and plot 
 m1_9 = Model(200, units(1.9), P).run()
-plot(m1_9, "example_model_1.9.png")
-
-m0_9 = Model(200, units(0.9), P).run()
-plot(m0_9, "example_model_0.9.png")
+plot_SIRD(m1_9)
+plt.show()
