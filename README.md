@@ -1,4 +1,4 @@
-# adaptive-bayesian-controls
+<h1 align="center">adaptive-lockdown</h1>
 
 # summary
 an extension of the real-time Bayesian reproductive number model that: 
