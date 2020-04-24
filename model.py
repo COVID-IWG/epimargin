@@ -1,20 +1,20 @@
-from typing import Sequence
+from typing import Iterator, Optional, Sequence, Union
 
 import numpy as np
 
 
-def poisson(rate):
-    return np.random.poisson(rate, 1)[0]
-
 class ModelUnit():
     def __init__(self, 
-        name:              str,           # name of unit
-        population:        int,           # unit population
-        infectious_period: int   = 5,     # how long disease is communicable in days 
-        introduction_rate: float = 5.0,   # parameter for new community transmissions (lambda) 
-        mortality:         float = 0.02,  # I -> D transition probability 
-        mobility:          float = 0.001,  # percentage of total population migrating out at each timestep 
-        RR0:               float = 1.9):  # initial reproductive rate 
+        name:              str,             # name of unit
+        population:        int,             # unit population
+        I0:       Optional[int]  = None,    # initial infected, None -> Poisson random intro 
+        R0:                int   = 0,       # initial infected
+        D0:                int   = 0,       # initial infected
+        infectious_period: int   = 5,       # how long disease is communicable in days 
+        introduction_rate: float = 5.0,     # parameter for new community transmissions (lambda) 
+        mortality:         float = 0.02,    # I -> D transition probability 
+        mobility:          float = 0.000001, # percentage of total population migrating out at each timestep 
+        RR0:               float = 1.9):    # initial reproductive rate 
         
         # save params 
         self.name  = name 
@@ -26,14 +26,15 @@ class ModelUnit():
         self.RR0   = RR0
         
         # state and delta vectors 
-        I0 = poisson(self.ll) # initial number of cases 
+        if I0 is None:
+            I0 = np.random.poisson(self.ll) # initial number of cases 
         self.RR = [RR0]
         self.b  = [np.exp(self.gamma * (RR0 - 1.0))]
         self.S  = [population]
         self.I  = [I0] 
-        self.R  = [0]
-        self.D  = [0]
-        self.P  = [population] # total population = S + I + R 
+        self.R  = [R0]
+        self.D  = [D0]
+        self.P  = [population - I0 - R0 - D0] # total population = S + I + R 
         self.total_cases = [I0] # total cases 
         self.delta_T = [I0] # case change rate, initialized with the first introduction, if any
         # self.delta_D = [0]
@@ -42,7 +43,7 @@ class ModelUnit():
     # period 1: inter-state migratory transmission
     def migration_step(self) -> int:
         # note: update state *in place* since we consider it the same time period 
-        outflux = poisson(self.mu * self.I[-1])
+        outflux = np.random.poisson(self.mu * self.I[-1])
         new_I = self.I[-1] - outflux
         if new_I < 0: new_i = 0
         self.I[-1]  = new_I
@@ -59,17 +60,17 @@ class ModelUnit():
         b  = np.exp(self.gamma * (RR - 1))
 
         rate_T    = (delta_B + b * (self.delta_T[-1] - delta_B) + self.gamma * RR * delta_B)
-        num_cases = poisson(rate_T)
+        num_cases = np.random.poisson(rate_T)
 
         I += num_cases
         S -= num_cases
 
         rate_D    = self.m * self.gamma * I
-        num_dead  = poisson(rate_D)
+        num_dead  = np.random.poisson(rate_D)
         D        += num_dead
 
         rate_R    = (1 - self.m) * self.gamma * I 
-        num_recov = poisson(rate_R)
+        num_recov = np.random.poisson(rate_R)
         R        += num_recov
 
         I -= (num_dead + num_recov)
@@ -97,11 +98,12 @@ class Model():
         self.num_days   = num_days
         self.units      = units
         self.migrations = migrations
+        self.names      = {unit.name: unit for unit in units}
 
     def tick(self):
         # run migration step 
-        outflux       = np.array([unit.migration_step() for unit in self.units])
-        transmissions = np.ceil(self.migrations * outflux[None, :]).sum(axis = 1)
+        outflux       = [unit.migration_step() for unit in self.units]
+        transmissions = [flux * self.migrations[i, :].sum() for (i, flux) in enumerate(outflux)]
         
         # now run forward epidemiological model 
         for (unit, tmx) in zip(self.units, transmissions):
@@ -111,3 +113,12 @@ class Model():
         for _ in range(self.num_days):
             self.tick()
         return self 
+
+    def __iter__(self) -> Iterator[ModelUnit]:
+        return iter(self.units)
+
+    # index units
+    def __getitem__(self, idx: Union[str, int]) -> ModelUnit:
+        if isinstance(idx, int):
+            return self.units[idx]
+        return self.names[idx]

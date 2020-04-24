@@ -1,5 +1,5 @@
+from itertools import product
 from pathlib import Path
-from itertools import product 
 
 import matplotlib as mlp
 import matplotlib.pyplot as plt
@@ -170,5 +170,3 @@ if __name__ == "__main__":
         plt.ylabel("Infection Rate")
         plt.legend()
         plt.show()
-
-    
