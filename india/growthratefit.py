@@ -4,7 +4,7 @@
 
 import warnings
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Sequence
 
 import numpy as np
 import pandas as pd
@@ -14,7 +14,7 @@ from statsmodels.regression.rolling import RollingOLS
 import matplotlib.pyplot as plt
 import seaborn
 
-columns   = [
+columns_v1 = v1 = [
     "patient number",
     "state patient number",
     "date announced",
@@ -35,11 +35,34 @@ columns   = [
     "backup note"
 ]
 
+columns_v2 = v2 = [
+    'patient number',
+    'state patient number',
+    'date announced',
+    'estimated onset date',
+    'age bracket',
+    'gender',
+    'detected city',
+    'detected district',
+    'detected state',
+    'state code',
+    'current status',
+    'notes',
+    'contracted from which patient (suspected)',
+    'nationality',
+    'type of transmission',
+    'status change date',
+    'source_1',
+    'source_2',
+    'source_3',
+    'backup notes'
+]
+
 drop_cols = {
     "age bracket",
     "gender",
     "detected city",
-    "detected district",
+    # "detected district",
     "notes",
     "contracted from which patient (suspected)",
     "nationality",
@@ -47,14 +70,17 @@ drop_cols = {
     "source_2",
     "source_3",
     "backup note",
+    "backup notes",
     "type of transmission"
 }
 
 # assuming analysis for data structure from COVID19-India saved as resaved, properly-quoted file
-def load_data(datapath: Path, reduced: bool = False) -> pd.DataFrame: 
+def load_data(datapath: Path, reduced: bool = False, schema: Optional[Sequence[str]] = None) -> pd.DataFrame: 
+    if not schema:
+        schema = columns_v1
     return pd.read_csv(datapath, 
         skiprows    = 1, # supply fixed header in order to deal with Google Sheets export issues 
-        names       = columns, 
+        names       = schema, 
         usecols     = (lambda _: _ not in drop_cols) if reduced else None,
         dayfirst    = True, # source data does not have consistent date format so cannot rely on inference
         parse_dates = ["date announced", "status change date"])

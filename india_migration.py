@@ -9,10 +9,6 @@ import seaborn as sns
 from india.growthratefit import *
 from model import Model, ModelUnit
 
-mlp.rcParams['font.sans-serif'] = "PT Sans"
-mlp.rcParams['font.family'] = "sans-serif"
-font = {'family': 'sans-serif', 'sans-serif': ["PT Sans"]}
-mlp.rc('font', **font)
 sns.set_style("whitegrid")
 sns.set_palette("bright")
 sns.despine()
