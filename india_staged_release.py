@@ -10,7 +10,8 @@ import seaborn as sns
 from india.growthratefit import *
 from model import Model, ModelUnit
 
-sns.set_style("darkgrid")
+sns.set(style = "whitegrid", font="Fira Code")
+# sns.set_style("white")
 sns.set_palette("bright")
 sns.despine()
 
@@ -40,6 +41,7 @@ if __name__ == "__main__":
         root = Path(".").resolve()
     
     data = root/"india"
+    figs = root/"figures"
 
     # run rolling regressions on historical case data 
     df_natl = load_data(data/"india_case_data_23_4_resave.csv", reduced = True, schema = v2)
@@ -87,6 +89,9 @@ if __name__ == "__main__":
         for key in [key for key in pop_data.keys() if key not in mapping]:
             mapping[key] = default
 
+    gamma = 1/5.0 
+    beta_vol  = {state: R * gamma  for  (state, R) in R_vol.items()}
+    beta_mand = {state: R * gamma  for  (state, R) in R_mand.items()}
 
     def get_model_unit(state, pop, RR0):
         try: 
@@ -100,47 +105,61 @@ if __name__ == "__main__":
         except KeyError:
             return ModelUnit(state, pop, 0, 0, 0, RR0)
 
+    seed = 11235813
+
     # policy A: end lockdown on May 3 
-    units_A = [get_model_unit(state, pop_data[state], R_mand.get(state, R_mand_natl)) for state in pop_data.keys()]
+    np.random.seed(seed)
+    units_A = [get_model_unit(state, pop_data[state], R_mand[state]) for state in pop_data.keys()]
     model_A_1 = Model(num_days = 10, units = units_A, migrations = lockdown).run()
     for unit in units_A: 
-        unit.RR[-1] = R_vol[unit.name]
+        unit.RR0 = R_vol[unit.name]
     model_A_2 = Model(num_days = 120, units = units_A, migrations = migrations).run()
 
     # policy B: end lockdown May 31
-    units_B = [get_model_unit(state, pop_data[state], R_mand.get(state, R_mand_natl)) for state in pop_data.keys()]
+    np.random.seed(seed)
+    units_B = [get_model_unit(state, pop_data[state], R_mand[state]) for state in pop_data.keys()]
     model_B_1 = Model(num_days = 38, units = units_B, migrations = lockdown).run()
     for unit in units_B: 
-        unit.RR[-1] = R_vol[unit.name]
+        unit.RR0 = R_vol[unit.name]
     model_B_2 = Model(num_days = 92, units = units_B, migrations = migrations).run()
 
     # policy C: 3 phased release 
+    np.random.seed(seed)
     units_C = [get_model_unit(state, pop_data[state], R_mand.get(state, R_mand_natl)) for state in pop_data.keys()]
     n = len(units_C)
     # up to may 3: full lockdown: 
     model_C = Model(num_days = 10, units = units_C, migrations = lockdown).run()
     phased_migration = lockdown.copy()
     days_run = 10
-    gantt = dict()
+    gantt = []
+    last_category = {}
     while days_run < 130:
         Gs, Ys, Rs = set(), set(), set()
+        category_transitions = {}
         for (i, unit) in enumerate(model_C):
             latest_RR = unit.RR[-1]
             if latest_RR < 1: 
                 Gs.add(i)
+                beta_cat = 1
             elif latest_RR < 2: 
                 Ys.add(i)
+                beta_cat = 2
             else: 
                 Rs.add(i)
-        gantt[days_run] = (Gs, Ys, Rs)
+                beta_cat = 3
+            gantt.append([unit.name, days_run, beta_cat, max(0, latest_RR)])
+            if unit.name not in last_category:
+                last_category[unit.name] = beta_cat
+            else: 
+                if last_category[unit.name] != beta_cat:
+                    category_transitions[unit.name] = beta_cat
+                    last_category[unit.name] = beta_cat 
 
-        for index in Gs:
-            unit = model_C[index]
-            unit.RR[-1] = R_mand[unit.name] + (R_vol[unit.name] - R_mand[unit.name])/3.0
-        for index in Ys:
-            unit = model_C[index]
-            unit.RR[-1] = R_mand[unit.name] + 2 * (R_vol[unit.name] - R_mand[unit.name])/3.0
-        # keep Reds where they are 
+        for (unit_name, beta_cat) in category_transitions.items(): 
+            unit =  model_C[unit_name]
+            new_beta = beta_mand[unit.name] + (3 - beta_cat) * (beta_vol[unit.name] - beta_mand[unit.name])/3.0
+            unit.beta[-1] = new_beta
+            unit.RR0 = new_beta * unit.gamma
 
         phased_migration = migrations.copy()
         for (i, j) in product(range(n), range(n)):
@@ -149,24 +168,47 @@ if __name__ == "__main__":
         model_C = Model(num_days = 14, units = units_C, migrations = phased_migration).run()
         days_run += 14
 
+    # seedpath = figs/("india/seed" + str(seed))
+    # if not seedpath.exists():
+    #     seedpath.mkdir()
+    # for (A, B, C) in zip(model_A_2, model_B_2, model_C):
+    #     plt.figure()
+    #     plt.semilogy(A.I, label = "Policy A") 
+    #     plt.semilogy(B.I, label = "Policy B") 
+    #     plt.semilogy(C.I, label = "Policy C") 
+    #     plt.title(A.name) 
+    #     plt.xlabel("Days Since April 23") 
+    #     plt.ylabel("Number of Infections") 
+    #     plt.legend() 
+    #     plt.tight_layout()
+    #     filename = "scenarios_" + A.name.lower().replace(" ", "_")  + ".png"
+    #     plt.savefig(seedpath/filename, bbox_inches="tight", dpi = 600)
+    #     # plt.show() 
+    #     plt.close()
 
-    for (A, B, C) in zip(model_A_2, model_B_2, model_C): 
-        plt.semilogy(A.I, label = "Policy A") 
-        plt.semilogy(B.I, label = "Policy B") 
-        plt.semilogy(C.I, label = "Policy C") 
-        plt.title(A.name) 
-        plt.xlabel("Days Since April 23") 
-        plt.ylabel("Number of Infections") 
-        plt.legend() 
-        plt.show() 
+    # for state in ("Gujarat", "Tamil Nadu", "Maharashtra", "Uttar Pradesh", "Punjab", "West Bengal"):
+    #     A, B, C = [model[state] for model in (model_A_2, model_B_2, model_C)]
+    #     plt.figure()
+    #     plt.semilogy(A.I, color = "#7F7F7F", linewidth = 2)
+    #     plt.semilogy(B.I, color = "#0D0D0D", linewidth = 2)
+    #     plt.semilogy(C.I, color = "#A5B4B2", linewidth = 4)
+    #     plt.semilogy(C.I, color = "#6A7F7B", linewidth = 3)
+    #     plt.ylim(1, 10**8)
+    #     plt.xlim(0, 120)
+    #     plt.tight_layout()
+    #     # plt.axes().set_aspect('equal')
+    #     plt.savefig(f"/Users/satej/Documents/workspace/mnp/capp_pres/preso_{state}.png", dpi=600, bbox_inches="tight", transparent = True)
+    #     plt.close()
+    #     # plt.title(state)
+    #     # plt.show()
 
-    for (A, B, C) in zip(model_A_2, model_B_2, model_C):
-        pop = pop_data[A.name]
-        plt.plot([i/pop for i in A.I], label = "Policy A")
-        plt.plot([i/pop for i in B.I], label = "Policy B")
-        plt.plot([i/pop for i in C.I], label = "Policy C")
-        plt.title(A.name)
-        plt.xlabel("Days Since April 23")
-        plt.ylabel("Infection Rate")
-        plt.legend()
-        plt.show()
+    # for (A, B, C) in zip(model_A_2, model_B_2, model_C):
+    #     pop = pop_data[A.name]
+    #     plt.plot([i/pop for i in A.I], label = "Policy A")
+    #     plt.plot([i/pop for i in B.I], label = "Policy B")
+    #     plt.plot([i/pop for i in C.I], label = "Policy C")
+    #     plt.title(A.name)
+    #     plt.xlabel("Days Since April 23")
+    #     plt.ylabel("Infection Rate")
+    #     plt.legend()
+    #     plt.show()

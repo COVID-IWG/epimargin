@@ -1,7 +1,6 @@
-from typing import Iterator, Optional, Sequence, Union
+from typing import Dict, Iterator, Optional, Sequence, Union
 
 import numpy as np
-
 
 class ModelUnit():
     def __init__(self, 
@@ -35,8 +34,9 @@ class ModelUnit():
         self.R  = [R0]
         self.D  = [D0]
         self.P  = [population - I0 - R0 - D0] # total population = S + I + R 
+        self.beta = [RR0/self.gamma] # initial contact rate 
+        self.delta_T     = [I0] # case change rate, initialized with the first introduction, if any
         self.total_cases = [I0] # total cases 
-        self.delta_T = [I0] # case change rate, initialized with the first introduction, if any
         # self.delta_D = [0]
         # self.delta_R = [0]
 
@@ -79,6 +79,9 @@ class ModelUnit():
         if I < 0: I = 0
         if D < 0: D = 0
 
+        P = S + I + R
+        beta = (num_cases * P)/(b * S * I)
+
         # update state vectors 
         self.RR.append(RR)
         self.b.append(b)
@@ -87,6 +90,7 @@ class ModelUnit():
         self.R.append(R)
         self.D.append(D)
         self.P.append(P)
+        self.beta.append(beta)
         self.delta_T.append(num_cases)
         self.total_cases.append(I + R + D)
 
@@ -122,3 +126,18 @@ class Model():
         if isinstance(idx, int):
             return self.units[idx]
         return self.names[idx]
+
+    def aggregate(self, curves: Union[Sequence[str], str] = ["RR", "b", "S", "I", "R", "D", "P", "beta"]) -> Union[Dict[str, Sequence[float]], Sequence[float]]:
+        if isinstance(curves, str):
+            single_curve = curves
+            curves = [curves]
+        else: 
+            single_curve = False
+        aggs = { 
+            curve: list(map(sum, zip(*(unit.__getattribute__(curve) for unit in self.units))))
+            for curve in curves
+        }
+
+        if single_curve:
+            return aggs[single_curve]
+        return aggs
