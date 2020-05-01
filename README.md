@@ -1,7 +1,7 @@
 <h1 align="center">adaptive-lockdown</h1>
 
 # summary
-an extension of the real-time Bayesian reproductive number model that: 
+an extension of a real-time Bayesian reproductive number estimation model for pandemic tracking that: 
 1. runs a rolling regression to get a real time estimate of <i>R(t)</i>
 2. builds a graph of interactions between geographic units accounting for migratory (re-)introductions
 3. at each <i>t</i> from <i>t<sub>i</sub></i> to <i>t<sub>f</sub></i>:
