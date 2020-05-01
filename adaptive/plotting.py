@@ -52,7 +52,7 @@ def gantt_chart(gantt_data, xlabel, title, filename: Optional[Path] = None):
         annot = gantt_pv["R"], annot_kws={"size": 8},
         cmap = ["#38AE66", "#FFF3B4", "#FD8B5A", "#D63231"],
         cbar = True,
-        # yticklabels = districts,
+        yticklabels = gantt_df["district"].unique(),
         cbar_kws = {
             "ticks":[0.5, 1, 2, 2.5], 
             "label": "Mobility", 

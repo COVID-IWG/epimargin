@@ -4,7 +4,7 @@ from itertools import product
 import numpy as np
 
 from .model import Model
-
+from .utils import days, weeks
 
 def simulate_lockdown(model: Model, lockdown_period: int, total_time: int, RR0_mandatory: Dict[str, float], RR0_voluntary: Dict[str, float], lockdown: np.matrix, migrations: np.matrix) -> Model:
     return model.set_parameters(RR0 = RR0_mandatory)\

@@ -97,7 +97,7 @@ if __name__ == "__main__":
     # simulation parameters 
     seed       = 0
     total_time = 190 * days 
-    states     = ['Andhra Pradesh', 'Uttar Pradesh', 'Maharashtra', 'Punjab', 'Tamil Nadu', 'West Bengal', 'Kerala', 'Gujarat']
+    states     = ['Andhra Pradesh', 'Uttar Pradesh', 'Maharashtra', 'Punjab', 'Tamil Nadu', 'West Bengal', 'Kerala', 'Gujarat'][2:3]
     
     # model details 
     gamma      = 0.2
@@ -140,45 +140,45 @@ if __name__ == "__main__":
         Rv = {district: np.mean(grd[district]["2020-03-24":"2020-03-31"].R) if district in grd.keys() else Rvs[state] for district in districts}
         Rm = {district: np.mean(grd[district]["2020-04-01":].R)             if district in grd.keys() else Rms[state] for district in districts}
 
-        # fil in missing values 
-        for mapping, default in ((Rv, Rvs[state]), (Rm, Rms[state])):
-            for key in mapping:
-                if np.isnan(mapping[key]):
-                    mapping[key] = default
+        # # fil in missing values 
+        # for mapping, default in ((Rv, Rvs[state]), (Rm, Rms[state])):
+        #     for key in mapping:
+        #         if np.isnan(mapping[key]):
+        #             mapping[key] = default
 
-        # policy scenarios: 
-        lockdown = np.zeros(migrations.shape)
+        # # policy scenarios: 
+        # lockdown = np.zeros(migrations.shape)
 
-        ## release lockdown on 03 May 
-        release_03_may = get_model(districts, populations, tsd, seed)
-        simulate_lockdown(release_03_may, 
-            lockdown_period = 10*days, 
-            total_time      = total_time, 
-            RR0_mandatory   = Rm,              RR0_voluntary = Rv, 
-            lockdown        = lockdown.copy(), migrations    = migrations)
+        # ## release lockdown on 03 May 
+        # release_03_may = get_model(districts, populations, tsd, seed)
+        # simulate_lockdown(release_03_may, 
+        #     lockdown_period = 10*days, 
+        #     total_time      = total_time, 
+        #     RR0_mandatory   = Rm,              RR0_voluntary = Rv, 
+        #     lockdown        = lockdown.copy(), migrations    = migrations)
 
-        ## release lockdown on 31 May 
-        release_31_may = get_model(districts, populations, tsd, seed)
-        simulate_lockdown(release_31_may, 
-            lockdown_period = 10*days + 4*weeks, 
-            total_time      = total_time, 
-            RR0_mandatory   = Rm,              RR0_voluntary = Rv, 
-            lockdown        = lockdown.copy(), migrations    = migrations)
+        # ## release lockdown on 31 May 
+        # release_31_may = get_model(districts, populations, tsd, seed)
+        # simulate_lockdown(release_31_may, 
+        #     lockdown_period = 10*days + 4*weeks, 
+        #     total_time      = total_time, 
+        #     RR0_mandatory   = Rm,              RR0_voluntary = Rv, 
+        #     lockdown        = lockdown.copy(), migrations    = migrations)
 
-        ## adaptive release starting 03 may 
-        beta_v = {district: R * gamma for (district, R) in Rv.items()}
-        beta_m = {district: R * gamma for (district, R) in Rm.items()}
-        adaptive = get_model(districts, populations, tsd, seed).set_parameters(RR0 = Rm)
-        simulate_adaptive_control(adaptive, 10*days, total_time, lockdown, migrations, beta_v, beta_m)
-        plot_curve(
-            [release_03_may, release_31_may, adaptive], 
-            ["03 May Release", "31 May Release", "Adaptive Release"], 
-            title = state, xlabel = "Days Since April 23", ylabel = "Infections", subtitle = None
-        )
+        # ## adaptive release starting 03 may 
+        # beta_v = {district: R * gamma for (district, R) in Rv.items()}
+        # beta_m = {district: R * gamma for (district, R) in Rm.items()}
+        # adaptive = get_model(districts, populations, tsd, seed).set_parameters(RR0 = Rm)
+        # simulate_adaptive_control(adaptive, 10*days, total_time, lockdown, migrations, beta_v, beta_m)
+        # plot_curve(
+        #     [release_03_may, release_31_may, adaptive], 
+        #     ["03 May Release", "31 May Release", "Adaptive Release"], 
+        #     title = state, xlabel = "Days Since April 23", ylabel = "Infections", subtitle = None
+        # )
 
-        plt.show()
+        # plt.show()
 
-        gantt_chart(adaptive.gantt, "Days Since April 23", "Release Strategy")
+        # gantt_chart(adaptive.gantt, "Days Since April 23", "Release Strategy")
         
-        plt.show()
+        # plt.show()
         
