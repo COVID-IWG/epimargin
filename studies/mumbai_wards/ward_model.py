@@ -53,7 +53,7 @@ if __name__ == "__main__":
     simulate_lockdown(model_B, 10*days + 4*weeks, 190*days, Rmw, Rvw, lockdown, migrations)
 
     # 10 day lockdown + adaptive controls
-    model_C = model(wards, population_data, ward_cases, seed)
+    model_C = model(wards, population_data, ward_cases, seed).set_parameters(RR0 = Rmw)
     simulate_adaptive_control(model_C, 10*days, 190*days, lockdown, migrations, 
         {ward: Rv * gamma for (ward, Rv) in Rvw.items()},
         {ward: Rm * gamma for (ward, Rm) in Rmw.items()},
