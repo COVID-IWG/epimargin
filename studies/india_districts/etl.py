@@ -8,10 +8,10 @@ import numpy as np
 import pandas as pd
 import seaborn
 import statsmodels.api as sm
-from statsmodels.regression.rolling import RollingOLS
 
-"""code to create logarithmic growth rate plots for india-specific data"""
+from adaptive.estimators import rollingOLS as run_regressions
 
+"""code to extracts logarithmic growth rates for india-specific data"""
 
 columns_v1 = v1 = [
     "patient number",
@@ -94,26 +94,6 @@ def get_time_series(df: pd.DataFrame) -> pd.DataFrame:
     totals["time"]     = (totals["date"] - totals["date"].min()).dt.days
     totals["logdelta"] = np.log(assume_missing_0(totals, "Hospitalized") - assume_missing_0(totals, "Recovered") -  assume_missing_0(totals, "Deceased"))
     return totals
-
-def run_regressions(totals: pd.DataFrame, window: int = 3, infectious_period: float = 4.5) -> pd.DataFrame:
-    # run rolling regressions and get parameters
-    model   = RollingOLS.from_formula(formula = "logdelta ~ time", window = window, data = totals)
-    rolling = model.fit(method = "lstsq")
-    
-    growthrates = rolling.params.join(rolling.bse, rsuffix="_stderr")
-    growthrates["rsq"] = rolling.rsquared
-    growthrates.rename(lambda s: s.replace("time", "gradient").replace("const", "intercept"), axis = 1, inplace = True)
-
-    # calculate growth rates
-    growthrates["egrowthrateM"] = growthrates.gradient + 2 * growthrates.gradient_stderr
-    growthrates["egrowthratem"] = growthrates.gradient - 2 * growthrates.gradient_stderr
-    growthrates["R"]            = growthrates.gradient * infectious_period + 1
-    growthrates["RM"]           = growthrates.gradient + 2 * growthrates.gradient_stderr * infectious_period + 1
-    growthrates["Rm"]           = growthrates.gradient - 2 * growthrates.gradient_stderr * infectious_period + 1
-    growthrates["date"]         = growthrates.index
-    growthrates["days"]         = totals.time
-
-    return growthrates
 
 def critical_day(growthrates: pd.DataFrame) -> Tuple[int, int, int, int]:
     # extrapolate growth rate into the future
@@ -201,10 +181,9 @@ def load_migration_matrix(matrix_path: Path, populations: np.array) -> np.matrix
     M /= M.sum(axis = 0)                        # normalize
     return M 
 
-def load_district_migration_matrices(
+def district_migration_matrices(
     matrix_path: Path, 
-    states: Sequence[str] = ["Maharashtra"]) -> Dict[str, np.matrix]:
-    # states: Sequence[str] = ["Maharashtra", "Delhi", "Punjab", "Tamil Nadu", "Kerala"]) -> Dict[str, np.matrix]:
+    states: Sequence[str]) -> Dict[str, np.matrix]:
     mm = pd.read_csv(matrix_path)
     aggregations = dict()
     for col in  ['D_StateCensus2001', 'D_DistrictCensus2001', 'O_StateCensus2001', 'O_DistrictCensus2001']:

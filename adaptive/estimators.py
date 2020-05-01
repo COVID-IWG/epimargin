@@ -1,16 +1,23 @@
-from collections import SimpleNamespace as namespace
-from typing import Sequence
+import pandas as pd
+from statsmodels.regression.rolling import RollingOLS
 
 
-schemas = namespace(default = None, india_v1 = None, india_v2 = None)
-methods = namespace()
-
-class Schema: 
-    def __init__(self, columns: Sequence[str], S_key: str, I_key: str, R_key: str, D_key: str):
-        self.columns = columns
-        self.S_key   = S_key
-        self.I_key   = I_key
-        self.R_key   = R_key
-        self.D_key   = D_key
+def rollingOLS(totals: pd.DataFrame, window: int = 3, infectious_period: float = 4.5) -> pd.DataFrame:
+    # run rolling regressions and get parameters
+    model   = RollingOLS.from_formula(formula = "logdelta ~ time", window = window, data = totals)
+    rolling = model.fit(method = "lstsq")
     
-    
+    growthrates = rolling.params.join(rolling.bse, rsuffix="_stderr")
+    growthrates["rsq"] = rolling.rsquared
+    growthrates.rename(lambda s: s.replace("time", "gradient").replace("const", "intercept"), axis = 1, inplace = True)
+
+    # calculate growth rates
+    growthrates["egrowthrateM"] = growthrates.gradient + 2 * growthrates.gradient_stderr
+    growthrates["egrowthratem"] = growthrates.gradient - 2 * growthrates.gradient_stderr
+    growthrates["R"]            = growthrates.gradient * infectious_period + 1
+    growthrates["RM"]           = growthrates.gradient + 2 * growthrates.gradient_stderr * infectious_period + 1
+    growthrates["Rm"]           = growthrates.gradient - 2 * growthrates.gradient_stderr * infectious_period + 1
+    growthrates["date"]         = growthrates.index
+    growthrates["days"]         = totals.time
+
+    return growthrates

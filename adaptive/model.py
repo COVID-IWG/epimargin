@@ -105,17 +105,20 @@ class Model():
         if random_seed:
             np.random.seed(random_seed)
 
+    def __len__(self) -> int:
+        return len(self.units)
+
     def tick(self, migrations: np.matrix):
         # run migration step 
         outflux       = [unit.migration_step() for unit in self.units]
-        transmissions = [flux * self.migrations[i, :].sum() for (i, flux) in enumerate(outflux)]
+        transmissions = [flux * migrations[i, :].sum() for (i, flux) in enumerate(outflux)]
         
         # now run forward epidemiological model 
         for (unit, tmx) in zip(self.units, transmissions):
             unit.forward_epi_step(tmx)
 
     def run(self, days: int, migrations: Optional[np.matrix] = None):
-        if not migrations:
+        if migrations is None:
             migrations = self.migrations
         for _ in range(days):
             self.tick(migrations)
