@@ -1,10 +1,12 @@
 from pathlib import Path 
+import sys
 
 days  = 1
 weeks = 7 
 
 def cwd() -> Path:
-    try: 
-        return Path(__file__).resolve().parent
-    except NameError:
+    argv0 = sys.argv[0]
+    if argv0.endswith("ipython"):
         return Path(".").resolve()
+    return Path(argv0).resolve().parent
+        
