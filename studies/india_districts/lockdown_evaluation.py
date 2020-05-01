@@ -31,10 +31,10 @@ def simulate_lockdown(model: Model, lockdown_period: int, total_time: int, RR0_m
         .run(total_time - lockdown_period, migrations = migrations)
 
 # policy C: adaptive release
-def simulate_adaptive_control(model: Model, initial_run, total_time, lockdown, migrations, beta_v, beta_m, evaluation_period = 2*weeks):
+def simulate_adaptive_control(model: Model, initial_run: int, total_time: int, lockdown: np.matrix, migrations: np.matrix, beta_v: Dict[str, float], beta_m: Dict[str, float], evaluation_period = 2*weeks):
     n = len(model)
-    days_run = initial_run
     model.run(initial_run, lockdown)
+    days_run = initial_run
     gantt = []
     last_category = dict()
     while days_run < total_time:
@@ -97,7 +97,7 @@ if __name__ == "__main__":
     # simulation parameters 
     seed       = 0
     total_time = 190 * days 
-    states     = ['Andhra Pradesh', 'Uttar Pradesh', 'Maharashtra', 'Punjab', 'Tamil Nadu', 'West Bengal', 'Kerala', 'Gujarat'][2:3]
+    states     = ['Andhra Pradesh', 'Uttar Pradesh', 'Maharashtra', 'Punjab', 'Tamil Nadu', 'West Bengal', 'Kerala', 'Gujarat']
     
     # model details 
     gamma      = 0.2
@@ -137,7 +137,7 @@ if __name__ == "__main__":
                 ts['Hospitalized'] *= prevalence
         grd = {district: run_regressions(timeseries, window = 3, infectious_period = 1/gamma) for (district, timeseries) in tsd.items() if len(timeseries) > 3}
     
-        Rv = {district: np.mean(grd[district]["2020-03-24":"2020-03-31"].R) if district in grd.keys() else Rvs[state]  for district in districts}
+        Rv = {district: np.mean(grd[district]["2020-03-24":"2020-03-31"].R) if district in grd.keys() else Rvs[state] for district in districts}
         Rm = {district: np.mean(grd[district]["2020-04-01":].R)             if district in grd.keys() else Rms[state] for district in districts}
 
         # fil in missing values 
@@ -168,7 +168,7 @@ if __name__ == "__main__":
         ## adaptive release starting 03 may 
         beta_v = {district: R * gamma for (district, R) in Rv.items()}
         beta_m = {district: R * gamma for (district, R) in Rm.items()}
-        adaptive = get_model(districts, populations, tsd, seed)
+        adaptive = get_model(districts, populations, tsd, seed).set_parameters(RR0 = Rm)
         simulate_adaptive_control(adaptive, 10*days, total_time, lockdown, migrations, beta_v, beta_m)
         plot_curve(
             [release_03_may, release_31_may, adaptive], 
