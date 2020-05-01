@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.spatial import distance_matrix
+import matplotlib.pyplot as plt 
 
 from adaptive.model import Model, ModelUnit
 from adaptive.plotting import plot_SIRD
@@ -19,4 +20,5 @@ units = lambda rr0: [ModelUnit(name = name, population = pop, RR0 = rr0) for (na
 
 # run and plot 
 m1_9 = Model(units(1.9), P, 0).run(200)
-plot_SIRD(m1_9).show()
+plot_SIRD(m1_9, title = "Four-State Toy Model", xlabel="Time", ylabel="S/I/R/D", subtitle="No Adaptive Controls")
+plt.show()

@@ -16,7 +16,7 @@ an extension of a real-time Bayesian reproductive number estimation model for pa
 
 # data source notes
 - India base demographic data provided by Anand Sahasranaman 
-- India migration data from Clement
+- India migration data from Clement Imbert
 - India administrative data labels from Sam Asher
 - Mumbai inter-ward travel from Vaidehi Tandel 
 - Mumbai ward shape files from Hindustan Times
