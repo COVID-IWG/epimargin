@@ -16,4 +16,7 @@ an extension of the real-time Bayesian reproductive number model that:
 
 # data source notes
 - India base demographic data provided by Anand Sahasranaman 
-- 
+- India migration data from 
+- India administrative data labels from Sam Asher
+- Mumbai inter-ward travel from Vaidehi Tandel 
+- Mumbai ward shape files from Hindustan Times
