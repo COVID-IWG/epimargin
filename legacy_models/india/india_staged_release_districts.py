@@ -16,15 +16,6 @@ from model import Model, ModelUnit
 sns.set(style = "whitegrid", palette = "bright", font="Fira Code")
 sns.despine()
 
-def create_empirical_migration_matrix(
-    census_path:     Path, 
-    migrations_path: Path, 
-    output_path    : Path) -> pd.DataFrame:
-    # load in census metadata 
-    census = pd.read_csv(census_path, use_cols = "District")
-    splits = census["District"].str.split(",", expand=True)
-    # load in observed migrations 
-
 def load_population_data(pop_path: Path) -> pd.DataFrame:
     return pd.read_csv(pop_path, names = ["name", "pop"])\
              .sort_values("name")

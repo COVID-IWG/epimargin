@@ -13,6 +13,7 @@ parso==0.7.0
 patsy==0.5.1
 pexpect==4.8.0
 pickleshare==0.7.5
+Pillow==7.1.2
 prompt-toolkit==3.0.5
 ptyprocess==0.6.0
 Pygments==2.6.1
@@ -23,5 +24,6 @@ scipy==1.4.1
 seaborn==0.10.0
 six==1.14.0
 statsmodels==0.11.1
+tikzplotlib==0.9.1
 traitlets==4.3.3
 wcwidth==0.1.9

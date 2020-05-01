@@ -7,12 +7,12 @@ class ModelUnit():
         name:              str,             # name of unit
         population:        int,             # unit population
         I0:       Optional[int]  = None,    # initial infected, None -> Poisson random intro 
-        R0:                int   = 0,       # initial infected
-        D0:                int   = 0,       # initial infected
+        R0:                int   = 0,       # initial recovered
+        D0:                int   = 0,       # initial dead
         infectious_period: int   = 5,       # how long disease is communicable in days 
         introduction_rate: float = 5.0,     # parameter for new community transmissions (lambda) 
         mortality:         float = 0.02,    # I -> D transition probability 
-        mobility:          float = 0.000001, # percentage of total population migrating out at each timestep 
+        mobility:          float = 0.0001, # percentage of total population migrating out at each timestep 
         RR0:               float = 1.9):    # initial reproductive rate 
         
         # save params 
@@ -60,7 +60,7 @@ class ModelUnit():
         b  = np.exp(self.gamma * (RR - 1))
 
         rate_T    = (delta_B + b * (self.delta_T[-1] - delta_B) + self.gamma * RR * delta_B)
-        num_cases = np.random.poisson(rate_T)
+        num_cases = np.random.poisson(max(0, rate_T))
 
         I += num_cases
         S -= num_cases
@@ -98,13 +98,14 @@ class ModelUnit():
         return f"ModelUnit[{self.name}]"
 
 class Model():
-    def __init__(self, num_days: int, units: Sequence[ModelUnit], migrations: np.matrix):
-        self.num_days   = num_days
+    def __init__(self, units: Sequence[ModelUnit], default_migrations: Optional[np.matrix] = None, random_seed : Optional[int] = None):
         self.units      = units
-        self.migrations = migrations
+        self.migrations = default_migrations
         self.names      = {unit.name: unit for unit in units}
+        if random_seed:
+            np.random.seed(random_seed)
 
-    def tick(self):
+    def tick(self, migrations: np.matrix):
         # run migration step 
         outflux       = [unit.migration_step() for unit in self.units]
         transmissions = [flux * self.migrations[i, :].sum() for (i, flux) in enumerate(outflux)]
@@ -113,9 +114,11 @@ class Model():
         for (unit, tmx) in zip(self.units, transmissions):
             unit.forward_epi_step(tmx)
 
-    def run(self):
-        for _ in range(self.num_days):
-            self.tick()
+    def run(self, days: int, migrations: Optional[np.matrix] = None):
+        if not migrations:
+            migrations = self.migrations
+        for _ in range(days):
+            self.tick(migrations)
         return self 
 
     def __iter__(self) -> Iterator[ModelUnit]:
@@ -126,6 +129,23 @@ class Model():
         if isinstance(idx, int):
             return self.units[idx]
         return self.names[idx]
+
+    def set_parameters(self, **kwargs):
+        for (attr, val) in kwargs.items():
+            if callable(val):
+                if val.__code__.co_argcount == 1:
+                    for unit in self.units:
+                        unit.__setattr__(attr, val(unit))
+                else: 
+                    for (i, unit) in enumerate(self.units):
+                        unit.__setattr__(attr, val(i, unit))
+            elif isinstance(val, dict):
+                for unit in self.units:
+                    unit.__setattr__(attr, val[unit.name])
+            else: 
+                for unit in self.units:
+                    unit.__setattr__(attr, val)
+        return self 
 
     def aggregate(self, curves: Union[Sequence[str], str] = ["RR", "b", "S", "I", "R", "D", "P", "beta"]) -> Union[Dict[str, Sequence[float]], Sequence[float]]:
         if isinstance(curves, str):

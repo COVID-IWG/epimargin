@@ -173,9 +173,9 @@ if __name__ == "__main__":
     #     seedpath.mkdir()
     # for (A, B, C) in zip(model_A_2, model_B_2, model_C):
     #     plt.figure()
-    #     plt.semilogy(A.I, label = "Policy A") 
-    #     plt.semilogy(B.I, label = "Policy B") 
-    #     plt.semilogy(C.I, label = "Policy C") 
+    #     plt.semilogy(A.I, label = "03 May release") 
+    #     plt.semilogy(B.I, label = "31 May release") 
+    #     plt.semilogy(C.I, label = "adaptive release") 
     #     plt.title(A.name) 
     #     plt.xlabel("Days Since April 23") 
     #     plt.ylabel("Number of Infections") 
