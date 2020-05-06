@@ -27,7 +27,7 @@ def simulate_adaptive_control(model: Model, initial_run: int, total_time: int, l
                 Gs.add(i)
                 beta_cat = 0
             else: 
-                if days_run < evaluation_period: # force first period to be lockdown
+                if days_run < initial_run + evaluation_period: # force first period to be lockdown
                     Rs.add(i)
                     beta_cat = 3
                 else: 
