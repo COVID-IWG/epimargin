@@ -2,13 +2,14 @@
 
 # summary
 an extension of a real-time Bayesian reproductive number estimation model for pandemic tracking that: 
-1. runs a rolling regression to get a real time estimate of <i>R(t)</i>
+1. runs a rolling regression to get a real time estimate of <i>R<sub>t</sub></i>
 2. builds a graph of interactions between geographic units accounting for migratory (re-)introductions
 3. at each <i>t</i> from <i>t<sub>i</sub></i> to <i>t<sub>f</sub></i>:
 
    - runs the standard SIRD forward epidemiological model 
 
-   - simulates a migration out of each state to all other states (used as introductions at time <i>t+1</i>)
+   - simulates a migration out of each state to all other states (used as introductions at time <i>t</i>+1)
+4. (optionally) projects SIRD curves under various policy scenarios and epidemiological parameters 
 
 # organization
 - `adaptive` - core package with model and estimator classes 
