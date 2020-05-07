@@ -14,8 +14,8 @@ from adaptive.estimators import rollingOLS as run_regressions
 from adaptive.model import Model, ModelUnit
 # from adaptive.plotting import plot_curve, gantt_chart
 from adaptive.utils import *
+from adaptive.policy import * 
 from etl import district_migration_matrices, get_time_series, load_data, v2
-from adaptive.policy import simulate_adaptive_control_MHA
 
 def plot_historical(all_cases: pd.DataFrame, models: Sequence[Model], labels: Sequence[str], title, xlabel, ylabel, subtitle = None, curve: str = "I", filename = None):
     fig = plt.figure()
@@ -41,14 +41,12 @@ def plot_historical(all_cases: pd.DataFrame, models: Sequence[Model], labels: Se
 
 def gantt_chart(gantt_data, start_date, title, subtitle = None, filename: Optional[Path] = None):
     gantt_df = pd.DataFrame(gantt_data, columns = ["district", "day", "beta", "R"])
-    gantt_df = gantt_df[gantt_df.day < 180]
     gantt_pv = gantt_df.pivot("district", "day", values = ["beta", "R"])
     start_timestamp = pd.to_datetime(start_date)
-    num_levels = len(gantt_df.beta.unique())
     xlabels = [start_timestamp + pd.Timedelta(days = n) for n in gantt_df.day.unique()]
     ax = sns.heatmap(gantt_pv["beta"], linewidths = 2, alpha = 0.8, 
         annot = gantt_pv["R"], annot_kws={"size": 8},
-        cmap = ["#38AE66", "#FFF3B4", "#FD8B5A", "#D63231"] if num_levels == 4 else ["#38AE66", "#FFF3B4", "#FD8B5A"],
+        cmap = ["#38AE66", "#FFF3B4", "#FD8B5A", "#D63231"],
         cbar = False,
         xticklabels=[str(xl.day) + " " + xl.month_name()[:3] for xl in xlabels],
         yticklabels = gantt_df["district"].unique(),
@@ -69,7 +67,7 @@ def gantt_chart(gantt_data, start_date, title, subtitle = None, filename: Option
     plt.suptitle(title)
     plt.tight_layout()
     # plt.gcf().autofmt_xdate()
-    plt.gcf().subplots_adjust(left=0.10, bottom=0.10, top = 0.94)
+    plt.gcf().subplots_adjust(left=0.10, bottom=0.10)
 
 def get_model(districts, populations, timeseries, seed = 0):
     units = [ModelUnit(
@@ -89,7 +87,7 @@ def simulate_lockdown(model: Model, lockdown_period: int, total_time: int, RR0_m
         .run(total_time - lockdown_period, migrations = migrations)
 
 # policy C: adaptive release
-def simulate_adaptive_control(model: Model, initial_run: int, total_time: int, lockdown: np.matrix, migrations: np.matrix, beta_v: Dict[str, float], beta_m: Dict[str, float], evaluation_period = 2*weeks):
+def simulate_adaptive_control(model: Model, initial_run: int, total_time: int, lockdown: np.matrix, migrations: np.matrix, beta_v: Dict[str, float], beta_m: Dict[str, float], evaluation_period = 1*weeks):
     n = len(model)
     # model.run(initial_run, lockdown)
     days_run = initial_run
@@ -104,7 +102,7 @@ def simulate_adaptive_control(model: Model, initial_run: int, total_time: int, l
                 Gs.add(i)
                 beta_cat = 0
             else: 
-                if days_run < evaluation_period + initial_run: # force first period to be lockdown
+                if days_run < evaluation_period + days_run: # force first period to be lockdown
                     Rs.add(i)
                     beta_cat = 3
                 else: 
@@ -155,7 +153,7 @@ def run(seed, state):
     # simulation parameters 
     # seed       = 0
     # total_time = 190 * days 
-    total_time = 250 * days 
+    total_time = 190 * days 
     # states     = ['Andhra Pradesh', 'Uttar Pradesh', 'Maharashtra', 'Punjab', 'Tamil Nadu', 'West Bengal', 'Kerala', 'Gujarat'][2:3]
     states = [state]
     
@@ -166,14 +164,14 @@ def run(seed, state):
     # run rolling regressions on historical national case data 
     dfn = load_data(data/"india_case_data_23_4_resave.csv", reduced = True, schema = v2).dropna(subset = ["detected district"]) # can't do anything about this :( 
     tsn = get_time_series(dfn)
-    grn = run_regressions(tsn, window = 9, infectious_period = 1/gamma)
+    grn = run_regressions(tsn, window = 7, infectious_period = 1/gamma)
 
     # disaggregate down to states
     dfs = {state: dfn[dfn["detected state"] == state] for state in states}
     tss = {state: get_time_series(cases) for (state, cases) in dfs.items()}
     for (_, ts) in tss.items():
         ts['Hospitalized'] *= prevalence
-    grs = {state: run_regressions(timeseries, window = 9, infectious_period = 1/gamma) for (state, timeseries) in tss.items() if len(timeseries) > 9}
+    grs = {state: run_regressions(timeseries, window = 3, infectious_period = 1/gamma) for (state, timeseries) in tss.items() if len(timeseries) > 3}
     
     # voluntary and mandatory reproductive numbers
     Rvn = np.mean(grn["2020-03-24":"2020-03-31"].R)
@@ -197,7 +195,7 @@ def run(seed, state):
         for (_, ts) in tsd.items():
             if 'Hospitalized' in ts:
                 ts['Hospitalized'] *= prevalence
-        grd = {district: run_regressions(timeseries, window = 5, infectious_period = 1/gamma) for (district, timeseries) in tsd.items() if len(timeseries) > 5}
+        grd = {district: run_regressions(timeseries, window = 3, infectious_period = 1/gamma) for (district, timeseries) in tsd.items() if len(timeseries) > 3}
     
         Rv = {district: np.mean(grd[district]["2020-03-24":"2020-03-31"].R) if district in grd.keys() else Rvs[state] for district in districts}
         Rm = {district: np.mean(grd[district]["2020-04-01":].R)             if district in grd.keys() else Rms[state] for district in districts}
@@ -233,7 +231,7 @@ def run(seed, state):
         adaptive = get_model(districts, populations, tsd, seed).set_parameters(RR0 = Rm)\
             .run(10, lockdown)\
             .set_parameters(RR0 = Rv)
-        simulate_adaptive_control(adaptive, 10*days, total_time, lockdown, migrations, beta_v, beta_m, evaluation_period=1*weeks)
+        simulate_adaptive_control(adaptive, 10*days, total_time, lockdown, migrations, beta_v, beta_m, evaluation_period=2*weeks)
         # plot_historical(tss[state],
         #     [release_03_may, release_31_may, adaptive], 
         #     ["03 May Release", "31 May Release", "Adaptive Release"], 
@@ -248,6 +246,109 @@ def run(seed, state):
         out[state] = ((release_03_may, release_31_may, adaptive))
     return out 
 
+
+def run_ACs(seed, state):
+    # set up folders
+    root = cwd()
+    data = root/"data"
+    figs = root/"figs"
+    if not figs.exists():
+        figs.mkdir()
+
+    # simulation parameters 
+    # seed       = 0
+    # total_time = 190 * days 
+    total_time = 190 * days 
+    # states     = ['Andhra Pradesh', 'Uttar Pradesh', 'Maharashtra', 'Punjab', 'Tamil Nadu', 'West Bengal', 'Kerala', 'Gujarat'][2:3]
+    states = [state]
+    
+    # model details 
+    gamma      = 0.2
+    prevalence = 1
+
+    # run rolling regressions on historical national case data 
+    dfn = load_data(data/"india_case_data_23_4_resave.csv", reduced = True, schema = v2).dropna(subset = ["detected district"]) # can't do anything about this :( 
+    tsn = get_time_series(dfn)
+    grn = run_regressions(tsn, window = 7, infectious_period = 1/gamma)
+
+    # disaggregate down to states
+    dfs = {state: dfn[dfn["detected state"] == state] for state in states}
+    tss = {state: get_time_series(cases) for (state, cases) in dfs.items()}
+    for (_, ts) in tss.items():
+        ts['Hospitalized'] *= prevalence
+    grs = {state: run_regressions(timeseries, window = 3, infectious_period = 1/gamma) for (state, timeseries) in tss.items() if len(timeseries) > 3}
+    
+    # voluntary and mandatory reproductive numbers
+    Rvn = np.mean(grn["2020-03-24":"2020-03-31"].R)
+    Rmn = np.mean(grn["2020-04-01":].R)
+    Rvs = {s: np.mean(grs[s]["2020-03-24":"2020-03-31"].R) if s in grs else Rvn for s in states}
+    Rms = {s: np.mean(grs[s]["2020-04-01":].R)             if s in grs else Rmn for s in states}
+
+    # voluntary and mandatory distancing rates 
+    Bvs = {s: R * gamma for (s, R) in Rvs.items()}
+    Bms = {s: R * gamma for (s, R) in Rms.items()}
+
+    migration_matrices = district_migration_matrices(data/"Migration Matrix - District.csv", states = states)
+
+    out = dict()
+
+    for state in states: 
+        districts, populations, migrations = migration_matrices[state]
+        df_state = dfs[state]
+        dfd = {district: df_state[df_state["detected district"] == district] for district in districts}
+        tsd = {district: get_time_series(cases) for (district, cases) in  dfd.items()}
+        for (_, ts) in tsd.items():
+            if 'Hospitalized' in ts:
+                ts['Hospitalized'] *= prevalence
+        grd = {district: run_regressions(timeseries, window = 3, infectious_period = 1/gamma) for (district, timeseries) in tsd.items() if len(timeseries) > 3}
+    
+        Rv = {district: np.mean(grd[district]["2020-03-24":"2020-03-31"].R) if district in grd.keys() else Rvs[state] for district in districts}
+        Rm = {district: np.mean(grd[district]["2020-04-01":].R)             if district in grd.keys() else Rms[state] for district in districts}
+
+        # # fil in missing values 
+        for mapping, default in ((Rv, Rvs[state]), (Rm, Rms[state])):
+            for key in mapping:
+                if np.isnan(mapping[key]):
+                    mapping[key] = default
+
+        # # policy scenarios: 
+        lockdown = np.zeros(migrations.shape)
+        beta_v = {district: R * gamma for (district, R) in Rv.items()}
+        beta_m = {district: R * gamma for (district, R) in Rm.items()}
+        
+        adaptive1 = get_model(districts, populations, tsd, seed).set_parameters(RR0 = Rm)\
+            .run(10, lockdown)\
+            .set_parameters(RR0 = Rv)
+        simulate_adaptive_control(adaptive1, 10*days, total_time, lockdown, migrations, beta_v, beta_m, evaluation_period=2*weeks)
+        
+        adaptive2 = get_model(districts, populations, tsd, seed).set_parameters(RR0 = Rm)\
+            .run(10, lockdown)\
+            .set_parameters(RR0 = Rv)
+        simulate_adaptive_control(adaptive2, 10*days, total_time, lockdown, migrations, beta_v, beta_m, evaluation_period=2*weeks)
+        
+        adaptive3 = get_model(districts, populations, tsd, seed).set_parameters(RR0 = Rm)\
+            .run(10, lockdown)\
+            .set_parameters(RR0 = Rv)
+        simulate_adaptive_control(adaptive3, 10*days, total_time, lockdown, migrations, beta_v, beta_m, evaluation_period=2*weeks)
+        
+        adaptive4 = get_model(districts, populations, tsd, seed).set_parameters(RR0 = Rm)\
+            .run(10, lockdown)\
+            .set_parameters(RR0 = Rv)
+        simulate_adaptive_control_MHA(adaptive4, 10*days, total_time, lockdown, migrations, beta_v, beta_m, evaluation_period=2*weeks)
+        # plot_historical(tss[state],
+        #     [release_03_may, release_31_may, adaptive], 
+        #     ["03 May Release", "31 May Release", "Adaptive Release"], 
+        #     title = state, xlabel = "Date", ylabel = "Number of Infections", subtitle = None
+        # )
+
+        # plt.show()
+
+        # gantt_chart(adaptive.gantt, "Days Since April 23", "Release Strategy")
+        
+        # plt.show()
+        out[state] = (adaptive1, adaptive2, adaptive3, adaptive4)
+    return out 
+
 if __name__ == "__main__":
 
     # for seed in (108, 2000, 25, 33): 
@@ -256,66 +357,43 @@ if __name__ == "__main__":
     #     plt.subplots_adjust(0.08, 0.08, 0.97, 0.94)
     #     plt.show()
     
-    sns.set(style="whitegrid", palette="bright", font="Fira Code")
-
-    # for state in ["Andhra Pradesh"]:#['Andhra Pradesh', 'Uttar Pradesh', 'Punjab', 'Tamil Nadu', 'Kerala', 'Gujarat']:
-    #     run(99, state)
+    sns.set(style="whitegrid", font="Fira Code")
     root = cwd()
     data = root/"data"
-
-    states  = ["Punjab"] #['Bihar', 'Andhra Pradesh',  'Tamil Nadu', 'Kerala', 'Madhya Pradesh', 'Jammu and Kashmir']
-    dfn = load_data(data/"india_case_data_23_4_resave.csv", reduced = True, schema = v2).dropna(subset = ["detected district"]) # can't do anything about this :( 
-    dfs = {state: dfn[dfn["detected state"] == state] for state in states}
+    # states     = ["Tamil Nadu", 'Bihar', 'Andhra Pradesh', 'Uttar Pradesh', 'Maharashtra', 'Punjab', 'West Bengal', 'Kerala', 'Gujarat']
+    states     = ['Bihar', 'Punjab', 'Kerala']
     aggs = {state: [] for state in states}
 
-    proj_a = {state: [] for state in states}
-    proj_b = {state: [] for state in states}
-    proj_c = {state: [] for state in states}
-
+    ld_a = {state: [] for state in states}
+    ld_b = {state: [] for state in states}
+    ld_c = {state: [] for state in states}
+    ld_d = {state: [] for state in states}
+    
     ts = dict()
+
+    dfn = load_data(data/"india_case_data_23_4_resave.csv", reduced = True, schema = v2).dropna(subset = ["detected district"]) # can't do anything about this :( 
+    dfs = {state: dfn[dfn["detected state"] == state] for state in states}
 
     for state in states: 
         for seed in tqdm(range(10)):
-            run_out = run(2*11235813 - 2*seed, state)
+            run_out = run_ACs(seed, state)
             for state in run_out.keys():
                 aggs[state].append(run_out[state])
-        ma, mb, mc = list(zip(*aggs[state]))
-        proj_a[state].append([m.aggregate("I") for m in ma])
-        proj_b[state].append([m.aggregate("I") for m in mb])
-        proj_c[state].append([m.aggregate("I") for m in mc])
+        ma, mb, mc, md = list(zip(*aggs[state]))
+        ld_a[state].append([m.aggregate("I") for m in ma])
+        ld_b[state].append([m.aggregate("I") for m in mb])
+        ld_c[state].append([m.aggregate("I") for m in mc])
+        ld_d[state].append([m.aggregate("I") for m in md])
         # Ic = [m.aggregate("I") for m in mc]
 
-    for (state, agg) in aggs.items():
-        print(state)
-        for (i, curve) in enumerate(agg): 
-            print("  ", i, set(tup[2] for tup in curve[-1].gantt))
-
     # import json 
-    # # json.dump(proj_a, open("proj_a.json", "w"))
-    # # json.dump(proj_b, open("proj_b.json", "w"))
-    # # json.dump(proj_c, open("proj_c.json", "w"))
+    # json.dump(ld_a, open("ld_a.json", "w"))
+    # json.dump(ld_b, open("ld_b.json", "w"))
+    # json.dump(ld_c, open("ld_c.json", "w"))
 
-    # proj_a = json.load((data/"proj_a.json").open())
-    # proj_b = json.load((data/"proj_b.json").open())
-    # proj_c = json.load((data/"proj_c.json").open())
-
-    # states = ['Kerala', 'Rajasthan', 'Haryana',
-    #    'Uttar Pradesh', 'Tamil Nadu','Jammu and Kashmir',
-    #    'Karnataka', 'Maharashtra', 'Punjab', 'Andhra Pradesh',
-       
-    # states = [ 'Odisha',
-    #        'Chhattisgarh', 'Gujarat', 'Himachal Pradesh', 'Madhya Pradesh',
-    #    'Bihar','Meghalaya']
     for state in states:
-        # for idx in [0, 1, 2]:
-        #     gantt_chart(aggs[state][idx][-1].gantt, "April 23, 2020", f"Mobility Regime for {state} (Adaptive Lockdown)")
-        #     plt.show()
-
-        print(state)
         cases = dfs[state]
         ts[state] = get_time_series(cases)
-
-        sns.set(style="whitegrid", palette="bright", font="Fira Code")
 
         Ia_min = []
         Ia_max = []
@@ -329,36 +407,48 @@ if __name__ == "__main__":
         Ic_max = []
         Ic_mdn = []
 
-        for t in range(240):
-            Ia_sorted = sorted([ts[t] for ts in proj_a[state][0] if t < len(ts)])
+        Id_min = []
+        Id_max = []
+        Id_mdn = []
+
+        for t in range(120):
+            Ia_sorted = sorted([ts[t] for ts in ld_a[state][0] if t < len(ts)])
             Ia_min.append(Ia_sorted[0])
             Ia_max.append(Ia_sorted[-1])
             Ia_mdn.append(Ia_sorted[len(Ia_sorted)//2])
 
-            Ib_sorted = sorted([ts[t] for ts in proj_b[state][0] if t < len(ts)])
+            Ib_sorted = sorted([ts[t] for ts in ld_b[state][0] if t < len(ts)])
             Ib_min.append(Ib_sorted[0])
             Ib_max.append(Ib_sorted[-1])
             Ib_mdn.append(Ib_sorted[len(Ib_sorted)//2])
             
-            Ic_sorted = sorted([ts[t] for ts in proj_c[state][0] if t < len(ts)])
+            Ic_sorted = sorted([ts[t] for ts in ld_c[state][0] if t < len(ts)])
             Ic_min.append(Ic_sorted[0])
             Ic_max.append(Ic_sorted[-1])
             Ic_mdn.append(Ic_sorted[len(Ic_sorted)//2])
+            
+            Id_sorted = sorted([ts[t] for ts in ld_d[state][0] if t < len(ts)])
+            Id_min.append(Id_sorted[0])
+            Id_max.append(Id_sorted[-1])
+            Id_mdn.append(Id_sorted[len(Id_sorted)//2])
 
         th = ts[state].index
 
         ts[state]["Hospitalized"].iloc[-1] = Ia_mdn[0]
         plt.semilogy(th, ts[state]["Hospitalized"], 'k-', label = "Empirical Case Data", linewidth = 3)
 
-        xp = [th.max() + pd.Timedelta(days = n) for n in range(240)]
-        plt.semilogy(xp, Ia_mdn, label = "03 May Release", linewidth = 3)
-        plt.fill_between(xp, Ia_min, Ia_max, alpha = 0.3)
+        xp = [th.max() + pd.Timedelta(days = n) for n in range(120)]
+        plt.semilogy(xp, Ia_mdn, label = "AC (cutoffs = 1, 1.5, 2)", linewidth = 3, color = "#01C23B")
+        plt.fill_between(xp, Ia_min, Ia_max, alpha = 0.1, color = "#01C23B")
         
-        plt.semilogy(xp, Ib_mdn, label = "31 May Release", linewidth = 3)
-        plt.fill_between(xp, Ib_min, Ib_max, alpha = 0.3)
+        plt.semilogy(xp, Ib_mdn, label = "AC (cutoffs = 1, 1.2, 1.5)", linewidth = 3, color = "#9b59b6")
+        plt.fill_between(xp, Ib_min, Ib_max, alpha = 0.1, color = "#9b59b6")
 
-        plt.semilogy(xp, Ic_mdn, label = "Adaptive Control", linewidth = 3)
-        plt.fill_between(xp, Ic_min, Ic_max, alpha = 0.3)
+        plt.semilogy(xp, Ic_mdn, label = "AC (cutoffs = 1, 1.8, 2.5)", linewidth = 3, color = "#e74c3c")
+        plt.fill_between(xp, Ic_min, Ic_max, alpha = 0.1, color = "#e74c3c")
+
+        plt.semilogy(xp, Id_mdn, label = "AC (MHA starting point)", linewidth = 3, color = "#881161")
+        plt.fill_between(xp, Id_min, Id_max, alpha = 0.1, color = "#881161")
         
         plt.xlabel("Date")
         plt.ylabel("Number of Infections")
@@ -369,3 +459,7 @@ if __name__ == "__main__":
         plt.legend()
         plt.show()
 
+        # gantt_chart(aggs[state][-1][0].gantt, "April 23, 2020", f"Mobility Regime for {state} Districts (Bi-Weekly Evaluation, Adaptive Control)")
+        # plt.show()
+        # gantt_chart(aggs[state][-1][-1].gantt, "April 23, 2020", f"Mobility Regime for {state} Districts (Bi-Weekly Evaluation, MHA Starting Point)")
+        # plt.show()
