@@ -144,15 +144,15 @@ if __name__ == "__main__":
 
     # _, _, model_Cw = run_policies(ward_cases, population_data, wards, migrations, gamma, Rmw, Rvw, total = 90*days, eval_period = 1*weeks, seed = seed)
 
-    for i in range(20):
-        model_A, model_B, model_C = run_policies(ward_cases, population_data, wards, migrations, gamma, Rmw, Rvw, total = 188*days, eval_period = 1*weeks, seed = i)
+    for i in range(1):
+        model_A, model_B, model_C = run_policies(ward_cases, population_data, wards, migrations, gamma, Rmw, Rvw, total = 188*days, eval_period = 2*weeks, seed = i)
 
     # plot_historical(all_cases, [model_A, model_B, model_C], 
     #     ["Release on 05 May", "Release on 02 Jun", "Adaptive Controls from 05 May"], 
     #     "Mumbai", None, "Daily Infections", "Ward-Level Adaptive Controls")
     # plt.show()
 
-        gantt_chart(model_C.gantt, "April 25, 2020", "Release Schedule by Ward (Weekly Evaluation)")
+        gantt_chart(model_C.gantt, "April 25, 2020", "Release Schedule by Ward (Bi-Weekly Evaluation)")
         plt.show()
 
     # simulation_results = [ 

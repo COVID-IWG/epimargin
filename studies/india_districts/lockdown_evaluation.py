@@ -166,14 +166,14 @@ def run(seed, state):
     # run rolling regressions on historical national case data 
     dfn = load_data(data/"india_case_data_23_4_resave.csv", reduced = True, schema = v2).dropna(subset = ["detected district"]) # can't do anything about this :( 
     tsn = get_time_series(dfn)
-    grn = run_regressions(tsn, window = 9, infectious_period = 1/gamma)
+    grn = run_regressions(tsn, window = 5, infectious_period = 1/gamma)
 
     # disaggregate down to states
     dfs = {state: dfn[dfn["detected state"] == state] for state in states}
     tss = {state: get_time_series(cases) for (state, cases) in dfs.items()}
     for (_, ts) in tss.items():
         ts['Hospitalized'] *= prevalence
-    grs = {state: run_regressions(timeseries, window = 9, infectious_period = 1/gamma) for (state, timeseries) in tss.items() if len(timeseries) > 9}
+    grs = {state: run_regressions(timeseries, window = 5, infectious_period = 1/gamma) for (state, timeseries) in tss.items() if len(timeseries) > 5}
     
     # voluntary and mandatory reproductive numbers
     Rvn = np.mean(grn["2020-03-24":"2020-03-31"].R)
@@ -249,13 +249,6 @@ def run(seed, state):
     return out 
 
 if __name__ == "__main__":
-
-    # for seed in (108, 2000, 25, 33): 
-    #     ma, mb, mc = run(seed, "Bihar")["Bihar"]
-    #     gantt_chart(mc.gantt, "April 23, 2020", "Mobility Regime for Bihar Districts (Bi-Weekly Evaluation)")
-    #     plt.subplots_adjust(0.08, 0.08, 0.97, 0.94)
-    #     plt.show()
-    
     sns.set(style="whitegrid", palette="bright", font="Fira Code")
 
     # for state in ["Andhra Pradesh"]:#['Andhra Pradesh', 'Uttar Pradesh', 'Punjab', 'Tamil Nadu', 'Kerala', 'Gujarat']:
@@ -263,7 +256,10 @@ if __name__ == "__main__":
     root = cwd()
     data = root/"data"
 
-    states  = ["Punjab"] #['Bihar', 'Andhra Pradesh',  'Tamil Nadu', 'Kerala', 'Madhya Pradesh', 'Jammu and Kashmir']
+    "Andhra Pradesh", "Tamil Nadu", "Maharashtra",
+    # states  = ["Madhya Pradesh", "Punjab", "Bihar", "Gujarat", "Kerala"]
+    states = ["Maharashtra"]
+    #TN, 
     dfn = load_data(data/"india_case_data_23_4_resave.csv", reduced = True, schema = v2).dropna(subset = ["detected district"]) # can't do anything about this :( 
     dfs = {state: dfn[dfn["detected state"] == state] for state in states}
     aggs = {state: [] for state in states}
@@ -275,20 +271,26 @@ if __name__ == "__main__":
     ts = dict()
 
     for state in states: 
-        for seed in tqdm(range(10)):
-            run_out = run(2*11235813 - 2*seed, state)
+        for seed in tqdm(list(range(5))):
+            run_out = run(11111 + seed, state)
             for state in run_out.keys():
-                aggs[state].append(run_out[state])
+                runs = run_out[state]
+                aggs[state].append(runs)
+                plt.figure()
+                gantt_chart(runs[-1].gantt, "April 23, 2020", f"Mobility Regime for {state} Districts (Weekly Evaluation)")
+        plt.show()
         ma, mb, mc = list(zip(*aggs[state]))
-        proj_a[state].append([m.aggregate("I") for m in ma])
-        proj_b[state].append([m.aggregate("I") for m in mb])
-        proj_c[state].append([m.aggregate("I") for m in mc])
+        # proj_a[state].append([m.aggregate("I") for m in ma])
+        # proj_b[state].append([m.aggregate("I") for m in mb])
+        # proj_c[state].append([m.aggregate("I") for m in mc])
+
         # Ic = [m.aggregate("I") for m in mc]
 
-    for (state, agg) in aggs.items():
-        print(state)
-        for (i, curve) in enumerate(agg): 
-            print("  ", i, set(tup[2] for tup in curve[-1].gantt))
+    
+    # for (state, agg) in aggs.items():
+    #     print(state)
+    #     for (i, curve) in enumerate(agg): 
+    #         print("  ", i, set(tup[2] for tup in curve[-1].gantt))
 
     # import json 
     # # json.dump(proj_a, open("proj_a.json", "w"))
@@ -306,66 +308,66 @@ if __name__ == "__main__":
     # states = [ 'Odisha',
     #        'Chhattisgarh', 'Gujarat', 'Himachal Pradesh', 'Madhya Pradesh',
     #    'Bihar','Meghalaya']
-    for state in states:
-        # for idx in [0, 1, 2]:
-        #     gantt_chart(aggs[state][idx][-1].gantt, "April 23, 2020", f"Mobility Regime for {state} (Adaptive Lockdown)")
-        #     plt.show()
+    # for state in states:
+    #     # for idx in [0, 1, 2]:
+    #     #     gantt_chart(aggs[state][idx][-1].gantt, "April 23, 2020", f"Mobility Regime for {state} (Adaptive Lockdown)")
+    #     #     plt.show()
 
-        print(state)
-        cases = dfs[state]
-        ts[state] = get_time_series(cases)
+    #     print(state)
+    #     cases = dfs[state]
+    #     ts[state] = get_time_series(cases)
 
-        sns.set(style="whitegrid", palette="bright", font="Fira Code")
+    #     sns.set(style="whitegrid", palette="bright", font="Fira Code")
 
-        Ia_min = []
-        Ia_max = []
-        Ia_mdn = []
+    #     Ia_min = []
+    #     Ia_max = []
+    #     Ia_mdn = []
 
-        Ib_min = []
-        Ib_max = []
-        Ib_mdn = []
+    #     Ib_min = []
+    #     Ib_max = []
+    #     Ib_mdn = []
 
-        Ic_min = []
-        Ic_max = []
-        Ic_mdn = []
+    #     Ic_min = []
+    #     Ic_max = []
+    #     Ic_mdn = []
 
-        for t in range(240):
-            Ia_sorted = sorted([ts[t] for ts in proj_a[state][0] if t < len(ts)])
-            Ia_min.append(Ia_sorted[0])
-            Ia_max.append(Ia_sorted[-1])
-            Ia_mdn.append(Ia_sorted[len(Ia_sorted)//2])
+    #     for t in range(240):
+    #         Ia_sorted = sorted([ts[t] for ts in proj_a[state][0] if t < len(ts)])
+    #         Ia_min.append(Ia_sorted[0])
+    #         Ia_max.append(Ia_sorted[-1])
+    #         Ia_mdn.append(Ia_sorted[len(Ia_sorted)//2])
 
-            Ib_sorted = sorted([ts[t] for ts in proj_b[state][0] if t < len(ts)])
-            Ib_min.append(Ib_sorted[0])
-            Ib_max.append(Ib_sorted[-1])
-            Ib_mdn.append(Ib_sorted[len(Ib_sorted)//2])
+    #         Ib_sorted = sorted([ts[t] for ts in proj_b[state][0] if t < len(ts)])
+    #         Ib_min.append(Ib_sorted[0])
+    #         Ib_max.append(Ib_sorted[-1])
+    #         Ib_mdn.append(Ib_sorted[len(Ib_sorted)//2])
             
-            Ic_sorted = sorted([ts[t] for ts in proj_c[state][0] if t < len(ts)])
-            Ic_min.append(Ic_sorted[0])
-            Ic_max.append(Ic_sorted[-1])
-            Ic_mdn.append(Ic_sorted[len(Ic_sorted)//2])
+    #         Ic_sorted = sorted([ts[t] for ts in proj_c[state][0] if t < len(ts)])
+    #         Ic_min.append(Ic_sorted[0])
+    #         Ic_max.append(Ic_sorted[-1])
+    #         Ic_mdn.append(Ic_sorted[len(Ic_sorted)//2])
 
-        th = ts[state].index
+    #     th = ts[state].index
 
-        ts[state]["Hospitalized"].iloc[-1] = Ia_mdn[0]
-        plt.semilogy(th, ts[state]["Hospitalized"], 'k-', label = "Empirical Case Data", linewidth = 3)
+    #     ts[state]["Hospitalized"].iloc[-1] = Ia_mdn[0]
+    #     plt.semilogy(th, ts[state]["Hospitalized"], 'k-', label = "Empirical Case Data", linewidth = 3)
 
-        xp = [th.max() + pd.Timedelta(days = n) for n in range(240)]
-        plt.semilogy(xp, Ia_mdn, label = "03 May Release", linewidth = 3)
-        plt.fill_between(xp, Ia_min, Ia_max, alpha = 0.3)
+    #     xp = [th.max() + pd.Timedelta(days = n) for n in range(240)]
+    #     plt.semilogy(xp, Ia_mdn, label = "03 May Release", linewidth = 3)
+    #     plt.fill_between(xp, Ia_min, Ia_max, alpha = 0.3)
         
-        plt.semilogy(xp, Ib_mdn, label = "31 May Release", linewidth = 3)
-        plt.fill_between(xp, Ib_min, Ib_max, alpha = 0.3)
+    #     plt.semilogy(xp, Ib_mdn, label = "31 May Release", linewidth = 3)
+    #     plt.fill_between(xp, Ib_min, Ib_max, alpha = 0.3)
 
-        plt.semilogy(xp, Ic_mdn, label = "Adaptive Control", linewidth = 3)
-        plt.fill_between(xp, Ic_min, Ic_max, alpha = 0.3)
+    #     plt.semilogy(xp, Ic_mdn, label = "Adaptive Control", linewidth = 3)
+    #     plt.fill_between(xp, Ic_min, Ic_max, alpha = 0.3)
         
-        plt.xlabel("Date")
-        plt.ylabel("Number of Infections")
+    #     plt.xlabel("Date")
+    #     plt.ylabel("Number of Infections")
         
-        plt.gca().format_xdata = mdates.DateFormatter('%m-%d')
-        plt.suptitle("Projected Infections over Time")
-        plt.title(state)
-        plt.legend()
-        plt.show()
+    #     plt.gca().format_xdata = mdates.DateFormatter('%m-%d')
+    #     plt.suptitle("Projected Infections over Time")
+    #     plt.title(state)
+    #     plt.legend()
+    #     plt.show()
 
