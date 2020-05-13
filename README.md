@@ -1,4 +1,5 @@
 <h1 align="center">adaptive-lockdown</h1>
+<div align="center"> [![python.org](https://img.shields.io/badge/made%20with-python-%233776AB.svg?style=for-the-badge&logo=python&logoColor=ffdf76)](https://www.python.org) </div>
 
 # summary
 an extension of a real-time Bayesian reproductive number estimation model for pandemic tracking that: 
