@@ -11,7 +11,7 @@ import seaborn as sns
 import etl
 from adaptive.estimators import rollingOLS
 from adaptive.model import Model, ModelUnit
-from adaptive.plotting import plot_curve
+from adaptive.plots import plot_curve
 from adaptive.policy import simulate_adaptive_control, simulate_lockdown
 from adaptive.utils import cwd, days, weeks
 

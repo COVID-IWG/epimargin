@@ -18,12 +18,14 @@ def simulate_adaptive_control(
     total_time: int, 
     lockdown: np.matrix, 
     migrations: np.matrix, 
-    adjacency: Optional[np.matrix],
+    R_m: Dict[str, float],
     beta_v: Dict[str, float], 
     beta_m: Dict[str, float], 
-    evaluation_period: int = 2*weeks):
+    evaluation_period: int = 2*weeks, 
+    adjacency: Optional[np.matrix] = None) -> Model:
     n = len(model)
-    model.run(initial_run, lockdown)
+    model.set_parameters(RR0 = R_m)\
+         .run(initial_run, lockdown)
     days_run = initial_run
     gantt = []
     last_category = dict()
@@ -80,9 +82,10 @@ def simulate_adaptive_control(
     return model 
 
 
-def simulate_adaptive_control_MHA(model: Model, initial_run: int, total_time: int, lockdown: np.matrix, migrations: np.matrix, beta_v: Dict[str, float], beta_m: Dict[str, float], evaluation_period = 2*weeks):
+def simulate_adaptive_control_MHA(model: Model, initial_run: int, total_time: int, lockdown: np.matrix, migrations: np.matrix, R_m: Dict[str, float], beta_v: Dict[str, float], beta_m: Dict[str, float], evaluation_period = 2*weeks):
     n = len(model)
-    # model.run(initial_run, lockdown)
+    model.set_parameters(RR0 = R_m)\
+         .run(initial_run, lockdown)
     days_run = initial_run
     gantt = []
     last_category = dict()

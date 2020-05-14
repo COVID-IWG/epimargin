@@ -1,15 +1,9 @@
 from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
 
-import matplotlib as mlp
-import matplotlib.dates as mdates
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 
-seed  = 25
-gamma = 0.2
 
 collect = 'DATE OF 1st SAMPLE COLLECTION'
 confirm = 'DATE OF POSITIVE TEST CONFIRMATION'
@@ -25,6 +19,21 @@ districts = [
     'WEST CHAMPARAN', 'KATIHAR', 'SHEOHAR', 'SAMASTIPUR', 'KISHANGANJ',
     'SUPAUL', 'SAHARSA', 'KHAGARIA', 'MUZZAFARPUR'
 ]
+
+replacements = {
+    "PASHCHIM CHAMPARAN": "WEST CHAMPARAN", 
+    "PURBA CHAMPARAN"   : "EAST CHAMPARAN", 
+    "KAIMUR (BHABUA)"   : "KAIMUR", 
+    "MUZAFFARPUR"       : "MUZZAFARPUR", 
+    "SHEIKHPURA"        : "SHEIKPURA",
+    "PURNIA"            : "PURNEA"
+}
+
+def load_cases(path: Path) -> pd.DataFrame:
+    return pd.read_csv(path, parse_dates=[collect, confirm, release])
+
+def split_cases_by_district(cases: pd.DataFrame) -> Dict[str, pd.DataFrame]:
+    return {district: cases[cases["DISTRICT"] == district] for district in districts}
 
 def get_time_series(cases: pd.DataFrame) -> pd.Series:
     R = cases["Case_status"] == "Recovered"
@@ -46,21 +55,14 @@ def log_delta(time_series: pd.DataFrame) -> pd.DataFrame:
     log_delta["time"] = (log_delta.index - log_delta.index.min()).days
     return log_delta
 
-def load_cases(path: Path):
-    return pd.read_csv(path, parse_dates=[collect, confirm, release])
-
-def load_cases_by_district(path: Path) -> Dict[str, pd.DataFrame]:
-    cases = load_cases(path)
-    return {district: cases[cases.DISTRICT == district] for district in districts}
-
 def district_migration_matrix(matrix_path: Path) -> np.matrix:
     mm = pd.read_csv(matrix_path)
-    for col in  ['D_StateCensus2001', 'D_DistrictCensus2001', 'O_StateCensus2001', 'O_DistrictCensus2001']:
-        mm[col] = mm[col].str.title().str.replace("&", "and")
-
-    mm_state = mm[(mm.D_StateCensus2001 == "Bihar") & (mm.O_StateCensus2001 == "Bihar")]
+    mm_state = mm[(mm.D_StateCensus2001 == "BIHAR") & (mm.O_StateCensus2001 == "BIHAR")]
     pivot    = mm_state.pivot(index = "D_DistrictCensus2001", columns = "O_DistrictCensus2001", values = "NSS_STMigrants").fillna(0)
     M  = np.matrix(pivot)
     Mn = M/M.sum(axis = 0)
     Mn[np.isnan(Mn)] = 0
-    return (pivot.index, mm_state.groupby("O_DistrictCensus2001")["O_Population_2011"].agg(lambda x: list(x)[0]).values, Mn)
+
+    districts = [replacements.get(district, district) for district in pivot.index]
+
+    return (districts, mm_state.groupby("O_DistrictCensus2001")["O_Population_2011"].agg(lambda x: list(x)[0]).values, Mn)

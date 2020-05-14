@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from adaptive.estimators import rollingOLS as run_regressions
 from adaptive.model import Model, ModelUnit
-# from adaptive.plotting import plot_curve, gantt_chart
+# from adaptive.plotsimport plot_curve, gantt_chart
 from adaptive.utils import *
 from etl import district_migration_matrices, get_time_series, load_data, v2
 from adaptive.policy import simulate_adaptive_control_MHA

@@ -10,3 +10,5 @@ def cwd() -> Path:
         return Path(".").resolve()
     return Path(argv0).resolve().parent
         
+def fmt_params(**kwargs) -> str:
+    return ", ".join(f"{k.replace('_', ' ')}: {v}" for (k, v) in kwargs.items())
