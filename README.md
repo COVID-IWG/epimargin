@@ -1,6 +1,6 @@
 <h1 align="center">adaptive-lockdown</h1>
 
-<div align="center"> <img src="./docs/logo.svg" style="height:200;"> </div>
+<div align="center"> <img src="./docs/logo.svg" style="height:10;"> </div>
 
 [![python.org](https://img.shields.io/badge/made%20with-python-%233776AB.svg?style=for-the-badge&logo=python&logoColor=ffdf76)](https://www.python.org) &nbsp; [![Twitter Follow](https://img.shields.io/twitter/follow/miurbanchicago?logo=twitter&style=for-the-badge)](https://twitter.com/miurbanchicago) &nbsp; ![GitHub](https://img.shields.io/github/license/mansueto-institute/adaptive-lockdown?style=for-the-badge)
 
