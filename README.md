@@ -2,7 +2,9 @@
 
 <div align="center"> <img src="./docs/logo.svg" height="250"> </div>
 
-<div align="center"> <img alt="Made With Python" src="https://img.shields.io/badge/made%20with-python-%233776AB.svg?style=for-the-badge&logo=python&logoColor=ffdf76"> <img alt="Twitter Follow" src="https://img.shields.io/twitter/follow/miurbanchicago?logo=twitter&style=for-the-badge"> <img alt="MIT License" src="hhttps://img.shields.io/github/license/mansueto-institute/adaptive-lockdown?style=for-the-badge"> </div>
+<div align="center"> <img alt="Made With Python" src="https://img.shields.io/badge/made%20with-python-%233776AB.svg?style=for-the-badge&logo=python&logoColor=ffdf76"> <img alt="Twitter Follow" src="https://img.shields.io/twitter/follow/miurbanchicago?logo=twitter&style=for-the-badge"> <img alt="MIT License" src="https://img.shields.io/github/license/mansueto-institute/adaptive-lockdown?style=for-the-badge"> </div>
+
+
 
 # summary
 an extension of a real-time Bayesian reproductive number estimation model for pandemic tracking that: 
