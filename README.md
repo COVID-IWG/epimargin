@@ -1,6 +1,10 @@
 <h1 align="center">adaptive-lockdown</h1>
 
+<img align="center" src="./docs/logo.svg">
+
 [![python.org](https://img.shields.io/badge/made%20with-python-%233776AB.svg?style=for-the-badge&logo=python&logoColor=ffdf76)](https://www.python.org) &nbsp; [![Twitter Follow](https://img.shields.io/twitter/follow/miurbanchicago?logo=twitter&style=for-the-badge)](https://twitter.com/miurbanchicago) &nbsp; ![GitHub](https://img.shields.io/github/license/mansueto-institute/adaptive-lockdown?style=for-the-badge)
+
+
 # summary
 an extension of a real-time Bayesian reproductive number estimation model for pandemic tracking that: 
 1. runs a rolling regression to get a real time estimate of <i>R<sub>t</sub></i>
