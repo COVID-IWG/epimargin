@@ -54,8 +54,12 @@ class PlotDevice():
         plt.savefig(filename, **kwargs)
         return self 
 
-    def show(self):
-        plt.show()
+    def adjust(self, **kwargs):
+        plt.subplots_adjust(**kwargs)
+        return self 
+
+    def show(self, **kwargs):
+        plt.show(**kwargs)
         return self 
 
 # plot all 4 curves
