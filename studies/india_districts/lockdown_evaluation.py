@@ -115,7 +115,3 @@ if __name__ == "__main__":
             .ylabel("Number of Infections")\
             .annotate(f"stochastic parameter range: ({si}, {sf}), infectious period: {1/gamma} days, smoothing window: {(5, 5, 5)}")\
             .show()
-                
-
-        
-
