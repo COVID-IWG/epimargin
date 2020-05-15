@@ -45,7 +45,7 @@ class ModelUnit():
         # note: update state *in place* since we consider it the same time period 
         outflux = np.random.poisson(self.mu * self.I[-1])
         new_I = self.I[-1] - outflux
-        if new_I < 0: new_i = 0
+        if new_I < 0: new_I = 0
         self.I[-1]  = new_I
         self.P[-1] -= outflux
         return outflux
