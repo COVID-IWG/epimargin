@@ -6,6 +6,11 @@ import numpy as np
 from .model import Model
 from .utils import days, weeks
 
+from sklearn.metrics import auc 
+
+def AUC(curve):
+    return auc(x = range(len(curve)), y = curve)
+
 def simulate_lockdown(model: Model, lockdown_period: int, total_time: int, RR0_mandatory: Dict[str, float], RR0_voluntary: Dict[str, float], lockdown: np.matrix, migrations: np.matrix) -> Model:
     return model.set_parameters(RR0 = RR0_mandatory)\
         .run(lockdown_period,  migrations = lockdown)\
