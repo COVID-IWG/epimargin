@@ -1,4 +1,4 @@
-import pandas as p
+import pandas as pd
 from statsmodels.regression.rolling import RollingOLS
 
 
