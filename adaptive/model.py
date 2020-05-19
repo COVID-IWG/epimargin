@@ -170,6 +170,27 @@ class Model():
             return aggs[single_curve]
         return aggs
 
+class MigrationSpikeModel(Model):
+    def __init__(self, units: Sequence[ModelUnit], introduction_time: Sequence[int], migratory_influx: Dict[str, int], default_migrations: Optional[np.matrix] = None, random_seed: Optional[int] = None):
+        self.counter = 0
+        self.migratory_influx  = migratory_influx 
+        self.introduction_time = introduction_time
+        super().__init__(units, default_migrations, random_seed)
+
+    def tick(self, migrations: np.matrix):
+        self.counter += 1
+        # run migration step 
+        outflux       = [unit.migration_step() for unit in self.units]
+        transmissions = [flux * migrations[i, :].sum() for (i, flux) in enumerate(outflux)]
+        
+        # now run forward epidemiological model, and add spike at intro time 
+        if self.counter == self.introduction_time:
+            for (unit, tmx) in zip(self.units, transmissions):
+                unit.forward_epi_step(tmx + self.migratory_influx[unit.name])
+        else: 
+            for (unit, tmx) in zip(self.units, transmissions):
+                unit.forward_epi_step(tmx)
+
 def gravity_matrix(gdf_path: Path, population_path: Path) -> Tuple[Sequence[str], Sequence[float], np.matrix]:
     gdf = gpd.read_file(gdf_path)
     districts = list(gdf.district.values)
@@ -185,3 +206,4 @@ def gravity_matrix(gdf_path: Path, population_path: Path) -> Tuple[Sequence[str]
     P /= P.sum(axis = 0)
 
     return (districts, populations, P)
+
