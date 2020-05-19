@@ -1,7 +1,4 @@
-from typing import Callable, Optional
-
-import pandas as pd
-from scipy.stats import gamma, nbinom
+import pandas as p
 from statsmodels.regression.rolling import RollingOLS
 
 
@@ -24,12 +21,3 @@ def rollingOLS(totals: pd.DataFrame, window: int = 3, infectious_period: float =
     growthrates["days"]         = totals.time
 
     return growthrates
-
-def box_smoothing():
-    pass
-
-def loess_smoothing():
-    pass 
-
-# def bayesian_annealing(totals: pd.DataFrame, alpha: float, beta: float, smoothing: Optional[Callable[pd.DataFrame, pd.DataFrame]] = None):
-#     pass
