@@ -1,17 +1,22 @@
 #!python3 
-import warnings
 from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn
-import statsmodels.api as sm
 
-from adaptive.estimators import rollingOLS as run_regressions
+from adaptive.utils import assume_missing_0
 
 """code to extracts logarithmic growth rates for india-specific data"""
+
+# states created after the 2001 census
+new_states = set("Telangana")
+
+# states renamed in 2011 
+renames = { 
+    "Orissa"      : "Odisha",
+    "Pondicherry" : "Puducherry"
+}
 
 columns_v1 = v1 = [
     "patient number",
@@ -73,7 +78,130 @@ drop_cols = {
     "type of transmission"
 }
 
-# assuming analysis for data structure from COVID19-India saved as resaved, properly-quoted file
+columns_v3 = v3 = [
+    'Patient Number',
+    'State Patient Number',
+    'Date Announced',
+    'Estimated Onset Date',
+    'Age Bracket',
+    'Gender',
+    'Detected City',
+    'Detected District',
+    'Detected State',
+    'State code',
+    'Current Status',
+    'Notes',
+    'Contracted from which Patient (Suspected)',
+    'Nationality',
+    'Type of transmission',
+    'Status Change Date',
+    'Source_1',
+    'Source_2',
+    'Source_3',
+    'Backup Notes',
+    'Num cases'
+]
+
+drop_cols_v3 = {
+    "Age Bracket",
+    "Gender",
+    "Detected City",
+    "Notes",
+    'Contracted from which Patient (Suspected)', 
+    'Nationality',
+    "Source_1",
+    "Source_2",
+    "Source_3",
+    "Backup Notes",
+    "State Patient Number",
+    "State code",
+    "Estimated Onset Date",
+    "Type of transmission"
+}
+
+columns_v4 = v4 = [
+    'Entry_ID', 
+    'State Patient Number', 
+    'Date Announced', 
+    'Age Bracket',
+    'Gender', 
+    'Detected City', 
+    'Detected District', 
+    'Detected State',
+    'State code', 
+    'Num Cases', 
+    'Current Status',
+    'Contracted from which Patient (Suspected)', 
+    'Notes', 
+    'Source_1',
+    'Source_2', 
+    'Source_3', 
+    'Nationality', 
+    'Type of transmission',
+    'Status Change Date', 
+    'Patient Number'
+]
+
+drop_cols_v4 = {
+    "Entry_ID",
+    'Age Bracket',
+    'Gender', 
+    'Detected City',
+    'State code',
+    'Contracted from which Patient (Suspected)',
+    'Notes', 
+    'Source_1',
+    'Source_2', 
+    'Source_3', 
+    'Nationality', 
+    'Type of transmission',
+    "State Patient Number"
+}
+
+column_ordering_v4  = [
+    'Patient Number',
+    'Date Announced',
+    'Detected District',
+    'Detected State',
+    'Current Status',
+    'Status Change Date',
+    'Num cases'
+]
+
+# load data until April 26
+def load_data_v3(path: Path):
+    cases = pd.read_csv(path, 
+        usecols     = set(columns_v3) - drop_cols_v3,
+        dayfirst    = True, # source data does not have consistent date format so cannot rely on inference
+        parse_dates = ["Date Announced", "Status Change Date"])
+    return cases
+
+# load data for April 27 - May 09  
+def load_data_v4(path: Path):
+    cases = pd.read_csv(path, 
+        usecols     = set(columns_v4) - drop_cols_v4,
+        dayfirst    = True, # source data does not have consistent date format so cannot rely on inference
+        parse_dates = ["Date Announced", "Status Change Date"])
+    cases["Num cases"] = cases["Num Cases"]
+    return cases[column_ordering_v4]
+
+# calculate daily totals and growth rate
+def get_time_series(df: pd.DataFrame) -> pd.DataFrame:
+    totals = df.groupby(["Status Change Date", "Current Status"])["Patient Number"].count().unstack().fillna(0)
+    totals["date"]     = totals.index
+    totals["time"]     = (totals["date"] - totals["date"].min()).dt.days
+    totals["logdelta"] = np.log(assume_missing_0(totals, "Hospitalized") - assume_missing_0(totals, "Recovered") -  assume_missing_0(totals, "Deceased"))
+    return totals
+
+def load_all_data(path1: Path, path2: Path, path3: Path) -> pd.DataFrame:
+    cases1 = load_data_v3(path1)
+    cases2 = load_data_v3(path2)
+    cases3 = load_data_v4(path3)
+    all_cases = pd.concat([cases1, cases2, cases3])
+    all_cases["Status Change Date"] = all_cases["Status Change Date"].fillna(all_cases["Date Announced"])
+    return all_cases
+
+# assuming analysis for data structure from COVID19-India saved as resaved, properly-quoted file (v1 and v2)
 def load_data(datapath: Path, reduced: bool = False, schema: Optional[Sequence[str]] = None) -> pd.DataFrame: 
     if not schema:
         schema = columns_v1
@@ -83,93 +211,6 @@ def load_data(datapath: Path, reduced: bool = False, schema: Optional[Sequence[s
         usecols     = (lambda _: _ not in drop_cols) if reduced else None,
         dayfirst    = True, # source data does not have consistent date format so cannot rely on inference
         parse_dates = ["date announced", "status change date"])
-
-def assume_missing_0(df: pd.DataFrame, col: str):
-    return df[col] if col in df.columns else 0
-
-# calculate daily totals and growth rate
-def get_time_series(df: pd.DataFrame) -> pd.DataFrame:
-    totals = df.groupby(["status change date", "current status"])["patient number"].count().unstack().fillna(0)
-    totals["date"]     = totals.index
-    totals["time"]     = (totals["date"] - totals["date"].min()).dt.days
-    totals["logdelta"] = np.log(assume_missing_0(totals, "Hospitalized") - assume_missing_0(totals, "Recovered") -  assume_missing_0(totals, "Deceased"))
-    return totals
-
-def critical_day(growthrates: pd.DataFrame) -> Tuple[int, int, int, int]:
-    # extrapolate growth rate into the future
-    predrates = growthrates.iloc[-5:].copy()
-    predrates["days"] -= predrates["days"].min()
-    pred = sm.OLS.from_formula("gradient ~ days", data = predrates).fit()
-    pred_intercept, pred_gradient, pred_se = *pred.params, pred.bse[1]
-    days_to_critical  = int(-pred_intercept/pred_gradient)
-    days_to_criticalM = int(-pred_intercept/(pred_gradient + 2 * pred_se))
-    days_to_criticalm = int(-pred_intercept/(pred_gradient - 2 * pred_se))
-
-    return (len(growthrates.index), days_to_critical, days_to_criticalm, days_to_criticalM)
-
-def plot_rates(totals: pd.DataFrame, growthrates: pd.DataFrame, state: str, label: str, note: str, show_plots: bool = False):
-    output = Path(__file__).parent/"plots"
-
-    # figure: log delta vs time
-    fig, ax = plt.subplots()
-    totals.plot(y = "logdelta", ax = ax, label = "log(confirmed - recovered - dead)")
-    plt.xlabel("Date")
-    plt.ylabel("Daily Net Cases")
-    plt.title(f"Cases over Time ({state})")
-    plt.tight_layout()
-    plt.savefig(output/f"cases_over_time_{label}{note}.png", dpi = 600)
-
-    # figure: extrapolation
-    # t0 = growthrates.iloc[-5:].days.max()
-    # t = np.arange(t0, t0 + max(days_to_criticalm, days_to_criticalM) + 1)
-    # pred_lower = pred_intercept + t * (pred_gradient - 2 * pred_se)
-    # pred_upper = pred_intercept + t * (pred_gradient + 2 * pred_se)
-    
-    fig, ax = plt.subplots()
-    # plt.fill_between(t, pred_upper, pred_lower, alpha = 0.3)
-    
-    plt.plot(growthrates.days, growthrates.gradient)
-    plt.fill_between(growthrates.days, growthrates.egrowthratem, growthrates.egrowthrateM, alpha = 0.3)
-    plt.xlabel("Days of Outbreak")
-    plt.ylabel("Growth Rate")
-    plt.title(state)
-    plt.tight_layout()
-    plt.savefig(output/f"extrapolation_{label}{note}.png", dpi = 600)
-
-    # figure: reproductive rate vs critical level 
-    fig, ax = plt.subplots()
-    plt.plot(growthrates.date, growthrates.R)
-    plt.fill_between(growthrates.date, growthrates.Rm, growthrates.RM, alpha = 0.3)
-    plt.xlabel("Date")
-    plt.ylabel("Reproductive Rate")
-    plt.title(state)
-    plt.tight_layout()
-    plt.savefig(output/f"reproductive_rate_{label}{note}.png", dpi = 600)
-
-    if show_plots: 
-        plt.show()
-    plt.close("all")
-
-def run_analysis(df: pd.DataFrame, state: str = "all", note: str = "", show_plots: bool = False) -> Tuple[int, int, int, int]:
-    # filter data as needed and set up filename components
-    if state and state.replace(" ", "").lower() not in ("all", "allstate", "allstates"):
-        df = df[df["detected state"] == state]
-        label = state.replace(" ", "_").lower()
-    else: 
-        state = "All States"
-        label = "allstates"
-    
-    if len(df) < 3:
-        warnings.warn(f"Insufficient data for {state}")
-        return 0, None, None, None
-    
-    note = '_' + note if note else ''
-
-    totals      = get_time_series(df)
-    growthrates = run_regressions(totals)
-    plot_rates(totals, growthrates, state, label, note, show_plots)
-
-    return critical_day(growthrates)
 
 def load_population_data(pop_path: Path) -> pd.DataFrame:
     return pd.read_csv(pop_path, names = ["name", "pop"])\
@@ -200,21 +241,3 @@ def district_migration_matrices(
             Mn
         )
     return aggregations 
-
-if __name__ == "__main__":
-    warnings.filterwarnings("ignore")
-    seaborn.set_style('darkgrid')
-    
-    root = Path(__file__).parent
-    df = load_data(root/"india_case_data_resave.csv", reduced = True)
-
-    states = ["all"]
-    critical_days = []
-
-    for state in states:
-        n, dtc, dtcm, dtcM = run_analysis(df)
-        critical_days.append([state, n, dtc, dtcm, dtcM]) 
-    
-    pd.DataFrame(critical_days, columns = ["state", "n", "dct", "dctm", "dctM"])\
-        .set_index("state")\
-        .to_csv(root/"state_dct.csv")

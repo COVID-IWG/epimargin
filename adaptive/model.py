@@ -1,6 +1,11 @@
-from typing import Dict, Iterator, Optional, Sequence, Union
+from pathlib import Path
+from typing import Dict, Iterator, Optional, Sequence, Union, Tuple
 
+import geopandas as gpd
 import numpy as np
+import pandas as pd
+from scipy.spatial import distance_matrix
+
 
 class ModelUnit():
     def __init__(self, 
@@ -185,3 +190,20 @@ class MigrationSpikeModel(Model):
         else: 
             for (unit, tmx) in zip(self.units, transmissions):
                 unit.forward_epi_step(tmx)
+
+def gravity_matrix(gdf_path: Path, population_path: Path) -> Tuple[Sequence[str], Sequence[float], np.matrix]:
+    gdf = gpd.read_file(gdf_path)
+    districts = list(gdf.district.values)
+
+    pop_df = pd.read_csv(population_path)
+    population_mapping = {k.replace("-", " "): float(v.replace(",", "")) for (k, v) in zip(pop_df["Name"], pop_df["Population(2011 census)"])}
+    populations = [population_mapping[district] for district in districts]
+
+    centroids = [list(pt.coords)[0] for pt in gdf.centroid]
+    P = distance_matrix(centroids, centroids)
+    P[P != 0] = P[P != 0] ** -1.0 
+    P *= np.array(populations)[:, None]
+    P /= P.sum(axis = 0)
+
+    return (districts, populations, P)
+
