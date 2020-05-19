@@ -71,20 +71,17 @@ def estimate(district, ts, default = 1.5, window = 2, use_last = False):
 
 
 if __name__ == "__main__":
-    root = cwd()
-    data = root/"data"
-    figs = root/"figs"
     
     gamma  = 0.2
     window = 2
     num_migrants = 600000
     release_rate = 0.5
 
-    state_cases    = etl.load_cases(data/"Bihar_Case_data_May18.csv")
+    state_cases    = etl.load_cases("Bihar_Case_data_May18.csv")
     district_cases = etl.split_cases_by_district(state_cases)
     district_ts    = {district: etl.get_time_series(cases) for (district, cases) in district_cases.items()}
     R_mandatory    = {district: estimate(district, ts, use_last = True) for (district, ts) in district_ts.items()}
-    districts, pops, migrations = etl.district_migration_matrix(data/"Migration Matrix - District.csv")
+    districts, pops, migrations = etl.district_migration_matrix("Migration Matrix - District.csv")
     for district in districts:
         if district not in R_mandatory.keys():
             R_mandatory[district] = 1.5
