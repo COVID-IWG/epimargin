@@ -7,11 +7,11 @@ import pandas as pd
 from tqdm import tqdm
 
 from adaptive.estimators import rollingOLS as run_regressions
-from adaptive.model import Model, ModelUnit
-from adaptive.plots import gantt_chart, plot_simulation_range
-from adaptive.policy import simulate_lockdown, simulate_adaptive_control, simulate_adaptive_control_MHA
-from adaptive.utils import *
-from etl import district_migration_matrices, get_time_series, load_data, v2
+from adaptive.model import Model, ModelUnit, gravity_matrix
+from adaptive.plots import plot_simulation_range
+from adaptive.policy import simulate_adaptive_control, simulate_lockdown
+from adaptive.utils import cwd, days, weeks
+from etl import district_migration_matrices, get_time_series, load_all_data
 
 
 def get_model(districts, populations, timeseries, seed = 0):
@@ -24,19 +24,11 @@ def get_model(districts, populations, timeseries, seed = 0):
     ) for (i, district) in enumerate(districts)]
     return Model(units, random_seed = seed)
 
-def run_policies(migrations, district_names, populations, district_time_series, Rm, Rv, gamma, seed, initial_lockdown = 10*days, total_time = 190*days):    
+def run_policies(migrations, district_names, populations, district_time_series, Rm, Rv, gamma, seed, initial_lockdown = 13*days, total_time = 190*days):    
     # run various policy scenarios
     lockdown = np.zeros(migrations.shape)
 
-    # 1. release lockdown on 03 May 
-    release_03_may = get_model(district_names, populations, district_time_series, seed)
-    simulate_lockdown(release_03_may, 
-        lockdown_period = initial_lockdown, 
-        total_time      = total_time, 
-        RR0_mandatory   = Rm,              RR0_voluntary = Rv, 
-        lockdown        = lockdown.copy(), migrations    = migrations)
-
-    # 2. release lockdown on 31 May 
+    # 1. release lockdown 31 May 
     release_31_may = get_model(district_names, populations, district_time_series, seed)
     simulate_lockdown(release_31_may, 
         lockdown_period = initial_lockdown + 4*weeks, 
@@ -44,11 +36,11 @@ def run_policies(migrations, district_names, populations, district_time_series, 
         RR0_mandatory   = Rm,              RR0_voluntary = Rv, 
         lockdown        = lockdown.copy(), migrations    = migrations)
 
-    # 3. adaptive release starting 03 may 
+    # 3. adaptive release starting 31 may 
     adaptive = get_model(district_names, populations, district_time_series, seed)
     simulate_adaptive_control(adaptive, initial_lockdown, total_time, lockdown, migrations, Rm, {district: R * gamma for (district, R) in Rv.items()}, {district: R * gamma for (district, R) in Rm.items()}, evaluation_period=1*weeks)
 
-    return (release_03_may, release_31_may, adaptive)
+    return (release_31_may, adaptive)
 
 if __name__ == "__main__":
     root = cwd()
@@ -57,17 +49,25 @@ if __name__ == "__main__":
     # model details 
     gamma      = 0.2
     prevalence = 1
-    total_time = 190 * days 
+    total_time = 90 * days 
+    release_date = pd.to_datetime("May 31, 2020")
+    lockdown_period = (release_date - pd.to_datetime("today")).days
 
-    states = ["Maharashtra", "Madhya Pradesh", "Punjab", "Bihar", "Gujarat", "Kerala", "Andhra Pradesh", "Tamil Nadu"]
+    states = ["Telangana", "Maharashtra", "Andhra Pradesh", "Madhya Pradesh", "Punjab", "Bihar", "Gujarat", "Kerala", "Tamil Nadu"][1:2]
     
+    # use gravity matrix for states after 2001 census 
+    new_state_data_paths = { 
+        "Telangana": (data/"telangana.json", data/"telangana_pop.csv")
+    }
+
     # run rolling regressions on historical national case data 
-    dfn = load_data(data/"india_case_data_23_4_resave.csv", reduced = True, schema = v2).dropna(subset = ["detected district"]) # can't do anything about this :( 
+    dfn = load_all_data(data/"raw_data1.csv", data/"raw_data2.csv", data/"raw_data3.csv")
+    data_recency = str(dfn["Date Announced"].max()).split()[0]
     tsn = get_time_series(dfn)
     grn = run_regressions(tsn, window = 5, infectious_period = 1/gamma)
 
     # disaggregate down to states
-    dfs = {state: dfn[dfn["detected state"] == state] for state in states}
+    dfs = {state: dfn[dfn["Detected State"] == state] for state in states}
     tss = {state: get_time_series(cases) for (state, cases) in dfs.items()}
     for (_, ts) in tss.items():
         ts['Hospitalized'] *= prevalence
@@ -86,12 +86,15 @@ if __name__ == "__main__":
     migration_matrices = district_migration_matrices(data/"Migration Matrix - District.csv", states = states)
 
     # seed range 
-    si, sf = 0, 1000
+    si, sf = 0, 10
 
     for state in states: 
-        districts, populations, migrations = migration_matrices[state]
+        if state in new_state_data_paths.keys():
+            districts, populations, migrations = gravity_matrix(*new_state_data_paths[state])
+        else: 
+            districts, populations, migrations = migration_matrices[state]
         df_state = dfs[state]
-        dfd = {district: df_state[df_state["detected district"] == district] for district in districts}
+        dfd = {district: df_state[df_state["Detected District"] == district] for district in districts}
         tsd = {district: get_time_series(cases) for (district, cases) in  dfd.items()}
         for (_, ts) in tsd.items():
             if 'Hospitalized' in ts:
@@ -107,11 +110,14 @@ if __name__ == "__main__":
                 if np.isnan(mapping[key]):
                     mapping[key] = default
 
-        simulation_results =[run_policies(migrations, districts, populations, tsd, Rm, Rv, gamma, seed) for seed in tqdm(range(si, sf))]
-        
-        plot_simulation_range(simulation_results, ["03 May Release", "31 May Release", "Adaptive Controls"], get_time_series(df_state).Hospitalized)\
+        simulation_results = [
+            run_policies(migrations, districts, populations, tsd, Rm, Rv, gamma, seed, initial_lockdown = lockdown_period, total_time = total_time) 
+            for seed in tqdm(range(si, sf))
+        ]
+
+        plot_simulation_range(simulation_results, ["31 May Release", "Adaptive Controls"], get_time_series(df_state).Hospitalized)\
             .title(f"{state} Policy Scenarios: Projected Infections over Time")\
             .xlabel("Date")\
             .ylabel("Number of Infections")\
-            .annotate(f"stochastic parameter range: ({si}, {sf}), infectious period: {1/gamma} days, smoothing window: {(5, 5, 5)}")\
+            .annotate(f"stochastic parameter range: ({si}, {sf}), infectious period: {1/gamma} days, smoothing window: {(5, 5, 5)}, data from {data_recency}")\
             .show()
