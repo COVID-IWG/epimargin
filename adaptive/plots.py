@@ -144,10 +144,13 @@ def plot_simulation_range(
             ranges[i]["max"].append(curve_sorted[-1])
             ranges[i]["mdn"].append(curve_sorted[num_sims//2])
 
-    historical.iloc[-1] = ranges[-1]["mdn"][0]
-    plt.semilogy(historical.index, historical, 'k-', label = historical_label, linewidth = 2)
-
-    t = [historical.index.max() + pd.Timedelta(days = n) for n in range(total_time)]
+    if historical is not None:
+        historical.iloc[-1] = ranges[-1]["mdn"][0]
+        plt.semilogy(historical.index, historical, 'k-', label = historical_label, linewidth = 2)
+        t = [historical.index.max() + pd.Timedelta(days = n) for n in range(total_time)]
+    else:
+        t = list(range(total_time))
+    
     for (rng, label) in zip(ranges, labels):
         plt.semilogy(t, rng["mdn"], label = label, linewidth = 2)
         plt.fill_between(t, rng["min"], rng["max"], alpha = 0.2)
