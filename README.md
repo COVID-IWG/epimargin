@@ -22,8 +22,8 @@ an extension of a real-time Bayesian reproductive number estimation model for pa
 - `studies` - specific applications to geographies for which we have data
 
 # data source notes
-- India base demographic data provided by Anand Sahasranaman 
-- India migration data from Clement Imbert
-- India administrative data labels from Sam Asher
-- Mumbai inter-ward travel from Vaidehi Tandel 
-- Mumbai ward shape files from Hindustan Times
+- India base demographic data provided by Anand Sahasranaman (Krea)
+- India migration data from [Clement Imbert (Warwick)](https://warwick.ac.uk/fac/soc/economics/staff/cimbert/)
+- India administrative data labels from [Sam Asher (JHU)](https://sais.jhu.edu/users/sasher2)
+- Mumbai inter-ward travel from [Vaidehi Tandel (IDFC)](http://www.idfcinstitute.org/about/people/team/vaidehi-tandel/)
+- Mumbai ward shape files from [Hindustan Times](https://github.com/HindustanTimesLabs/shapefiles/tree/master/city/mumbai/ward)
