@@ -178,32 +178,17 @@ def download_data(data_path: Path):
     base_url = 'https://api.covid19india.org/csv/latest/'
     today = datetime.today().strftime('%Y-%m-%d')
 
-    if not os.path.exists(data_path/today/file):
-        os.mkdir(data_path/today)
-
-        for i in range(current_version):
-            file = 'raw_data' + str(i + 1) + '.csv'
-            url = base_url + file
-            req = requests.get(url)
-
-            with open(data_path/today/file, 'wb') as f:
-                f.write(req.content)
-
-def download_data_v2(data_path: Path):
-    base_url = 'https://api.covid19india.org/csv/latest/'
-    today = datetime.today().strftime('%Y-%m-%d')
-
     for i in range(current_version):
         api_file = 'raw_data' + str(i + 1) + '.csv'
         filename = today + '_' + api_file
-   
         if not os.path.exists(data_path/filename):
             url = base_url + api_file
-            req = requests.get(url)
+            response = requests.get(url)
 
-            with open(data_path/save_file, 'wb') as f:
-                f.write(req.content)
-
+            for current_file in data_path.glob('*' + api_file):
+                os.remove(current_file)
+            with open(data_path/filename, 'wb') as f:
+                f.write(response.content)
 
 # load data until April 26
 def load_data_v3(path: Path):
