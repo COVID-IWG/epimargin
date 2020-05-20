@@ -187,19 +187,21 @@ def load_data_v4(path: Path):
 
 # calculate daily totals and growth rate
 def get_time_series(df: pd.DataFrame) -> pd.DataFrame:
-    totals = df.groupby(["Status Change Date", "Current Status"])["Patient Number"].count().unstack().fillna(0)
+    totals = df.groupby(["Status Change Date", "Current Status"])["Num cases"].agg(lambda counts: np.sum(np.abs(counts)))
+    if len(totals) == 0:
+        return pd.DataFrame()
+    totals = totals.unstack().fillna(0)
     totals["date"]     = totals.index
     totals["time"]     = (totals["date"] - totals["date"].min()).dt.days
-    totals["logdelta"] = np.log(assume_missing_0(totals, "Hospitalized") - assume_missing_0(totals, "Recovered") -  assume_missing_0(totals, "Deceased"))
+    totals["logdelta"] = np.log(assume_missing_0(totals, "Hospitalized") - assume_missing_0(totals, "Recovered") - assume_missing_0(totals, "Deceased"))
     return totals
 
-def load_all_data(path1: Path, path2: Path, path3: Path) -> pd.DataFrame:
-    cases1 = load_data_v3(path1)
-    cases2 = load_data_v3(path2)
-    cases3 = load_data_v4(path3)
-    all_cases = pd.concat([cases1, cases2, cases3])
+def load_all_data(v3_paths: Sequence[Path], v4_paths: Sequence[Path]) -> pd.DataFrame:
+    cases_v3 = [load_data_v3(path) for path in v3_paths]
+    cases_v4 = [load_data_v4(path) for path in v4_paths]
+    all_cases = pd.concat(cases_v3 + cases_v4)
     all_cases["Status Change Date"] = all_cases["Status Change Date"].fillna(all_cases["Date Announced"])
-    return all_cases
+    return all_cases.dropna(subset = ["Detected State"])
 
 # assuming analysis for data structure from COVID19-India saved as resaved, properly-quoted file (v1 and v2)
 def load_data(datapath: Path, reduced: bool = False, schema: Optional[Sequence[str]] = None) -> pd.DataFrame: 
