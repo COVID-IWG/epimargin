@@ -5,10 +5,10 @@ import numpy as np
 import pandas as pd
 
 
-collect = 'DATE OF 1st SAMPLE COLLECTION'
-confirm = 'DATE OF POSITIVE TEST CONFIRMATION'
-release = 'DATE OF DISCHARGE'
-death   = "DATE OF DEATH"
+collect = 'date_of_first_sample_collection'
+confirm = 'date_of_positive_test_confirmation'
+release = 'date_of_discharge'
+death   = 'date_of_death'
 
 districts = [
     'MUNGER', 'PATNA', 'SIWAN', 'NALANDA', 'LAKHISARAI', 'GOPALGANJ',
@@ -34,12 +34,12 @@ def load_cases(path: Path) -> pd.DataFrame:
     return pd.read_csv(path, parse_dates=[collect, confirm, release])
 
 def split_cases_by_district(cases: pd.DataFrame) -> Dict[str, pd.DataFrame]:
-    return {district: cases[cases["DISTRICT"] == district] for district in districts}
+    return {district: cases[cases["district"] == district] for district in districts}
 
 def get_time_series(cases: pd.DataFrame) -> pd.Series:
-    R = cases["Case_status"] == "Recovered"
-    D = cases["Case_status"] == "Deceased"
-    H = cases["Case_status"].isna()
+    R = cases["case_status"] == "Recovered"
+    D = cases["case_status"] == "Deceased"
+    H = cases["case_status"].isna()
     recovered = cases[release][R].value_counts().rename("time") 
     infected  = cases[confirm][H].value_counts().rename("time")
     deceased  = cases[death  ][D].value_counts().rename("time")
