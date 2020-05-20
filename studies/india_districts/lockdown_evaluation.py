@@ -53,7 +53,7 @@ if __name__ == "__main__":
     release_date = pd.to_datetime("May 31, 2020")
     lockdown_period = (release_date - pd.to_datetime("today")).days
 
-    states = ["Telangana", "Maharashtra", "Andhra Pradesh", "Madhya Pradesh", "Punjab", "Bihar", "Gujarat", "Kerala", "Tamil Nadu"][1:2]
+    states = ["Telangana", "Maharashtra", "Andhra Pradesh", "Tamil Nadu", "Madhya Pradesh", "Punjab", "Gujarat", "Kerala"][:4]
     
     # use gravity matrix for states after 2001 census 
     new_state_data_paths = { 
@@ -61,7 +61,10 @@ if __name__ == "__main__":
     }
 
     # run rolling regressions on historical national case data 
-    dfn = load_all_data(data/"raw_data1.csv", data/"raw_data2.csv", data/"raw_data3.csv")
+    dfn = load_all_data(
+        v3_paths = (data/"raw_data1.csv", data/"raw_data2.csv"), 
+        v4_paths = (data/"raw_data3.csv", data/"raw_data4.csv")
+    )
     data_recency = str(dfn["Date Announced"].max()).split()[0]
     tsn = get_time_series(dfn)
     grn = run_regressions(tsn, window = 5, infectious_period = 1/gamma)
@@ -86,7 +89,7 @@ if __name__ == "__main__":
     migration_matrices = district_migration_matrices(data/"Migration Matrix - District.csv", states = states)
 
     # seed range 
-    si, sf = 0, 10
+    si, sf = 0, 1000
 
     for state in states: 
         if state in new_state_data_paths.keys():
@@ -95,7 +98,7 @@ if __name__ == "__main__":
             districts, populations, migrations = migration_matrices[state]
         df_state = dfs[state]
         dfd = {district: df_state[df_state["Detected District"] == district] for district in districts}
-        tsd = {district: get_time_series(cases) for (district, cases) in  dfd.items()}
+        tsd = {district: get_time_series(cases) for (district, cases) in dfd.items()}
         for (_, ts) in tsd.items():
             if 'Hospitalized' in ts:
                 ts['Hospitalized'] *= prevalence
@@ -109,15 +112,15 @@ if __name__ == "__main__":
             for key in mapping:
                 if np.isnan(mapping[key]):
                     mapping[key] = default
+        
+        # simulation_results = [
+        #     run_policies(migrations, districts, populations, tsd, Rm, Rv, gamma, seed, initial_lockdown = lockdown_period, total_time = total_time) 
+        #     for seed in tqdm(range(si, sf))
+        # ]
 
-        simulation_results = [
-            run_policies(migrations, districts, populations, tsd, Rm, Rv, gamma, seed, initial_lockdown = lockdown_period, total_time = total_time) 
-            for seed in tqdm(range(si, sf))
-        ]
-
-        plot_simulation_range(simulation_results, ["31 May Release", "Adaptive Controls"], get_time_series(df_state).Hospitalized)\
-            .title(f"{state} Policy Scenarios: Projected Infections over Time")\
-            .xlabel("Date")\
-            .ylabel("Number of Infections")\
-            .annotate(f"stochastic parameter range: ({si}, {sf}), infectious period: {1/gamma} days, smoothing window: {(5, 5, 5)}, data from {data_recency}")\
-            .show()
+        # plot_simulation_range(simulation_results, ["31 May Release", "Adaptive Controls"], get_time_series(df_state).Hospitalized)\
+        #     .title(f"{state} Policy Scenarios: Projected Infections over Time")\
+        #     .xlabel("Date")\
+        #     .ylabel("Number of net new infections")\
+        #     .annotate(f"stochastic parameter range: ({si}, {sf}), infectious period: {1/gamma} days, smoothing window: {(5, 5, 5)}, data from {data_recency}")\
+        #     .show()
