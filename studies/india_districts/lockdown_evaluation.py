@@ -113,6 +113,7 @@ if __name__ == "__main__":
                 if np.isnan(mapping[key]):
                     mapping[key] = default
         
+
         # simulation_results = [
         #     run_policies(migrations, districts, populations, tsd, Rm, Rv, gamma, seed, initial_lockdown = lockdown_period, total_time = total_time) 
         #     for seed in tqdm(range(si, sf))
