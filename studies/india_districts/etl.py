@@ -1,12 +1,9 @@
 #!python3 
 from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
-import os.path
-from datetime import datetime
 
 import numpy as np
 import pandas as pd
-
 import requests
 
 from adaptive.utils import assume_missing_0
@@ -172,23 +169,17 @@ column_ordering_v4  = [
     'Num cases'
 ]
 
-current_version = 4
+current_endpoint_num = 4
 
-def download_data(data_path: Path):
-    base_url = 'https://api.covid19india.org/csv/latest/'
-    today = datetime.today().strftime('%Y-%m-%d')
+def download_data(data_path: Path, today, base_url='https://api.covid19india.org/csv/latest/'):
 
-    for i in range(current_version):
+    for i in range(current_endpoint_num):
         api_file = 'raw_data' + str(i + 1) + '.csv'
         filename = today + '_' + api_file
-        if not os.path.exists(data_path/filename):
+        if not (data_path/filename).exists():
             url = base_url + api_file
             response = requests.get(url)
-
-            for current_file in data_path.glob('*' + api_file):
-                os.remove(current_file)
-            with open(data_path/filename, 'wb') as f:
-                f.write(response.content)
+            (data_path/filename).write_bytes(response.content)
 
 # load data until April 26
 def load_data_v3(path: Path):

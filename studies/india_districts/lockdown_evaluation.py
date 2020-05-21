@@ -1,6 +1,7 @@
 from itertools import product
 from pathlib import Path
 from typing import Dict, Optional, Sequence
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -11,7 +12,7 @@ from adaptive.model import Model, ModelUnit, gravity_matrix
 from adaptive.plots import plot_simulation_range
 from adaptive.policy import simulate_adaptive_control, simulate_lockdown
 from adaptive.utils import cwd, days, weeks
-from etl import district_migration_matrices, get_time_series, load_all_data
+from etl import download_data, district_migration_matrices, get_time_series, load_all_data
 
 
 def get_model(districts, populations, timeseries, seed = 0):
@@ -60,9 +61,13 @@ if __name__ == "__main__":
         "Telangana": (data/"telangana.json", data/"telangana_pop.csv")
     }
 
+    # download data from india covid 19 api
+    today = datetime.today().strftime('%Y-%m-%d')
+    download_data(data, today)
+
     # run rolling regressions on historical national case data 
     dfn = load_all_data(
-        v3_paths = (data/"raw_data1.csv", data/"raw_data2.csv"), 
+        v3_paths = (data/(today + "_raw_data1.csv"), data/"raw_data2.csv"), 
         v4_paths = (data/"raw_data3.csv", data/"raw_data4.csv")
     )
     data_recency = str(dfn["Date Announced"].max()).split()[0]
