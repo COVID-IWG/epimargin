@@ -61,14 +61,17 @@ if __name__ == "__main__":
         "Telangana": (data/"telangana.json", data/"telangana_pop.csv")
     }
 
+    # define data versions for api files
+    paths = { "v3": ["raw_data1.csv", "raw_data2.csv"], "v4": ["raw_data3.csv", "raw_data4.csv"] } 
+
     # download data from india covid 19 api
-    today = datetime.today().strftime('%Y-%m-%d')
-    download_data(data, today)
+    for f in paths['v3'] + paths['v4']:
+        download_data(data, f)
 
     # run rolling regressions on historical national case data 
     dfn = load_all_data(
-        v3_paths = (data/(today + "_raw_data1.csv"), data/"raw_data2.csv"), 
-        v4_paths = (data/"raw_data3.csv", data/"raw_data4.csv")
+        v3_paths = paths['v3'], 
+        v4_paths = paths['v4']
     )
     data_recency = str(dfn["Date Announced"].max()).split()[0]
     tsn = get_time_series(dfn)

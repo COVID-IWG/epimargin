@@ -169,17 +169,10 @@ column_ordering_v4  = [
     'Num cases'
 ]
 
-current_endpoint_num = 4
-
-def download_data(data_path: Path, today, base_url='https://api.covid19india.org/csv/latest/'):
-
-    for i in range(current_endpoint_num):
-        api_file = 'raw_data' + str(i + 1) + '.csv'
-        filename = today + '_' + api_file
-        if not (data_path/filename).exists():
-            url = base_url + api_file
-            response = requests.get(url)
-            (data_path/filename).write_bytes(response.content)
+def download_data(data_path: Path, filename, base_url='https://api.covid19india.org/csv/latest/'):
+    url = base_url + filename
+    response = requests.get(url)
+    (data_path/filename).open('wb').write(response.content)
 
 # load data until April 26
 def load_data_v3(path: Path):
