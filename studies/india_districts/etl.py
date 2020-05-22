@@ -217,12 +217,14 @@ def load_all_data(v3_paths: Sequence[Path], v4_paths: Sequence[Path]) -> pd.Data
 def load_data(datapath: Path, reduced: bool = False, schema: Optional[Sequence[str]] = None) -> pd.DataFrame: 
     if not schema:
         schema = columns_v1
-    return pd.read_csv(datapath, 
+    df =  pd.read_csv(datapath, 
         skiprows    = 1, # supply fixed header in order to deal with Google Sheets export issues 
         names       = schema, 
         usecols     = (lambda _: _ not in drop_cols) if reduced else None,
         dayfirst    = True, # source data does not have consistent date format so cannot rely on inference
-        parse_dates = ["date_announced", "status_change_date"])
+        parse_dates = ["Date Announced", "Status Change Date"])
+    standardize_column_headers(df)
+    return df
 
 def load_population_data(pop_path: Path) -> pd.DataFrame:
     return pd.read_csv(pop_path, names = ["name", "pop"])\
