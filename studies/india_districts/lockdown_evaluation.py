@@ -65,12 +65,12 @@ if __name__ == "__main__":
         v3_paths = (data/"raw_data1.csv", data/"raw_data2.csv"), 
         v4_paths = (data/"raw_data3.csv", data/"raw_data4.csv")
     )
-    data_recency = str(dfn["Date Announced"].max()).split()[0]
+    data_recency = str(dfn["date_announced"].max()).split()[0]
     tsn = get_time_series(dfn)
     grn = run_regressions(tsn, window = 5, infectious_period = 1/gamma)
 
     # disaggregate down to states
-    dfs = {state: dfn[dfn["Detected State"] == state] for state in states}
+    dfs = {state: dfn[dfn["detected_state"] == state] for state in states}
     tss = {state: get_time_series(cases) for (state, cases) in dfs.items()}
     for (_, ts) in tss.items():
         ts['Hospitalized'] *= prevalence
@@ -97,7 +97,7 @@ if __name__ == "__main__":
         else: 
             districts, populations, migrations = migration_matrices[state]
         df_state = dfs[state]
-        dfd = {district: df_state[df_state["Detected District"] == district] for district in districts}
+        dfd = {district: df_state[df_state["detected_district"] == district] for district in districts}
         tsd = {district: get_time_series(cases) for (district, cases) in dfd.items()}
         for (_, ts) in tsd.items():
             if 'Hospitalized' in ts:
