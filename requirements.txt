@@ -1,7 +1,10 @@
+-e git+https://github.com/mansueto-institute/adaptive-lockdown@6975a34e2383663e480e7dbdf8f6340e89f96f19#egg=adaptive
 appnope==0.1.0
 astroid==2.4.1
 attrs==19.3.0
 backcall==0.1.0
+certifi==2020.4.5.1
+chardet==3.0.4
 click==7.1.2
 click-plugins==1.1.1
 cligj==0.5.0
@@ -9,6 +12,7 @@ cycler==0.10.0
 decorator==4.4.2
 Fiona==1.8.13.post1
 geopandas==0.7.0
+idna==2.9
 ipython==7.13.0
 ipython-genutils==0.2.0
 isort==4.3.21
@@ -34,6 +38,7 @@ pyparsing==2.4.7
 pyproj==2.6.0
 python-dateutil==2.8.1
 pytz==2019.3
+requests==2.23.0
 scikit-learn==0.22.2.post1
 scipy==1.4.1
 seaborn==0.10.0
@@ -46,5 +51,6 @@ toml==0.10.1
 tqdm==4.45.0
 traitlets==4.3.3
 typed-ast==1.4.1
+urllib3==1.25.9
 wcwidth==0.1.9
 wrapt==1.12.1
