@@ -1,7 +1,6 @@
 from itertools import product
 from pathlib import Path
 from typing import Dict, Optional, Sequence
-from datetime import datetime
 
 import numpy as np
 import pandas as pd
