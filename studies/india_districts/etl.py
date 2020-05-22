@@ -4,6 +4,7 @@ from typing import Dict, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
+import requests
 
 from adaptive.utils import assume_missing_0
 
@@ -167,6 +168,11 @@ column_ordering_v4  = [
     'Status Change Date',
     'Num cases'
 ]
+
+def download_data(data_path: Path, filename, base_url='https://api.covid19india.org/csv/latest/'):
+    url = base_url + filename
+    response = requests.get(url)
+    (data_path/filename).open('wb').write(response.content)
 
 # load data until April 26
 def load_data_v3(path: Path):
