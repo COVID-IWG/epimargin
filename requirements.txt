@@ -1,4 +1,3 @@
--e git+https://github.com/mansueto-institute/adaptive-lockdown@6975a34e2383663e480e7dbdf8f6340e89f96f19#egg=adaptive
 appnope==0.1.0
 astroid==2.4.1
 attrs==19.3.0
