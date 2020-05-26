@@ -24,23 +24,30 @@ def get_model(districts, populations, timeseries, seed = 0):
     ) for (i, district) in enumerate(districts)]
     return Model(units, random_seed = seed)
 
-def run_policies(migrations, district_names, populations, district_time_series, Rm, Rv, gamma, seed, initial_lockdown = 13*days, total_time = 190*days):    
+def run_policies(migrations, district_names, populations, district_time_series, Rm, Rv, gamma, seed, initial_lockdown = 9*days, total_time = 110*days):    
     # run various policy scenarios
     lockdown = np.zeros(migrations.shape)
 
     # 1. release lockdown 31 May 
-    release_31_may = get_model(district_names, populations, district_time_series, seed)
-    simulate_lockdown(release_31_may, 
-        lockdown_period = initial_lockdown + 4*weeks, 
+    model_A = get_model(district_names, populations, district_time_series, seed)
+    simulate_lockdown(model_A, 
+        lockdown_period = initial_lockdown, 
+        total_time      = total_time, 
+        RR0_mandatory   = Rm,              RR0_voluntary = Rv, 
+        lockdown        = lockdown.copy(), migrations    = migrations)
+
+    model_B = get_model(district_names, populations, district_time_series, seed)
+    simulate_lockdown(model_B, 
+        lockdown_period = initial_lockdown + 30*days, 
         total_time      = total_time, 
         RR0_mandatory   = Rm,              RR0_voluntary = Rv, 
         lockdown        = lockdown.copy(), migrations    = migrations)
 
     # 3. adaptive release starting 31 may 
-    adaptive = get_model(district_names, populations, district_time_series, seed)
-    simulate_adaptive_control(adaptive, initial_lockdown, total_time, lockdown, migrations, Rm, {district: R * gamma for (district, R) in Rv.items()}, {district: R * gamma for (district, R) in Rm.items()}, evaluation_period=1*weeks)
+    model_C = get_model(district_names, populations, district_time_series, seed)
+    simulate_adaptive_control(model_C, initial_lockdown, total_time, lockdown, migrations, Rm, {district: R * gamma for (district, R) in Rv.items()}, {district: R * gamma for (district, R) in Rm.items()}, evaluation_period=2*weeks)
 
-    return (release_31_may, adaptive)
+    return model_A, model_B, model_C
 
 if __name__ == "__main__":
     root = cwd()
@@ -49,11 +56,12 @@ if __name__ == "__main__":
     # model details 
     gamma      = 0.2
     prevalence = 1
-    total_time = 90 * days 
+    total_time = 110 * days 
     release_date = pd.to_datetime("May 31, 2020")
     lockdown_period = (release_date - pd.to_datetime("today")).days
+    window = 10
 
-    states = ["Telangana", "Maharashtra", "Andhra Pradesh", "Tamil Nadu", "Madhya Pradesh", "Punjab", "Gujarat", "Kerala"][:4]
+    states = ["Maharashtra", "Andhra Pradesh", "Tamil Nadu", "Punjab"]
     
     # use gravity matrix for states after 2001 census 
     new_state_data_paths = { 
@@ -102,7 +110,7 @@ if __name__ == "__main__":
         for (_, ts) in tsd.items():
             if 'Hospitalized' in ts:
                 ts['Hospitalized'] *= prevalence
-        grd = {district: run_regressions(timeseries, window = 5, infectious_period = 1/gamma) for (district, timeseries) in tsd.items() if len(timeseries) > 5}
+        grd = {district: run_regressions(timeseries, window = 2, infectious_period = 1/gamma) for (district, timeseries) in tsd.items() if len(timeseries) > 5}
     
         Rv = {district: np.mean(grd[district]["2020-03-24":"2020-03-31"].R) if district in grd.keys() else Rvs[state] for district in districts}
         Rm = {district: np.mean(grd[district]["2020-04-01":].R)             if district in grd.keys() else Rms[state] for district in districts}
@@ -114,14 +122,14 @@ if __name__ == "__main__":
                     mapping[key] = default
         
 
-        # simulation_results = [
-        #     run_policies(migrations, districts, populations, tsd, Rm, Rv, gamma, seed, initial_lockdown = lockdown_period, total_time = total_time) 
-        #     for seed in tqdm(range(si, sf))
-        # ]
+        simulation_results = [
+            run_policies(migrations, districts, populations, tsd, Rm, Rv, gamma, seed, initial_lockdown = lockdown_period, total_time = total_time) 
+            for seed in tqdm(range(si, sf))
+        ]
 
-        # plot_simulation_range(simulation_results, ["31 May Release", "Adaptive Controls"], get_time_series(df_state).Hospitalized)\
-        #     .title(f"{state} Policy Scenarios: Projected Infections over Time")\
-        #     .xlabel("Date")\
-        #     .ylabel("Number of net new infections")\
-        #     .annotate(f"stochastic parameter range: ({si}, {sf}), infectious period: {1/gamma} days, smoothing window: {(5, 5, 5)}, data from {data_recency}")\
-        #     .show()
+        plot_simulation_range(simulation_results, ["Current Mobility Policy until 1 Jun", "Current Mobility Policy until 1 Jul", "Adaptive Control"], get_time_series(df_state).Hospitalized)\
+            .title(f"{state} Policy Scenarios: Projected Infections over Time")\
+            .xlabel("Date")\
+            .ylabel("Number of net new infections")\
+            .annotate(f"stochastic parameter range: ({si}, {sf}), infectious period: {1/gamma} days, smoothing window: {(5, 5, 2)}, data from {data_recency}")\
+            .show()

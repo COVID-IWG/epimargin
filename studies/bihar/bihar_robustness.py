@@ -3,15 +3,31 @@ from typing import Dict, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
+from sklearn import metrics 
 from tqdm import tqdm
 
 import etl
 from adaptive.estimators import rollingOLS
-from adaptive.model  import Model, ModelUnit
-from adaptive.plots  import gantt_chart, plot_simulation_range
+from adaptive.model import Model, ModelUnit
+from adaptive.plots import gantt_chart, plot_simulation_range
 from adaptive.policy import simulate_adaptive_control, simulate_lockdown
-from adaptive.utils  import cwd, days, weeks, fmt_params
+from adaptive.utils import cwd, days, fmt_params, weeks
 
+
+def auc(model: Model, curve: str = "I") -> float:
+    return metrics.auc(*list(zip(*enumerate(model.aggregate(curve)))))
+
+def evaluate(models: Sequence[Tuple[Model]]):
+    adaptive_dominant_trials = 0
+    auc_scores = [[], [], []]
+    for modelset in models:
+        scores = [auc(model) for model in modelset]
+        for (perf, s) in zip(auc_scores, scores):
+            perf.append(s)
+        if scores[-1] == min(scores):
+            adaptive_dominant_trials += 1 
+
+    return [np.mean(scores) for scores in auc_scores] + [float(adaptive_dominant_trials)/len(models)]
 
 def model(districts, populations, cases, seed) -> Model:
     units = [
@@ -85,6 +101,7 @@ if __name__ == "__main__":
     total_time = 110 * days 
     release_date = pd.to_datetime("June 1, 2020")
     lockdown_period = (release_date - pd.to_datetime("today")).days
+    prevalence = 1
 
     state_cases    = etl.load_cases(data/"Bihar_Case_data_May18.csv")
     district_cases = etl.split_cases_by_district(state_cases)
@@ -97,43 +114,34 @@ if __name__ == "__main__":
     
     R_voluntary    = {district: 1.5*R for (district, R) in R_mandatory.items()}
 
-    si, sf = 0, 5000
+    si, sf = 0, 1000
 
+    results = []
+    for beta_scaling in [1.0, 1.1, 1.25, 0.90, 0.75]:
+        simulation_results = [ 
+            run_policies(district_ts, pops, districts, migrations, gamma, R_mandatory, R_voluntary, beta_scaling = beta_scaling, seed = seed)
+            for seed in tqdm(range(si, sf))
+        ]
+        results.append([beta_scaling, gamma, prevalence] + evaluate(simulation_results)) 
+    beta_scaling = 1
+    for gamma in [0.1, 0.3, 0.4, 0.5]:
+        simulation_results = [ 
+            run_policies(district_ts, pops, districts, migrations, gamma, R_mandatory, R_voluntary, beta_scaling = beta_scaling, seed = seed)
+            for seed in tqdm(range(si, sf))
+        ]
+        results.append([beta_scaling, gamma, prevalence] + evaluate(simulation_results)) 
 
-    simulation_results = [ 
-        run_policies(district_ts, pops, districts, migrations, gamma, R_mandatory, R_voluntary, seed = seed)
-        for seed in tqdm(range(si, sf))
-    ]
+    gamma = 0.2
+    for prevalence in [2, 4, 8]:
+        prevalence_adj = {d: ts.copy() for (d, ts) in district_ts.items()}
+        for (district, ts) in prevalence_adj.items():
+            if "Hospitalized" in ts:
+                ts["Hospitalized"] *= prevalence
+        simulation_results = [ 
+            run_policies(prevalence_adj, pops, districts, migrations, gamma, R_mandatory, R_voluntary, beta_scaling = beta_scaling, seed = seed)
+            for seed in tqdm(range(si, sf))
+        ]
+        results.append([beta_scaling, gamma, prevalence] + evaluate(simulation_results)) 
 
-    plot_simulation_range(simulation_results, ["Current Mobility Policy until 1 Jun", "Current Mobility Policy until 1 Jul", "Adaptive Control"], etl.get_time_series(state_cases)["Hospitalized"])\
-        .title("Bihar Policy Scenarios: Projected Infections over Time")\
-        .xlabel("Date")\
-        .ylabel("Number of net new infections")\
-        .annotate(f"stochastic parameter range: ({si}, {sf}), infectious period: {1/gamma} days, smoothing window: {window}, data from May 18, 2020")\
-        .show()
-
-    # best_index  = 1
-    # worst_index = 665
-
-    # gantt_chart(simulation_results[best_index][-1].gantt, start_date="May 17, 2020")\
-    #     .title("Bihar: Example Adaptive Lockdown Mobility Regime Scenario " + str(best_index))\
-    #     .show()
-
-    # gantt_chart(simulation_results[worst_index][-1].gantt, start_date="May 17, 2020")\
-    #     .title("Bihar: Example Adaptive Lockdown Mobility Regime Scenario " + str(worst_index))\
-    #     .show()
-
-    # projections
-    # estimates = {district: estimate(district, ts, default = -1) for (district, ts) in district_ts.items()}
-    # index = {k: v.last_valid_index() if v is not -1 else v for (k, v) in estimates.items()}
-    # projections = []
-    # for district, estimate in estimates.items():
-    #     if estimate is -1:
-    #         projections.append((district, None, None, None, None))
-    #     else:
-    #         idx = index[district]
-    #         if idx is None or idx is -1:
-    #             projections.append((district, None, None, None, None))
-    #         else: 
-    #             projections.append((district, *project(estimate.loc[idx])))
-    # projdf = pd.DataFrame(data = projections, columns = ["district", "current R", "1 week projection", "2 week projection", "stderr"])
+    results_df = pd.DataFrame(results, columns = ["beta_scale", "gamma", "prevalence", "score_lockdown_short", "score_lockdown_long", "score_AC", "dominance"])
+    results_df.to_csv(figs/"robustness.csv")
