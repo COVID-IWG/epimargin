@@ -177,11 +177,6 @@ def download_data(data_path: Path, filename, base_url='https://api.covid19india.
 def standardize_column_headers(df: pd.DataFrame):
     df.columns = df.columns.str.lower().str.strip().str.replace(" ","_").str.replace('[^a-zA-Z0-9_]', '')
 
-def download_data(data_path: Path, filename, base_url='https://api.covid19india.org/csv/latest/'):
-    url = base_url + filename
-    response = requests.get(url)
-    (data_path/filename).open('wb').write(response.content)
-
 # load data until April 26
 def load_data_v3(path: Path):
     cases = pd.read_csv(path, 
