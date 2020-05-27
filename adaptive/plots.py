@@ -1,9 +1,10 @@
 from pathlib import Path
-from typing import Optional, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 import matplotlib as mlp
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
 
@@ -126,7 +127,8 @@ def plot_simulation_range(
     labels: Sequence[str], 
     historical: Optional[pd.Series] = None, 
     historical_label: str = "Empirical Case Data", 
-    curve: str = "I") -> PlotDevice:
+    curve: str = "I", 
+    smoothing: Optional[np.ndarray] = None) -> PlotDevice:
 
     aggregates = [tuple(model.aggregate(curve) for model in model_set) for model_set in simulation_results]
 
@@ -145,12 +147,14 @@ def plot_simulation_range(
             ranges[i]["mdn"].append(curve_sorted[num_sims//2])
 
     if historical is not None:
-        historical.iloc[-1] = ranges[-1]["mdn"][0]
-        plt.semilogy(historical.index, historical, 'k-', label = historical_label, linewidth = 2)
+        plt.semilogy(historical.index, historical, 'k.', label = historical_label, alpha = 0.8, zorder = 10)
         t = [historical.index.max() + pd.Timedelta(days = n) for n in range(total_time)]
     else:
         t = list(range(total_time))
-    
+
+    if smoothing is not None:
+        plt.semilogy([pd.Timestamp(t) for t in smoothing[:, 0]], smoothing[:, 1], 'k-', label = "LOESS smoothed data", linewidth = 1)
+        
     for (rng, label) in zip(ranges, labels):
         plt.semilogy(t, rng["mdn"], label = label, linewidth = 2)
         plt.fill_between(t, rng["min"], rng["max"], alpha = 0.2)
