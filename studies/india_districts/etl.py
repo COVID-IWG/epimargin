@@ -160,19 +160,22 @@ drop_cols_v4 = {
 }
 
 column_ordering_v4  = [
-    'Patient Number',
-    'Date Announced',
-    'Detected District',
-    'Detected State',
-    'Current Status',
-    'Status Change Date',
-    'Num cases'
-]
+    'patient_number',
+     'date_announced',
+     'detected_district',
+     'detected_state',
+     'current_status',
+     'status_change_date',
+     'num_cases'
+ ]
 
 def download_data(data_path: Path, filename, base_url='https://api.covid19india.org/csv/latest/'):
     url = base_url + filename
     response = requests.get(url)
     (data_path/filename).open('wb').write(response.content)
+
+def standardize_column_headers(df: pd.DataFrame):
+    df.columns = df.columns.str.lower().str.strip().str.replace(" ","_").str.replace('[^a-zA-Z0-9_]', '')
 
 # load data until April 26
 def load_data_v3(path: Path):
@@ -180,6 +183,7 @@ def load_data_v3(path: Path):
         usecols     = set(columns_v3) - drop_cols_v3,
         dayfirst    = True, # source data does not have consistent date format so cannot rely on inference
         parse_dates = ["Date Announced", "Status Change Date"])
+    standardize_column_headers(cases)
     return cases
 
 # load data for April 27 - May 09  
@@ -188,12 +192,12 @@ def load_data_v4(path: Path):
         usecols     = set(columns_v4) - drop_cols_v4,
         dayfirst    = True, # source data does not have consistent date format so cannot rely on inference
         parse_dates = ["Date Announced", "Status Change Date"])
-    cases["Num cases"] = cases["Num Cases"]
+    standardize_column_headers(cases)
     return cases[column_ordering_v4]
 
 # calculate daily totals and growth rate
 def get_time_series(df: pd.DataFrame) -> pd.DataFrame:
-    totals = df.groupby(["Status Change Date", "Current Status"])["Num cases"].agg(lambda counts: np.sum(np.abs(counts)))
+    totals = df.groupby(["status_change_date", "current_status"])["num_cases"].agg(lambda counts: np.sum(np.abs(counts)))
     if len(totals) == 0:
         return pd.DataFrame()
     totals = totals.unstack().fillna(0)
@@ -206,19 +210,21 @@ def load_all_data(v3_paths: Sequence[Path], v4_paths: Sequence[Path]) -> pd.Data
     cases_v3 = [load_data_v3(path) for path in v3_paths]
     cases_v4 = [load_data_v4(path) for path in v4_paths]
     all_cases = pd.concat(cases_v3 + cases_v4)
-    all_cases["Status Change Date"] = all_cases["Status Change Date"].fillna(all_cases["Date Announced"])
-    return all_cases.dropna(subset = ["Detected State"])
+    all_cases["status_change_date"] = all_cases["status_change_date"].fillna(all_cases["date_announced"])
+    return all_cases.dropna(subset = ["detected_state"])
 
 # assuming analysis for data structure from COVID19-India saved as resaved, properly-quoted file (v1 and v2)
 def load_data(datapath: Path, reduced: bool = False, schema: Optional[Sequence[str]] = None) -> pd.DataFrame: 
     if not schema:
         schema = columns_v1
-    return pd.read_csv(datapath, 
+    df =  pd.read_csv(datapath, 
         skiprows    = 1, # supply fixed header in order to deal with Google Sheets export issues 
         names       = schema, 
         usecols     = (lambda _: _ not in drop_cols) if reduced else None,
         dayfirst    = True, # source data does not have consistent date format so cannot rely on inference
-        parse_dates = ["date announced", "status change date"])
+        parse_dates = ["Date Announced", "Status Change Date"])
+    standardize_column_headers(df)
+    return df
 
 def load_population_data(pop_path: Path) -> pd.DataFrame:
     return pd.read_csv(pop_path, names = ["name", "pop"])\
