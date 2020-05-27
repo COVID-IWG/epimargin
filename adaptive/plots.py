@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Callable, Optional, Sequence, Tuple
+from typing import Optional, Sequence, Tuple
 
 import matplotlib as mlp
 import matplotlib.dates as mdates

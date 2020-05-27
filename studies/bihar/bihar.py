@@ -43,7 +43,7 @@ def run_policies(
     model_A = model(districts, populations, district_cases, seed)
     simulate_lockdown(model_A, 5*days, total, Rmw, Rvw, lockdown, migrations)
 
-    # lockdown 2 week lockdown 
+    # lockdown 2
     model_B = model(districts, populations, district_cases, seed)
     simulate_lockdown(model_B, 35*days, total, Rmw, Rvw, lockdown, migrations)
 
@@ -95,7 +95,7 @@ if __name__ == "__main__":
     
     R_voluntary    = {district: 1.5*R for (district, R) in R_mandatory.items()}
 
-    si, sf = 0, 100
+    si, sf = 0, 1000
 
     simulation_results = [ 
         run_policies(district_ts, pops, districts, migrations, gamma, R_mandatory, R_voluntary, seed = seed)

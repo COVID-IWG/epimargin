@@ -93,7 +93,7 @@ if __name__ == "__main__":
 
     migration_spike = etl.migratory_influx_matrix(data/"Bihar_state_district_migrants_matrix.xlsx - Table 1.csv", num_migrants, release_rate)
 
-    si, sf = 0, 10
+    si, sf = 0, 1000
 
     # first, 0% migration spike:
     simulation_results = [ 
