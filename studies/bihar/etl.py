@@ -3,7 +3,7 @@ from typing import Dict, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
-
+from statsmodels.nonparametric.smoothers_lowess import lowess
 
 collect = 'DATE OF 1st SAMPLE COLLECTION'
 confirm = 'DATE OF POSITIVE TEST CONFIRMATION'
@@ -31,15 +31,15 @@ replacements = {
 }
 
 def load_cases(path: Path) -> pd.DataFrame:
-    return pd.read_csv(path, parse_dates=[collect, confirm, release])
+    return pd.read_csv(path, parse_dates=[collect, confirm, release], dayfirst=True)
 
 def split_cases_by_district(cases: pd.DataFrame) -> Dict[str, pd.DataFrame]:
     return {district: cases[cases["DISTRICT"] == district] for district in districts}
 
 def get_time_series(cases: pd.DataFrame) -> pd.Series:
-    R = cases["Case_status"] == "Recovered"
-    D = cases["Case_status"] == "Deceased"
-    H = cases["Case_status"].isna()
+    R = cases["CASE STATUS"] == "Recovered"
+    D = cases["CASE STATUS"] == "Deceased"
+    H = cases["CASE STATUS"].isna()
     recovered = cases[release][R].value_counts().rename("time") 
     infected  = cases[confirm][H].value_counts().rename("time")
     deceased  = cases[death  ][D].value_counts().rename("time")
@@ -52,6 +52,13 @@ def assume_missing_0(df: pd.DataFrame, col: str):
 
 def log_delta(time_series: pd.DataFrame) -> pd.DataFrame:
     time_series["cases"] = assume_missing_0(time_series, "Hospitalized") - assume_missing_0(time_series, "Recovered") -  assume_missing_0(time_series, "Deceased")
+    log_delta = pd.DataFrame(np.log(time_series.cases)).rename(columns = {"cases" : "logdelta"})
+    log_delta["time"] = (log_delta.index - log_delta.index.min()).days
+    return log_delta
+
+def log_delta_smoothed(time_series: pd.DataFrame) -> pd.DataFrame:
+    time_series["cases"] = assume_missing_0(time_series, "Hospitalized") - assume_missing_0(time_series, "Recovered") -  assume_missing_0(time_series, "Deceased")
+    time_series["cases"] = lowess(time_series["cases"], time_series.index)[:, 1] 
     log_delta = pd.DataFrame(np.log(time_series.cases)).rename(columns = {"cases" : "logdelta"})
     log_delta["time"] = (log_delta.index - log_delta.index.min()).days
     return log_delta

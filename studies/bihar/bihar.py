@@ -14,11 +14,12 @@ from adaptive.utils  import cwd, days, weeks, fmt_params
 
 
 def model(districts, populations, cases, seed) -> Model:
+    max_ts = max([ts.index.max() for ts in cases.values()]).isoformat()
     units = [
         ModelUnit(district, populations[i], 
-        I0 = cases[district].iloc[-1].Hospitalized if district in cases.keys() else 0, 
-        R0 = cases[district].iloc[-1].Recovered    if district in cases.keys() else 0, 
-        D0 = cases[district].iloc[-1].Deceased     if district in cases.keys() else 0)
+        I0 = cases[district].loc[max_ts].Hospitalized[0] if district in cases.keys() and max_ts in cases[district].index else 0, 
+        R0 = cases[district].loc[max_ts].Recovered[0]    if district in cases.keys() and max_ts in cases[district].index else 0, 
+        D0 = cases[district].loc[max_ts].Deceased[0]     if district in cases.keys() and max_ts in cases[district].index else 0)
         for (i, district) in enumerate(districts)
     ]
     return Model(units, random_seed=seed)
@@ -38,17 +39,17 @@ def run_policies(
     ):
     lockdown = np.zeros(migrations.shape)
 
-    # 9 day lockdown 
+    # lockdown 1
     model_A = model(districts, populations, district_cases, seed)
-    simulate_lockdown(model_A, 9*days, total, Rmw, Rvw, lockdown, migrations)
+    simulate_lockdown(model_A, 5*days, total, Rmw, Rvw, lockdown, migrations)
 
-    # 9 day + 2 week lockdown 
+    # lockdown 2
     model_B = model(districts, populations, district_cases, seed)
-    simulate_lockdown(model_B, 9*days + 2*weeks, total, Rmw, Rvw, lockdown, migrations)
+    simulate_lockdown(model_B, 35*days, total, Rmw, Rvw, lockdown, migrations)
 
     # 9 day lockdown + adaptive controls
     model_C = model(districts, populations, district_cases, seed)
-    simulate_adaptive_control(model_C, 9*days, total, lockdown, migrations, Rmw,
+    simulate_adaptive_control(model_C, 5*days, total, lockdown, migrations, Rmw,
         {district: beta_scaling * Rv * gamma for (district, Rv) in Rvw.items()},
         {district: beta_scaling * Rm * gamma for (district, Rm) in Rmw.items()},
         evaluation_period=eval_period
@@ -56,9 +57,9 @@ def run_policies(
 
     return model_A, model_B, model_C
 
-def estimate(district, ts, default = 1.5, window = 2, use_last = False):
+def estimate(district, ts, default = 1.5, window = 5, use_last = False):
     try:
-        regressions = rollingOLS(etl.log_delta(ts), window = window, infectious_period = 1/gamma)[["R", "Intercept", "gradient", "gradient_stderr"]]
+        regressions = rollingOLS(etl.log_delta_smoothed(ts), window = window, infectious_period = 1/gamma)[["R", "Intercept", "gradient", "gradient_stderr"]]
         if use_last:
             return next((x for x in regressions.R.iloc[-3:-1] if not np.isnan(x) and x > 0), default)
         return regressions
@@ -81,9 +82,9 @@ if __name__ == "__main__":
     figs = root/"figs"
     
     gamma  = 0.2
-    window = 2
+    window = 5
 
-    state_cases    = etl.load_cases(data/"Bihar_Case_data_May11.csv")
+    state_cases    = etl.load_cases(data/"Bihar_Case_data_May20.csv")
     district_cases = etl.split_cases_by_district(state_cases)
     district_ts    = {district: etl.get_time_series(cases) for (district, cases) in district_cases.items()}
     R_mandatory    = {district: estimate(district, ts, use_last = True) for (district, ts) in district_ts.items()}
@@ -101,22 +102,18 @@ if __name__ == "__main__":
         for seed in tqdm(range(si, sf))
     ]
 
-    plot_simulation_range(simulation_results, ["17 May Release", "31 May Release", "Adaptive Control"], etl.get_time_series(state_cases)["Hospitalized"])\
+    state_ts = etl.get_time_series(state_cases)
+    smoothed = etl.lowess(state_ts["Hospitalized"], state_ts.index)
+
+    plot_simulation_range(
+        simulation_results, 
+        ["31 May Release", "30 June Release", "Adaptive Control"], 
+        historical = state_ts["Hospitalized"], 
+        smoothing = smoothed)\
         .title("Bihar Policy Scenarios: Projected Infections over Time")\
         .xlabel("Date")\
         .ylabel("Number of Infections")\
         .annotate(f"stochastic parameter range: ({si}, {sf}), infectious period: {1/gamma} days, smoothing window: {window}")\
-        .show()
-
-    best_index  = 1
-    worst_index = 665
-
-    gantt_chart(simulation_results[best_index][-1].gantt, start_date="May 17, 2020")\
-        .title("Bihar: Example Adaptive Lockdown Mobility Regime Scenario " + str(best_index))\
-        .show()
-
-    gantt_chart(simulation_results[worst_index][-1].gantt, start_date="May 17, 2020")\
-        .title("Bihar: Example Adaptive Lockdown Mobility Regime Scenario " + str(worst_index))\
         .show()
 
     # projections
@@ -133,3 +130,5 @@ if __name__ == "__main__":
             else: 
                 projections.append((district, *project(estimate.loc[idx])))
     projdf = pd.DataFrame(data = projections, columns = ["district", "current R", "1 week projection", "2 week projection", "stderr"])
+    projdf = projdf.drop(columns = ["2 week projection"])
+    print(projdf)
