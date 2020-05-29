@@ -43,13 +43,9 @@ def split_cases_by_district(cases: pd.DataFrame) -> Dict[str, pd.DataFrame]:
     return {district: cases[cases["District"] == district] for district in districts}
 
 def get_time_series(cases: pd.DataFrame) -> pd.Series:
-    cases.set_index('Date', inplace=True)
-    recovered = cases['daily_new_recoveries'] 
-    infected  = cases['daily_new_cases']
-    deceased  = cases['daily_new_deaths']
+    time_series = cases.groupby('Date')[['daily_new_cases','daily_new_deaths','daily_new_recoveries']].agg(lambda counts: np.sum(np.abs(counts)))
 
-    time_series = pd.DataFrame({"Infected": infected, "Recovered": recovered, "Deceased": deceased}).fillna(0)
-    return time_series
+    return time_series.rename(columns={"daily_new_cases" : "Infected", "daily_new_recoveries" : "Recovered", "daily_new_deaths" : "Deceased"}).fillna(0)
 
 def assume_missing_0(df: pd.DataFrame, col: str):
     return df[col] if col in df.columns else 0

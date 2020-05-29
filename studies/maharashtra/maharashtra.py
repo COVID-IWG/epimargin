@@ -94,14 +94,10 @@ if __name__ == "__main__":
     R_mandatory    = {district: estimate(district, ts, use_last = True) for (district, ts) in district_ts.items()}
     # districts, pops, migrations = etl.district_migration_matrix(data/"Migration Matrix - District.csv")
     districts, pops, migrations = gravity_matrix(*new_state_data_paths["Maharashtra"])
-    districts = [
-	'AHMEDNAGAR','AKOLA','AMARAVATI','AURANGABAD',
-	'BEED','BHANDARA','BULDHANA','CHANDRAPUR','DHULE',
-	'GADCHIROLI','GONDIA','HINGOLI','JALGAON','JALNA',
-	'KOLHAPUR','LATUR','MUMBAI','NAGPUR','NANDED','NANDURBAR',
- 	'NASHIK','OSMANABAD','PALGHAR','PARBHANI','PUNE',
- 	'RAIGAD','RATNAGIRI','SANGLI','SATARA','SINDHUDURG',
- 	'SOLAPUR','THANE','WARDHA','WASHIM','YAVATMAL']
+    
+    # handling differences in spelling of districts between data sources - need to change
+    districts.remove("AMRAVATI")
+    districts.append("AMARAVATI")
 
     for district in districts:
         if district not in R_mandatory.keys():
@@ -109,7 +105,7 @@ if __name__ == "__main__":
     
     R_voluntary    = {district: 1.5*R for (district, R) in R_mandatory.items()}
 
-    si, sf = 0, 10
+    si, sf = 0, 5
 
     simulation_results = [ 
         run_policies(district_ts, pops, districts, migrations, gamma, R_mandatory, R_voluntary, seed = seed)
