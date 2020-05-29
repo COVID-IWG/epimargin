@@ -14,7 +14,6 @@ districts = [
  	'RAIGAD','RATNAGIRI','SANGLI','SATARA','SINDHUDURG',
  	'SOLAPUR','THANE','WARDHA','WASHIM','YAVATMAL']
 
-
 census_districts = [
 	'AHMADNAGAR','AKOLA','AMRAVATI','AURANGABAD',
  	'BHANDARA','BID','BULDANA','CHANDRAPUR','DHULE',
@@ -24,14 +23,13 @@ census_districts = [
  	'RAIGARH','RATNAGIRI','SANGLI','SATARA','SINDHUDURG',
  	'SOLAPUR','THANE','WARDHA','WASHIM','YAVATMAL']
 
- replacements = {
-    "AHMADNAGAR"    	: "AHMEDNAGAR", 
-    "AMRAVATI"      	: "AMARAVATI", 
-    "BID"           	: "BEED", 
-    "BULDANA"			: "BULDHANA"
-    "GONDIYA"       	: "GONDIA", 
-    "MUMBAI (SUBURBAN)" : "?",
-    "RAIGARH"        	: "RAIGAD",
+replacements = {
+    "AHMADNAGAR": "AHMEDNAGAR", 
+    "AMRAVATI"  : "AMARAVATI", 
+    "BID"       : "BEED", 
+    "BULDANA"   : "BULDHANA",
+    "GONDIYA"   : "GONDIA", 
+    "RAIGARH"   : "RAIGAD",
 }
 
 new_districts = ['PALGHAR']

@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 import etl
 from adaptive.estimators import rollingOLS
-from adaptive.model  import Model, ModelUnit, gravity matrix
+from adaptive.model  import Model, ModelUnit, gravity_matrix
 from adaptive.plots  import gantt_chart, plot_simulation_range
 from adaptive.policy import simulate_adaptive_control, simulate_lockdown
 from adaptive.utils  import cwd, days, weeks, fmt_params
@@ -17,9 +17,9 @@ def model(districts, populations, cases, seed) -> Model:
     max_ts = max([ts.index.max() for ts in cases.values()]).isoformat()
     units = [
         ModelUnit(district, populations[i], 
-        I0 = cases[district].loc[max_ts].Hospitalized[0] if district in cases.keys() and max_ts in cases[district].index else 0, 
-        R0 = cases[district].loc[max_ts].Recovered[0]    if district in cases.keys() and max_ts in cases[district].index else 0, 
-        D0 = cases[district].loc[max_ts].Deceased[0]     if district in cases.keys() and max_ts in cases[district].index else 0)
+        I0 = cases[district].loc[max_ts].Infected if district in cases.keys() and max_ts in cases[district].index else 0, 
+        R0 = cases[district].loc[max_ts].Recovered    if district in cases.keys() and max_ts in cases[district].index else 0, 
+        D0 = cases[district].loc[max_ts].Deceased     if district in cases.keys() and max_ts in cases[district].index else 0)
         for (i, district) in enumerate(districts)
     ]
     return Model(units, random_seed=seed)
@@ -93,7 +93,15 @@ if __name__ == "__main__":
     district_ts    = {district: etl.get_time_series(cases) for (district, cases) in district_cases.items()}
     R_mandatory    = {district: estimate(district, ts, use_last = True) for (district, ts) in district_ts.items()}
     # districts, pops, migrations = etl.district_migration_matrix(data/"Migration Matrix - District.csv")
-    districts, populations, migrations = gravity_matrix(*new_state_data_paths["Maharashtra"])
+    districts, pops, migrations = gravity_matrix(*new_state_data_paths["Maharashtra"])
+    districts = [
+	'AHMEDNAGAR','AKOLA','AMARAVATI','AURANGABAD',
+	'BEED','BHANDARA','BULDHANA','CHANDRAPUR','DHULE',
+	'GADCHIROLI','GONDIA','HINGOLI','JALGAON','JALNA',
+	'KOLHAPUR','LATUR','MUMBAI','NAGPUR','NANDED','NANDURBAR',
+ 	'NASHIK','OSMANABAD','PALGHAR','PARBHANI','PUNE',
+ 	'RAIGAD','RATNAGIRI','SANGLI','SATARA','SINDHUDURG',
+ 	'SOLAPUR','THANE','WARDHA','WASHIM','YAVATMAL']
 
     for district in districts:
         if district not in R_mandatory.keys():
@@ -101,7 +109,7 @@ if __name__ == "__main__":
     
     R_voluntary    = {district: 1.5*R for (district, R) in R_mandatory.items()}
 
-    si, sf = 0, 1000
+    si, sf = 0, 10
 
     simulation_results = [ 
         run_policies(district_ts, pops, districts, migrations, gamma, R_mandatory, R_voluntary, seed = seed)
@@ -138,7 +146,6 @@ if __name__ == "__main__":
     projdf = pd.DataFrame(data = projections, columns = ["district", "current R", "1 week projection", "2 week projection", "stderr"])
     projdf = projdf.drop(columns = ["2 week projection"])
     print(projdf)
-
 
        
  
