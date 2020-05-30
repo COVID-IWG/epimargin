@@ -169,12 +169,6 @@ column_ordering_v4  = [
      'num_cases'
  ]
 
-def download_data_gdrive(data_path: Path, filename, base_url='https://api.covid19india.org/csv/latest/'):
-  url = base_url + filename
-  response = pd.read_csv(url) 
-  response.to_csv(filename)
-  %cp '{filename}' '{data_path}'
-
 def download_data(data_path: Path, filename, base_url='https://api.covid19india.org/csv/latest/'):
     url = base_url + filename
     response = requests.get(url)
