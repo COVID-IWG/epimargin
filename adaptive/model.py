@@ -193,10 +193,15 @@ class MigrationSpikeModel(Model):
 
 def gravity_matrix(gdf_path: Path, population_path: Path) -> Tuple[Sequence[str], Sequence[float], np.matrix]:
     gdf = gpd.read_file(gdf_path)
-    districts = list(gdf.district.values)
+    districts = [d.upper() for d in gdf.district.values]
 
     pop_df = pd.read_csv(population_path)
-    population_mapping = {k.replace("-", " "): float(v.replace(",", "")) for (k, v) in zip(pop_df["Name"], pop_df["Population(2011 census)"])}
+
+    # population count is numeric in Maharashtra data and a string in other data - converting to numeric
+    if pop_df["Population(2011 census)"].dtype == object:
+        pop_df["Population(2011 census)"] = float(pop_df["Population(2011 census)"].str.replace(",",""))
+
+    population_mapping = {k.replace("-", " "): v for (k, v) in zip(pop_df["Name"], pop_df["Population(2011 census)"])}
     populations = [population_mapping[district] for district in districts]
 
     centroids = [list(pt.coords)[0] for pt in gdf.centroid]
