@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, Sequence
 from itertools import product
 
 import numpy as np
@@ -72,7 +72,7 @@ def simulate_adaptive_control(
 
         for (unit_name, beta_cat) in category_transitions.items(): 
             unit =  model[unit_name]
-            new_beta = beta_v[unit.name] - (beta_cat * (beta_v[unit.name] - beta_m[unit.name])/3.0)                
+            new_beta = beta_v[unit.name] - (beta_cat * (beta_v[unit.name] - beta_m[unit.name])/3.0)
             unit.beta[-1] = new_beta
             unit.RR0 = new_beta * unit.gamma
 

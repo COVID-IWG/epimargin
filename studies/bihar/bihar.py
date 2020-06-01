@@ -14,12 +14,12 @@ from adaptive.utils  import cwd, days, weeks, fmt_params
 
 
 def model(districts, populations, cases, seed) -> Model:
-    max_ts = max([ts.index.max() for ts in cases.values()]).isoformat()
+    max_ts = max([ts.index.max() for ts in cases.values()]).isoformat().split("T")[0]
     units = [
         ModelUnit(district, populations[i], 
-        I0 = cases[district].loc[max_ts].Hospitalized[0] if district in cases.keys() and max_ts in cases[district].index else 0, 
-        R0 = cases[district].loc[max_ts].Recovered[0]    if district in cases.keys() and max_ts in cases[district].index else 0, 
-        D0 = cases[district].loc[max_ts].Deceased[0]     if district in cases.keys() and max_ts in cases[district].index else 0)
+        I0 = cases[district].loc[max_ts].Hospitalized if district in cases.keys() and max_ts in cases[district].index else 0, 
+        R0 = cases[district].loc[max_ts].Recovered    if district in cases.keys() and max_ts in cases[district].index else 0, 
+        D0 = cases[district].loc[max_ts].Deceased     if district in cases.keys() and max_ts in cases[district].index else 0)
         for (i, district) in enumerate(districts)
     ]
     return Model(units, random_seed=seed)
@@ -41,15 +41,15 @@ def run_policies(
 
     # lockdown 1
     model_A = model(districts, populations, district_cases, seed)
-    simulate_lockdown(model_A, 5*days, total, Rmw, Rvw, lockdown, migrations)
+    simulate_lockdown(model_A, 8*days, total, Rmw, Rvw, lockdown, migrations)
 
-    # lockdown 2
+    # lockdown 2: 
     model_B = model(districts, populations, district_cases, seed)
-    simulate_lockdown(model_B, 35*days, total, Rmw, Rvw, lockdown, migrations)
+    simulate_lockdown(model_B, 30*days, total, Rmw, Rvw, lockdown, migrations)
 
     # 9 day lockdown + adaptive controls
     model_C = model(districts, populations, district_cases, seed)
-    simulate_adaptive_control(model_C, 5*days, total, lockdown, migrations, Rmw,
+    simulate_adaptive_control(model_C, 8*days, total, lockdown, migrations, Rmw,
         {district: beta_scaling * Rv * gamma for (district, Rv) in Rvw.items()},
         {district: beta_scaling * Rm * gamma for (district, Rm) in Rmw.items()},
         evaluation_period=eval_period
@@ -66,12 +66,6 @@ def estimate(district, ts, default = 1.5, window = 5, use_last = False):
     except (ValueError, IndexError):
         return default
 
-def gantt_seed(seed, note = ""):
-    _, _, mc = run_policies(district_ts, pops, districts, migrations, gamma, R_mandatory, R_voluntary, seed = seed) 
-    gantt_chart(mc.gantt)\
-        .title(f"Bihar: Example Adaptive Lockdown Mobility Regime Scenario {note if note else str(seed)}")\
-        .show()
-
 def project(p: pd.Series):
     t = (p.R - p.Intercept)/p.gradient
     return (max(0, p.R), max(0, p.Intercept + p.gradient*(t + 7)), max(0, p.Intercept + p.gradient*(t + 14)), np.sqrt(p.gradient_stderr))
@@ -84,7 +78,7 @@ if __name__ == "__main__":
     gamma  = 0.2
     window = 5
 
-    state_cases    = etl.load_cases(data/"Bihar_Case_data_May20.csv")
+    state_cases    = etl.load_cases(data/"Bihar_case_data_May29.csv")
     district_cases = etl.split_cases_by_district(state_cases)
     district_ts    = {district: etl.get_time_series(cases) for (district, cases) in district_cases.items()}
     R_mandatory    = {district: estimate(district, ts, use_last = True) for (district, ts) in district_ts.items()}
@@ -107,7 +101,7 @@ if __name__ == "__main__":
 
     plot_simulation_range(
         simulation_results, 
-        ["31 May Release", "30 June Release", "Adaptive Control"], 
+        ["MHA Lockdown - 8 June Phase I Reopening", "MHA Lockdown - 30 June Phase I Reopening (Hypothetical)", "Adaptive Control from 8 June"], 
         historical = state_ts["Hospitalized"], 
         smoothing = smoothed)\
         .title("Bihar Policy Scenarios: Projected Infections over Time")\

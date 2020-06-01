@@ -6,6 +6,7 @@ import pandas as pd
 from tqdm import tqdm
 
 import etl
+from mba import simulate_MBA
 from adaptive.estimators import rollingOLS
 from adaptive.model  import Model, ModelUnit, gravity_matrix
 from adaptive.plots  import gantt_chart, plot_simulation_range
@@ -39,13 +40,19 @@ def run_policies(
     ):
     lockdown = np.zeros(migrations.shape)
 
-    # lockdown 1
+    # mission: begin again
     model_A = model(districts, populations, district_cases, seed)
-    simulate_lockdown(model_A, 5*days, total, Rmw, Rvw, lockdown, migrations)
+    simulate_MBA(model_A, 5*days, 25*days, total, lockdown, migrations, Rmw,
+        {district: beta_scaling * Rv * gamma for (district, Rv) in Rvw.items()},
+        {district: beta_scaling * Rm * gamma for (district, Rm) in Rmw.items()}
+    )
 
     # lockdown 2
     model_B = model(districts, populations, district_cases, seed)
-    simulate_lockdown(model_B, 35*days, total, Rmw, Rvw, lockdown, migrations)
+    simulate_MBA(model_B, 5*days, 55*days, total, lockdown, migrations, Rmw,
+        {district: beta_scaling * Rv * gamma for (district, Rv) in Rvw.items()},
+        {district: beta_scaling * Rm * gamma for (district, Rm) in Rmw.items()}
+    )
 
     # 9 day lockdown + adaptive controls
     model_C = model(districts, populations, district_cases, seed)
@@ -65,12 +72,6 @@ def estimate(district, ts, default = 1.5, window = 5, use_last = False):
         return regressions
     except (ValueError, IndexError):
         return default
-
-def gantt_seed(seed, note = ""):
-    _, _, mc = run_policies(district_ts, pops, districts, migrations, gamma, R_mandatory, R_voluntary, seed = seed) 
-    gantt_chart(mc.gantt)\
-        .title(f"Maharashtra: Example Adaptive Lockdown Mobility Regime Scenario {note if note else str(seed)}")\
-        .show()
 
 def project(p: pd.Series):
     t = (p.R - p.Intercept)/p.gradient
@@ -105,7 +106,7 @@ if __name__ == "__main__":
     
     R_voluntary    = {district: 1.5*R for (district, R) in R_mandatory.items()}
 
-    si, sf = 0, 5
+    si, sf = 0, 1000
 
     simulation_results = [ 
         run_policies(district_ts, pops, districts, migrations, gamma, R_mandatory, R_voluntary, seed = seed)
@@ -117,7 +118,7 @@ if __name__ == "__main__":
 
     plot_simulation_range(
         simulation_results, 
-        ["31 May Release", "30 June Release", "Adaptive Control"], 
+        ["Mission: Begin Again (1 Month)", "Mission: Begin Again (2 Months)", "Adaptive Control from 5 June"], 
         historical = state_ts["Infected"], 
         smoothing = smoothed)\
         .title("Maharashtra Policy Scenarios: Projected Infections over Time")\
