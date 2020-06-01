@@ -6,6 +6,12 @@ import pandas as pd
 days  = 1
 weeks = 7 
 
+
+def root_from_cmd_args(default: str = ".") -> Path:
+    if len(sys.argv) > 2 and sys.argv[1] == "--root":
+        return Path(sys.argv[2])
+    return Path(default).resolve()
+
 def cwd() -> Path:
     argv0 = sys.argv[0]
     if argv0.endswith("ipython"):

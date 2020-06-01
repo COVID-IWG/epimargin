@@ -6,7 +6,7 @@ import pandas as pd
 from tqdm import tqdm
 
 import etl
-from adaptive.estimators import rollingOLS
+from adaptive.estimators import rollingOLS, log_delta, lowess
 from adaptive.model  import Model, ModelUnit
 from adaptive.plots  import gantt_chart, plot_simulation_range
 from adaptive.policy import simulate_adaptive_control, simulate_lockdown
@@ -29,6 +29,8 @@ def run_policies(
         populations:    pd.Series,               # population for each district
         districts:      Sequence[str],           # list of district names 
         migrations:     np.matrix,               # O->D migration matrix, normalized
+        ld_release:     Sequence[str],           # strings representing dates on which to release standard lockdowns,
+        ac_release:     Sequence[str],           # when to start adaptive control
         gamma:          float,                   # 1/infectious period 
         Rmw:            Dict[str, float],        # mandatory regime R
         Rvw:            Dict[str, float],        # voluntary regime R
@@ -47,7 +49,7 @@ def run_policies(
     model_B = model(districts, populations, district_cases, seed)
     simulate_lockdown(model_B, 35*days, total, Rmw, Rvw, lockdown, migrations)
 
-    # 9 day lockdown + adaptive controls
+    # adaptive controls
     model_C = model(districts, populations, district_cases, seed)
     simulate_adaptive_control(model_C, 5*days, total, lockdown, migrations, Rmw,
         {district: beta_scaling * Rv * gamma for (district, Rv) in Rvw.items()},
@@ -59,32 +61,35 @@ def run_policies(
 
 def estimate(district, ts, default = 1.5, window = 5, use_last = False):
     try:
-        regressions = rollingOLS(etl.log_delta_smoothed(ts), window = window, infectious_period = 1/gamma)[["R", "Intercept", "gradient", "gradient_stderr"]]
+        regressions = rollingOLS(log_delta(ts), window = window, infectious_period = 1/gamma)[["R", "Intercept", "gradient", "gradient_stderr"]]
         if use_last:
             return next((x for x in regressions.R.iloc[-3:-1] if not np.isnan(x) and x > 0), default)
         return regressions
     except (ValueError, IndexError):
         return default
 
-def gantt_seed(seed, note = ""):
-    _, _, mc = run_policies(district_ts, pops, districts, migrations, gamma, R_mandatory, R_voluntary, seed = seed) 
-    gantt_chart(mc.gantt)\
-        .title(f"Bihar: Example Adaptive Lockdown Mobility Regime Scenario {note if note else str(seed)}")\
-        .show()
-
 def project(p: pd.Series):
     t = (p.R - p.Intercept)/p.gradient
     return (max(0, p.R), max(0, p.Intercept + p.gradient*(t + 7)), max(0, p.Intercept + p.gradient*(t + 14)), np.sqrt(p.gradient_stderr))
 
 if __name__ == "__main__":
+    # set up data and figure folders
     root = cwd()
     data = root/"data"
     figs = root/"figs"
     
+    # simulation parameters
     gamma  = 0.2
     window = 5
+    (si, sf) = (0, 1000) # stochastic seed range 
 
-    state_cases    = etl.load_cases(data/"Bihar_Case_data_May20.csv")
+    # load data 
+    state_cases = etl.load_cases(data/"Bihar_Case_data_May20.csv")
+    time_series = etl.get_time_series(state_cases)
+    time_series.apply(lambda district: log_delta(district, I = "infected", R = "recovered", D = "deceased"))
+        # .apply(lambda district: pd.Seriesdistrict.infected - district.recovered - district.deceased, axis = 1)\
+        # .apply(lambda district: log_delta(district, I = "infected", R = "recovered", D = "deceased"))
+
     district_cases = etl.split_cases_by_district(state_cases)
     district_ts    = {district: etl.get_time_series(cases) for (district, cases) in district_cases.items()}
     R_mandatory    = {district: estimate(district, ts, use_last = True) for (district, ts) in district_ts.items()}
@@ -95,15 +100,13 @@ if __name__ == "__main__":
     
     R_voluntary    = {district: 1.5*R for (district, R) in R_mandatory.items()}
 
-    si, sf = 0, 1000
-
     simulation_results = [ 
         run_policies(district_ts, pops, districts, migrations, gamma, R_mandatory, R_voluntary, seed = seed)
         for seed in tqdm(range(si, sf))
     ]
 
     state_ts = etl.get_time_series(state_cases)
-    smoothed = etl.lowess(state_ts["Hospitalized"], state_ts.index)
+    smoothed = lowess(state_ts["Hospitalized"], state_ts.index)
 
     plot_simulation_range(
         simulation_results, 

@@ -3,12 +3,37 @@ from typing import Dict, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
-from statsmodels.nonparametric.smoothers_lowess import lowess
+
+from adaptive.estimators import lowess
 
 collect = 'DATE OF 1st SAMPLE COLLECTION'
 confirm = 'DATE OF POSITIVE TEST CONFIRMATION'
 release = 'DATE OF DISCHARGE'
 death   = "DATE OF DEATH"
+
+columns = [
+    "SL NO.",
+    "CASE ID",
+    "AGE",
+    "GENDER",
+    "DISTRICT",
+    "BLOCK",
+    "CAUSE OF SAMPLE COLLECTION ",
+    "CATEGORY",
+    "PRESENT STATUS",
+    "1ST TEST (POSITIVE ) TESTING LAB",
+    "DATE OF 1st SAMPLE COLLECTION",
+    "DATE OF POSITIVE TEST CONFIRMATION",
+    "DATE OF DISCHARGE",
+    "SYMPTOMS",
+    "DATE OF DEATH",
+    "CASE STATUS"
+]
+
+drop_cols = set([
+    "SL NO.", "CASE ID", "AGE", "GENDER", "BLOCK", "CAUSE OF SAMPLE COLLECTION ", 
+    "CATEGORY", "PRESENT STATUS", "1ST TEST (POSITIVE ) TESTING LAB", "SYMPTOMS"
+])
 
 districts = [
     'MUNGER', 'PATNA', 'SIWAN', 'NALANDA', 'LAKHISARAI', 'GOPALGANJ',
@@ -31,37 +56,29 @@ replacements = {
 }
 
 def load_cases(path: Path) -> pd.DataFrame:
-    return pd.read_csv(path, parse_dates=[collect, confirm, release], dayfirst=True)
+    return pd.read_csv(path, parse_dates=[collect, confirm, release, death], dayfirst=True, usecols=lambda col: col not in drop_cols)
 
 def split_cases_by_district(cases: pd.DataFrame) -> Dict[str, pd.DataFrame]:
     return {district: cases[cases["DISTRICT"] == district] for district in districts}
 
 def get_time_series(cases: pd.DataFrame) -> pd.Series:
-    R = cases["CASE STATUS"] == "Recovered"
-    D = cases["CASE STATUS"] == "Deceased"
-    H = cases["CASE STATUS"].isna()
-    recovered = cases[release][R].value_counts().rename("time") 
-    infected  = cases[confirm][H].value_counts().rename("time")
-    deceased  = cases[death  ][D].value_counts().rename("time")
+    I = cases["CASE STATUS"].isna()
+    R = cases["CASE STATUS"] == "RECOVERED"
+    D = cases["CASE STATUS"] == "DECEASED"
 
-    time_series = pd.DataFrame({"Hospitalized": infected, "Recovered": recovered, "Deceased": deceased}).fillna(0)
+    infected  = cases[I].groupby(["DISTRICT", confirm])[confirm].count()\
+                        .rename_axis(index = {confirm: "time"})\
+                        .rename("infected")
+    recovered = cases[R].groupby(["DISTRICT", release])["CASE STATUS"].count()\
+                        .rename_axis(index = {release: "time"})\
+                        .rename("recovered")
+    deceased  = cases[D].groupby(["DISTRICT", death]   )["CASE STATUS"].count()\
+                        .rename_axis(index = {death:   "time"})\
+                        .rename("deceased")
+
+    time_series = pd.DataFrame({"infected": infected, "recovered": recovered, "deceased": deceased}).fillna(0)
+    time_series.unstack().fillna(0).stack().apply(lambda ts: ts.infected - ts.recovered - ts.deceased, axis = 1).rename("cases")
     return time_series
-    
-def assume_missing_0(df: pd.DataFrame, col: str):
-    return df[col] if col in df.columns else 0
-
-def log_delta(time_series: pd.DataFrame) -> pd.DataFrame:
-    time_series["cases"] = assume_missing_0(time_series, "Hospitalized") - assume_missing_0(time_series, "Recovered") -  assume_missing_0(time_series, "Deceased")
-    log_delta = pd.DataFrame(np.log(time_series.cases)).rename(columns = {"cases" : "logdelta"})
-    log_delta["time"] = (log_delta.index - log_delta.index.min()).days
-    return log_delta
-
-def log_delta_smoothed(time_series: pd.DataFrame) -> pd.DataFrame:
-    time_series["cases"] = assume_missing_0(time_series, "Hospitalized") - assume_missing_0(time_series, "Recovered") -  assume_missing_0(time_series, "Deceased")
-    time_series["cases"] = lowess(time_series["cases"], time_series.index)[:, 1] 
-    log_delta = pd.DataFrame(np.log(time_series.cases)).rename(columns = {"cases" : "logdelta"})
-    log_delta["time"] = (log_delta.index - log_delta.index.min()).days
-    return log_delta
 
 def district_migration_matrix(matrix_path: Path) -> np.matrix:
     mm = pd.read_csv(matrix_path)
@@ -84,7 +101,6 @@ def migratory_influx_matrix(influx_path: Path, num_migrants: int, release_rate: 
     flux = flux[flux.State != "Other States"] 
     flux = flux[flux.State != "Grand Total"] 
     flux = flux[[col for col in flux.columns if col not in {"State", "Unknown", "Grand Total"}]]
-    # flux.rename(columns = {"Muzaffarpur" : "Muzzafarpur"})
 
     # influx proportions
     proportions = (flux * (source_actives/source_pops)[:, None]).sum(axis = 0)
