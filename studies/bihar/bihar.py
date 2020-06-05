@@ -58,8 +58,8 @@ def run_policies(
 
     return model_A, model_B, model_C
 
-def estimate(district, ts, default = 1.5, window = 5, use_last = False):
-    global gamma
+def estimate(district, ts, gamma, default = 1.5, window = 5, use_last = False):
+    #global gamma
     try:
         regressions = rollingOLS(etl.log_delta_smoothed(ts), window = window, infectious_period = 1/gamma)[["R", "Intercept", "gradient", "gradient_stderr"]]
         if use_last:
