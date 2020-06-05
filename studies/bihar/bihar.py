@@ -12,7 +12,7 @@ from adaptive.plots  import gantt_chart, plot_simulation_range
 from adaptive.policy import simulate_adaptive_control, simulate_lockdown
 from adaptive.utils  import cwd, days, weeks, fmt_params
 
-global gamma
+
 
 def model(districts, populations, cases, seed) -> Model:
     max_ts = max([ts.index.max() for ts in cases.values()]).isoformat()
@@ -59,6 +59,7 @@ def run_policies(
     return model_A, model_B, model_C
 
 def estimate(district, ts, default = 1.5, window = 5, use_last = False):
+    global gamma
     try:
         regressions = rollingOLS(etl.log_delta_smoothed(ts), window = window, infectious_period = 1/gamma)[["R", "Intercept", "gradient", "gradient_stderr"]]
         if use_last:
