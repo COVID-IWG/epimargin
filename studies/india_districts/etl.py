@@ -169,7 +169,7 @@ column_ordering_v4  = [
      'num_cases'
  ]
 
-def download_data(data_path: Path, filename, base_url='https://api.covid19india.org/csv/latest/'):
+def download_data(data_path: Path, filename: str, base_url: str = 'https://api.covid19india.org/csv/latest/'):
     url = base_url + filename
     response = requests.get(url)
     (data_path/filename).open('wb').write(response.content)

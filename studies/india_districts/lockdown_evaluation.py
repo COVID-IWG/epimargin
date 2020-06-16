@@ -53,7 +53,7 @@ if __name__ == "__main__":
     release_date = pd.to_datetime("May 31, 2020")
     lockdown_period = (release_date - pd.to_datetime("today")).days
 
-    states = ["Telangana", "Maharashtra", "Andhra Pradesh", "Tamil Nadu", "Madhya Pradesh", "Punjab", "Gujarat", "Kerala"][:4]
+    states = ["Maharashtra", "Andhra Pradesh", "Tamil Nadu", "Madhya Pradesh", "Punjab", "Gujarat", "Kerala"]
     
     # use gravity matrix for states after 2001 census 
     new_state_data_paths = { 
@@ -64,13 +64,13 @@ if __name__ == "__main__":
     paths = { "v3": ["raw_data1.csv", "raw_data2.csv"], "v4": ["raw_data3.csv", "raw_data4.csv"] } 
 
     # download data from india covid 19 api
-    for f in paths['v3'] + paths['v4']:
-        download_data(data, f)
+    for target in paths['v3'] + paths['v4']:
+        download_data(data, target)
 
     # run rolling regressions on historical national case data 
     dfn = load_all_data(
-        v3_paths = paths['v3'], 
-        v4_paths = paths['v4']
+        v3_paths = [data/filepath for filepath in paths['v3']], 
+        v4_paths = [data/filepath for filepath in paths['v4']]
     )
     data_recency = str(dfn["date_announced"].max()).split()[0]
     tsn = get_time_series(dfn)
@@ -114,12 +114,20 @@ if __name__ == "__main__":
         Rv = {district: np.mean(grd[district]["2020-03-24":"2020-03-31"].R) if district in grd.keys() else Rvs[state] for district in districts}
         Rm = {district: np.mean(grd[district]["2020-04-01":].R)             if district in grd.keys() else Rms[state] for district in districts}
 
-        # # fil in missing values 
+        # fill in missing values 
         for mapping, default in ((Rv, Rvs[state]), (Rm, Rms[state])):
             for key in mapping:
                 if np.isnan(mapping[key]):
                     mapping[key] = default
         
+        projections = []
+        for district in grd.keys():
+            try:
+                estimate = grd[district].loc[grd[district].R.last_valid_index()]
+                projections.append((district, estimate.R, estimate.R + estimate.gradient*7))
+            except KeyError:
+                projections.append((district, np.NaN, np.NaN))
+        pd.DataFrame(projections, columns = ["district", "R", "Rproj"]).to_csv(data/(state + ".csv")) 
 
         # simulation_results = [
         #     run_policies(migrations, districts, populations, tsd, Rm, Rv, gamma, seed, initial_lockdown = lockdown_period, total_time = total_time) 
