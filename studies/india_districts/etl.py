@@ -14,7 +14,7 @@ from adaptive.utils import assume_missing_0
 new_states = set("Telangana")
 
 # states renamed in 2011 
-renames = { 
+renames_states = { 
     "Orissa"      : "Odisha",
     "Pondicherry" : "Puducherry"
 }
@@ -169,6 +169,98 @@ column_ordering_v4  = [
      'num_cases'
  ]
 
+district_replacements = {
+    'Maharashtra': {
+        'Ahmednagar': 'Ahmadnagar',
+        'Beed'      : 'Bid',
+        'Buldhana'  : 'Buldana',
+        'Gondia'    : 'Gondiya',
+        'Raigad'    : 'Raigarh',
+        ''          : 'Mumbai (Suburban)',
+        'Palghar'   : '' 
+    },
+    'Andhra Pradesh': {
+        ''                  : 'Adilabad',
+        ''                  : 'Cuddapah',
+        'Foreign Evacuees'  : '',
+        ''                  : 'Hyderabad',
+        ''                  : 'Karimnagar',
+        ''                  : 'Khammam',
+        ''                  : 'Mahbubnagar',
+        ''                  : 'Medak', 
+        ''                  : 'Nalgonda',       
+        ''                  : 'Nizamabad',       
+        'Other State'       : '',
+        ''                  : 'Rangareddi',
+        'S.P.S. Nellore'    : 'Nellore',
+        ''                  : 'Warangal',
+        'Y.S.R. Kadapa'     : ''
+    },
+    "Tamil Nadu": {
+        'Airport Quarantine': '',
+        'Chengalpattu'      : '',
+        'Kallakurichi'      : '',
+        'Kanyakumari'       : 'Kanniyakumari',
+        'Krishnagiri'       : '',
+        'Nilgiris'          : 'The Nilgiris',
+        'Other State'       : '',
+        'Railway Quarantine': '',
+        'Ranipet'           : '',
+        'Tenkasi'           : '',
+        'Tirupathur'        : '',
+        'Tiruppur'          : ''
+    },
+    "Madhya Pradesh": {
+        'Agar Malwa'  : '',
+        'Alirajpur'   : '',
+        'Anuppur'     : '',
+        'Ashoknagar'  : '',
+        'Burhanpur'   : '',
+        ''            : 'East Nimar',
+        'Khandwa'     : '',
+        'Khargone'    : '',
+        'Narsinghpur' : 'Narsimhapur',
+        'Niwari'      : '',
+        'Other Region': '',
+        'Singrauli'   : '',
+        ''            : 'West Nimar'
+    },
+    "Punjab": {
+        'Barnala'                  : '',
+        'Fazilka'                  : '',
+        'Ferozepur'                : 'Firozpur',
+        ''                         : 'Muktsar',
+        ''                         : 'Nawanshahr',
+        'Pathankot'                : '',
+        'S.A.S. Nagar'             : '',
+        'Shahid Bhagat Singh Nagar': '',
+        'Sri Muktsar Sahib'        : '',
+        'Tarn Taran'               : ''
+    },
+    "Gujarat": {
+        'Ahmedabad'      : 'Ahmadabad',
+        'Aravalli'       : '',
+        'Banaskantha'    : 'Banas Kantha',
+        'Botad'          : '',
+        'Chhota Udaipur' : '',
+        'Dahod'          : 'Dohad',
+        'Dang'           : 'The Dangs',
+        'Devbhumi Dwarka': '',
+        'Gir Somnath'    : '',
+        'Kutch'          : 'Kachchh',
+        'Mahisagar'      : '',
+        'Mehsana'        : 'Mahesana',
+        'Morbi'          : '',
+        'Other State'    : '',
+        'Panchmahal'     : 'Panch Mahals',
+        'Sabarkantha'    : 'Sabar Kantha',
+        'Tapi'           : ''
+    },
+    "Kerala": {
+        'Other State'  : ''
+    }
+}
+
 def download_data(data_path: Path, filename: str, base_url: str = 'https://api.covid19india.org/csv/latest/'):
     url = base_url + filename
     response = requests.get(url)
@@ -217,7 +309,9 @@ def load_all_data(v3_paths: Sequence[Path], v4_paths: Sequence[Path]) -> pd.Data
     cases_v4 = [load_data_v4(path) for path in v4_paths]
     all_cases = pd.concat(cases_v3 + cases_v4)
     all_cases["status_change_date"] = all_cases["status_change_date"].fillna(all_cases["date_announced"])
-    return all_cases.dropna(subset = ["detected_state"])
+    all_cases["detected_state"]     = all_cases["detected_state"].str.strip().str.title()
+    all_cases["detected_district"]  = all_cases["detected_district"].str.strip().str.title()  
+    return all_cases.dropna(subset  = ["detected_state"])
 
 # assuming analysis for data structure from COVID19-India saved as resaved, properly-quoted file (v1 and v2)
 def load_data(datapath: Path, reduced: bool = False, schema: Optional[Sequence[str]] = None) -> pd.DataFrame: 
@@ -231,6 +325,9 @@ def load_data(datapath: Path, reduced: bool = False, schema: Optional[Sequence[s
         parse_dates = ["Date Announced", "Status Change Date"])
     standardize_column_headers(df)
     return df
+
+def replace_district_names(state_df, state):
+
 
 def load_population_data(pop_path: Path) -> pd.DataFrame:
     return pd.read_csv(pop_path, names = ["name", "pop"])\

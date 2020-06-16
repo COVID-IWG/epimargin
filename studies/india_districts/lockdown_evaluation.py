@@ -18,9 +18,9 @@ def get_model(districts, populations, timeseries, seed = 0):
     units = [ModelUnit(
         name       = district, 
         population = populations[i],
-        I0  = timeseries[district].iloc[-1]['Hospitalized'] if not timeseries[district].empty and 'Hospitalized' in timeseries[district].iloc[-1] else 0,
-        R0  = timeseries[district].iloc[-1]['Recovered']    if not timeseries[district].empty and 'Recovered'    in timeseries[district].iloc[-1] else 0,
-        D0  = timeseries[district].iloc[-1]['Deceased']     if not timeseries[district].empty and 'Deceased'     in timeseries[district].iloc[-1] else 0,
+        I0  = timeseries.loc[district].iloc[-1]['Hospitalized'] if not timeseries.loc[district].empty and 'Hospitalized' in timeseries.loc[district].iloc[-1] else 0,
+        R0  = timeseries.loc[district].iloc[-1]['Recovered']    if not timeseries.loc[district].empty and 'Recovered'    in timeseries.loc[district].iloc[-1] else 0,
+        D0  = timeseries.loc[district].iloc[-1]['Deceased']     if not timeseries.loc[district].empty and 'Deceased'     in timeseries.loc[district].iloc[-1] else 0,
     ) for (i, district) in enumerate(districts)]
     return Model(units, random_seed = seed)
 
@@ -61,8 +61,9 @@ if __name__ == "__main__":
     }
 
     # define data versions for api files
-    paths = { "v3": [data/"raw_data1.csv", data/"raw_data2.csv"],
-              "v4": [data/"raw_data3.csv", data/"raw_data4.csv", data/"raw_data5.csv", data/"raw_data6.csv"] } 
+    paths = { "v3": ["raw_data1.csv", "raw_data2.csv"],
+              "v4": ["raw_data3.csv", "raw_data4.csv", 
+                     "raw_data5.csv", "raw_data6.csv"] } 
 
     # download data from india covid 19 api
     for target in paths['v3'] + paths['v4']:
@@ -82,7 +83,7 @@ if __name__ == "__main__":
     tss = get_time_series(dfn, 'detected_state')
     tss['Hospitalized'] *= prevalence
 
-    grs = tss.groupby(level=0).apply(lambda x: rollingOLS(x, window = 5, infectious_period = 1/gamma) if len(x) > 5 else None)
+    grs = tss.groupby(level=0).apply(lambda x: run_regressions(x, window = 5, infectious_period = 1/gamma) if len(x) > 5 else None)
 
     # grs = {state: run_regressions(timeseries, window = 5, infectious_period = 1/gamma) for (state, timeseries) in tss.items() if len(timeseries) > 5}
     
@@ -109,12 +110,15 @@ if __name__ == "__main__":
             districts, populations, migrations = gravity_matrix(*new_state_data_paths[state])
         else: 
             districts, populations, migrations = migration_matrices[state]
+
         df_state = dfn[dfn['detected_state'] == state]
-        # dfd = {district: df_state[df_state["detected_district"] == district] for district in districts}
+
+        # df_state_renamed = replace_district_names(df_state, state)
+
         tsd = get_time_series(df_state, 'detected_district') 
         tsd['Hospitalized'] *= prevalence
 
-        grd = tsd.groupby(level=0).apply(lambda x: rollingOLS(x, window = 5, infectious_period = 1/gamma) if len(x) > 5 else None)
+        grd = tsd.groupby(level=0).apply(lambda x: run_regressions(x.reset_index(level=0, drop=True), window = 5, infectious_period = 1/gamma) if len(x) > 5 else None)
     
         Rv = {district: np.mean(grd.loc[district].loc["2020-03-24":"2020-03-31"].R) if district in grd.index else Rvs[state] for district in districts}
         Rm = {district: np.mean(grd.loc[district].loc["2020-04-01":].R)             if district in grd.index else Rms[state] for district in districts}
@@ -126,16 +130,17 @@ if __name__ == "__main__":
                     mapping[key] = default
         
         projections = []
-        for district in grd.keys():
+        for district in districts:
             try:
-                estimate = grd[district].loc[grd[district].R.last_valid_index()]
+                # estimate = grd[district].loc[grd[district].R.last_valid_index()]
+                estimate = grd.loc[district].loc[grd.loc[district].R.last_valid_index()]
                 projections.append((district, estimate.R, estimate.R + estimate.gradient*7))
             except KeyError:
                 projections.append((district, np.NaN, np.NaN))
         pd.DataFrame(projections, columns = ["district", "R", "Rproj"]).to_csv(data/(state + ".csv")) 
 
         simulation_results = [
-            tsd.groupby(level=0).apply(lambda x: run_policies(migrations, districts, populations, x, Rm, Rv, gamma, seed, initial_lockdown = lockdown_period, total_time = total_time)) 
+            run_policies(migrations, districts, populations, tsd, Rm, Rv, gamma, seed, initial_lockdown = lockdown_period, total_time = total_time) 
             for seed in tqdm(range(si, sf))
         ]
 
