@@ -14,7 +14,7 @@ from adaptive.utils  import cwd, days, weeks, fmt_params
 
 
 def model(districts, populations, cases, seed) -> Model:
-    max_ts = max([ts.index.max() for ts in cases.values()]).isoformat().split("T")[0]
+    max_ts = "2020-05-29" #max([ts.index.max() for ts in cases.values()]).isoformat().split("T")[0]
     units = [
         ModelUnit(district, populations[i], 
         I0 = cases[district].loc[max_ts].Hospitalized if district in cases.keys() and max_ts in cases[district].index else 0, 
@@ -24,7 +24,22 @@ def model(districts, populations, cases, seed) -> Model:
     ]
     return Model(units, random_seed=seed)
 
+# def model(scale_I, districts, populations, cases, seed) -> Model:
+#     max_ts = max([ts.index.max() for ts in cases.values()]).isoformat().split("T")[0]
+#     units = [ModelUnit(district, populations[i], I0 = scale_I.get(district, 0),
+#         R0 = cases[district].loc[max_ts].Recovered    if district in cases.keys() and max_ts in cases[district].index else 0, 
+#         D0 = cases[district].loc[max_ts].Deceased     if district in cases.keys() and max_ts in cases[district].index else 0)
+#         for (i, district) in enumerate(districts)
+#     ]
+#     return Model(units, random_seed=seed)
+
+def lowess_df(ts):
+    smoothed = pd.DataFrame(etl.lowess(ts, ts.index), columns = ["time", "value"])
+    smoothed["time"] = pd.to_datetime(smoothed["time"])
+    return smoothed.set_index(smoothed.time).drop(columns = ["time"])    
+
 def run_policies(
+        scale_I, 
         district_cases: Dict[str, pd.DataFrame], # timeseries for each district 
         populations:    pd.Series,               # population for each district
         districts:      Sequence[str],           # list of district names 
@@ -41,15 +56,15 @@ def run_policies(
 
     # lockdown 1
     model_A = model(districts, populations, district_cases, seed)
-    simulate_lockdown(model_A, 8*days, total, Rmw, Rvw, lockdown, migrations)
+    simulate_lockdown(model_A, 5*days, total, Rmw, Rvw, lockdown, migrations)
 
     # lockdown 2: 
     model_B = model(districts, populations, district_cases, seed)
-    simulate_lockdown(model_B, 30*days, total, Rmw, Rvw, lockdown, migrations)
+    simulate_lockdown(model_B, 35*days, total, Rmw, Rvw, lockdown, migrations)
 
     # 9 day lockdown + adaptive controls
     model_C = model(districts, populations, district_cases, seed)
-    simulate_adaptive_control(model_C, 8*days, total, lockdown, migrations, Rmw,
+    simulate_adaptive_control(model_C, 5*days, total, lockdown, migrations, Rmw,
         {district: beta_scaling * Rv * gamma for (district, Rv) in Rvw.items()},
         {district: beta_scaling * Rm * gamma for (district, Rm) in Rmw.items()},
         evaluation_period=eval_period
@@ -79,6 +94,7 @@ if __name__ == "__main__":
     window = 5
 
     state_cases    = etl.load_cases(data/"Bihar_case_data_May29.csv")
+    state_cases["DISTRICT"] = state_cases["DISTRICT"].map(lambda x: etl.replacements.get(x, x))
     district_cases = etl.split_cases_by_district(state_cases)
     district_ts    = {district: etl.get_time_series(cases) for (district, cases) in district_cases.items()}
     R_mandatory    = {district: estimate(district, ts, use_last = True) for (district, ts) in district_ts.items()}
@@ -91,19 +107,28 @@ if __name__ == "__main__":
 
     si, sf = 0, 1000
 
+    state_ts = etl.get_time_series(state_cases)
+    # smoothed = etl.lowess(state_ts["Hospitalized"], state_ts.index)
+    smoothed_I = etl.lowess(state_ts["Hospitalized"], state_ts.index)
+    smoothed_R = etl.lowess(state_ts["Recovered"], state_ts.index)
+    smoothed_D = etl.lowess(state_ts["Deceased"], state_ts.index)
+
+    usable_ts = "2020-05-29"
+
+    usable_I = {k: v.loc[usable_ts].Hospitalized if usable_ts in v.index else 0.0 for (k, v) in district_ts.items()}
+    scale = smoothed_I[-1, 1]/sum(usable_I.values())
+    district_lowess_I = {k: v/scale for (k, v) in usable_I.items()}
+
     simulation_results = [ 
-        run_policies(district_ts, pops, districts, migrations, gamma, R_mandatory, R_voluntary, seed = seed)
+        run_policies(district_lowess_I, district_ts, pops, districts, migrations, gamma, R_mandatory, R_voluntary, seed = seed)
         for seed in tqdm(range(si, sf))
     ]
 
-    state_ts = etl.get_time_series(state_cases)
-    smoothed = etl.lowess(state_ts["Hospitalized"], state_ts.index)
-
     plot_simulation_range(
         simulation_results, 
-        ["MHA Lockdown - 8 June Phase I Reopening", "MHA Lockdown - 30 June Phase I Reopening (Hypothetical)", "Adaptive Control from 8 June"], 
+        ["Total Release: 8 June", "Total Release: 8 July", "Adaptive Control: Starting 8 June"], 
         historical = state_ts["Hospitalized"], 
-        smoothing = smoothed)\
+        smoothing = smoothed_I)\
         .title("Bihar Policy Scenarios: Projected Infections over Time")\
         .xlabel("Date")\
         .ylabel("Number of Infections")\
