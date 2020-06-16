@@ -61,7 +61,8 @@ if __name__ == "__main__":
     }
 
     # define data versions for api files
-    paths = { "v3": ["raw_data1.csv", "raw_data2.csv"], "v4": ["raw_data3.csv", "raw_data4.csv"] } 
+    paths = { "v3": [data/"raw_data1.csv", data/"raw_data2.csv"],
+              "v4": [data/"raw_data3.csv", data/"raw_data4.csv", data/"raw_data5.csv", data/"raw_data6.csv"] } 
 
     # download data from india covid 19 api
     for f in paths['v3'] + paths['v4']:
@@ -77,17 +78,22 @@ if __name__ == "__main__":
     grn = run_regressions(tsn, window = 5, infectious_period = 1/gamma)
 
     # disaggregate down to states
-    dfs = {state: dfn[dfn["detected_state"] == state] for state in states}
-    tss = {state: get_time_series(cases) for (state, cases) in dfs.items()}
-    for (_, ts) in tss.items():
-        ts['Hospitalized'] *= prevalence
-    grs = {state: run_regressions(timeseries, window = 5, infectious_period = 1/gamma) for (state, timeseries) in tss.items() if len(timeseries) > 5}
+    # dfs = {state: dfn[dfn["detected_state"] == state] for state in states}
+    tss = get_time_series(dfn, 'detected_state')
+    tss['Hospitalized'] *= prevalence
+
+    grs = tss.groupby(level=0).apply(lambda x: rollingOLS(x, window = 5, infectious_period = 1/gamma) if len(x) > 5 else None)
+
+    # grs = {state: run_regressions(timeseries, window = 5, infectious_period = 1/gamma) for (state, timeseries) in tss.items() if len(timeseries) > 5}
     
     # voluntary and mandatory reproductive numbers
     Rvn = np.mean(grn["2020-03-24":"2020-03-31"].R)
     Rmn = np.mean(grn["2020-04-01":].R)
-    Rvs = {s: np.mean(grs[s]["2020-03-24":"2020-03-31"].R) if s in grs else Rvn for s in states}
-    Rms = {s: np.mean(grs[s]["2020-04-01":].R)             if s in grs else Rmn for s in states}
+    # Rvs = {s: np.mean(grs[s]["2020-03-24":"2020-03-31"].R) if s in grs else Rvn for s in states}
+    # Rms = {s: np.mean(grs[s]["2020-04-01":].R)             if s in grs else Rmn for s in states}
+
+    Rvs = {s: np.mean(grs.loc[s].loc["2020-03-24":"2020-03-31"].R) if s in grs.index else Rvn for s in states}
+    Rms = {s: np.mean(grs.loc[s].loc["2020-04-01":].R)             if s in grs.index else Rmn for s in states}
 
     # voluntary and mandatory distancing rates 
     Bvs = {s: R * gamma for (s, R) in Rvs.items()}
@@ -103,16 +109,15 @@ if __name__ == "__main__":
             districts, populations, migrations = gravity_matrix(*new_state_data_paths[state])
         else: 
             districts, populations, migrations = migration_matrices[state]
-        df_state = dfs[state]
-        dfd = {district: df_state[df_state["detected_district"] == district] for district in districts}
-        tsd = {district: get_time_series(cases) for (district, cases) in dfd.items()}
-        for (_, ts) in tsd.items():
-            if 'Hospitalized' in ts:
-                ts['Hospitalized'] *= prevalence
-        grd = {district: run_regressions(timeseries, window = 5, infectious_period = 1/gamma) for (district, timeseries) in tsd.items() if len(timeseries) > 5}
+        df_state = dfn[dfn['detected_state'] == state]
+        # dfd = {district: df_state[df_state["detected_district"] == district] for district in districts}
+        tsd = get_time_series(df_state, 'detected_district') 
+        tsd['Hospitalized'] *= prevalence
+
+        grd = tsd.groupby(level=0).apply(lambda x: rollingOLS(x, window = 5, infectious_period = 1/gamma) if len(x) > 5 else None)
     
-        Rv = {district: np.mean(grd[district]["2020-03-24":"2020-03-31"].R) if district in grd.keys() else Rvs[state] for district in districts}
-        Rm = {district: np.mean(grd[district]["2020-04-01":].R)             if district in grd.keys() else Rms[state] for district in districts}
+        Rv = {district: np.mean(grd.loc[district].loc["2020-03-24":"2020-03-31"].R) if district in grd.index else Rvs[state] for district in districts}
+        Rm = {district: np.mean(grd.loc[district].loc["2020-04-01":].R)             if district in grd.index else Rms[state] for district in districts}
 
         # # fil in missing values 
         for mapping, default in ((Rv, Rvs[state]), (Rm, Rms[state])):
@@ -121,14 +126,14 @@ if __name__ == "__main__":
                     mapping[key] = default
         
 
-        # simulation_results = [
-        #     run_policies(migrations, districts, populations, tsd, Rm, Rv, gamma, seed, initial_lockdown = lockdown_period, total_time = total_time) 
-        #     for seed in tqdm(range(si, sf))
-        # ]
+        simulation_results = [
+            tsd.groupby(level=0).apply(lambda x: run_policies(migrations, districts, populations, x, Rm, Rv, gamma, seed, initial_lockdown = lockdown_period, total_time = total_time)) 
+            for seed in tqdm(range(si, sf))
+        ]
 
-        # plot_simulation_range(simulation_results, ["31 May Release", "Adaptive Controls"], get_time_series(df_state).Hospitalized)\
-        #     .title(f"{state} Policy Scenarios: Projected Infections over Time")\
-        #     .xlabel("Date")\
-        #     .ylabel("Number of net new infections")\
-        #     .annotate(f"stochastic parameter range: ({si}, {sf}), infectious period: {1/gamma} days, smoothing window: {(5, 5, 5)}, data from {data_recency}")\
-        #     .show()
+        plot_simulation_range(simulation_results, ["31 May Release", "Adaptive Controls"], get_time_series(df_state).Hospitalized)\
+            .title(f"{state} Policy Scenarios: Projected Infections over Time")\
+            .xlabel("Date")\
+            .ylabel("Number of net new infections")\
+            .annotate(f"stochastic parameter range: ({si}, {sf}), infectious period: {1/gamma} days, smoothing window: {(5, 5, 5)}, data from {data_recency}")\
+            .show()

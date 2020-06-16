@@ -199,10 +199,10 @@ def gravity_matrix(gdf_path: Path, population_path: Path) -> Tuple[Sequence[str]
 
     # population count is numeric in Maharashtra data and a string in other data - converting to numeric
     if pop_df["Population(2011 census)"].dtype == object:
-        pop_df["Population(2011 census)"] = float(pop_df["Population(2011 census)"].str.replace(",",""))
+        pop_df["Population(2011 census)"] = pop_df["Population(2011 census)"].str.replace(",","").apply(float)
 
-    population_mapping = {k.replace("-", " "): v for (k, v) in zip(pop_df["Name"], pop_df["Population(2011 census)"])}
-    populations = [population_mapping[district] for district in districts]
+    population_mapping = {k.replace("-", " ").upper(): v for (k, v) in zip(pop_df["Name"], pop_df["Population(2011 census)"])}
+    populations = [population_mapping[district.upper()] for district in districts]
 
     centroids = [list(pt.coords)[0] for pt in gdf.centroid]
     P = distance_matrix(centroids, centroids)

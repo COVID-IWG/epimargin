@@ -195,14 +195,20 @@ def load_data_v4(path: Path):
     standardize_column_headers(cases)
     return cases[column_ordering_v4]
 
+def add_time_col(grp_df):
+    grp_df['time'] = (grp_df["date"] - grp_df["date"].min()).dt.days
+    return grp_df
+
 # calculate daily totals and growth rate
-def get_time_series(df: pd.DataFrame) -> pd.DataFrame:
-    totals = df.groupby(["status_change_date", "current_status"])["num_cases"].agg(lambda counts: np.sum(np.abs(counts)))
+def get_time_series(df: pd.DataFrame, group_col: Optional[Sequence[str]] = None) -> pd.DataFrame:
+    group_cols = [group_col] + ["status_change_date", "current_status"] if group_col else ["status_change_date", "current_status"] 
+    totals = df.groupby(group_cols)["num_cases"].agg(lambda counts: np.sum(np.abs(counts)))
     if len(totals) == 0:
         return pd.DataFrame()
-    totals = totals.unstack().fillna(0)
-    totals["date"]     = totals.index
-    totals["time"]     = (totals["date"] - totals["date"].min()).dt.days
+    totals = totals.unstack().fillna(0)[['Deceased','Hospitalized','Recovered']]
+    totals["date"] = totals.index.get_level_values('status_change_date')
+    # totals["time"]     = (totals["date"] - totals["date"].min()).dt.days
+    totals = totals.groupby(level=0).apply(add_time_col) if group_col else add_time_col(totals)
     totals["logdelta"] = np.log(assume_missing_0(totals, "Hospitalized") - assume_missing_0(totals, "Recovered") - assume_missing_0(totals, "Deceased"))
     return totals
 
