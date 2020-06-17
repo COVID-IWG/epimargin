@@ -327,7 +327,7 @@ def load_data(datapath: Path, reduced: bool = False, schema: Optional[Sequence[s
     return df
 
 def replace_district_names(state_df, state):
-
+    return state_df.replace({'detected_district': district_replacements[state]})
 
 def load_population_data(pop_path: Path) -> pd.DataFrame:
     return pd.read_csv(pop_path, names = ["name", "pop"])\

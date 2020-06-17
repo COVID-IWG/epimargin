@@ -113,7 +113,7 @@ if __name__ == "__main__":
 
         df_state = dfn[dfn['detected_state'] == state]
 
-        # df_state_renamed = replace_district_names(df_state, state)
+        df_state_renamed = replace_district_names(df_state, state)
 
         tsd = get_time_series(df_state, 'detected_district') 
         tsd['Hospitalized'] *= prevalence
