@@ -62,7 +62,7 @@ if __name__ == "__main__":
 
     # define data versions for api files
     paths = { "v3": ["raw_data1.csv", "raw_data2.csv"],
-              "v4": ["raw_data3.csv", "raw_data4.csv", 
+              "v4": ["raw_data3.csv", "raw_data4.csv",
                      "raw_data5.csv", "raw_data6.csv"] } 
 
     # download data from india covid 19 api
