@@ -241,17 +241,17 @@ def district_migration_matrices(
     states: Sequence[str]) -> Dict[str, np.matrix]:
     mm = pd.read_csv(matrix_path)
     aggregations = dict()
-    for col in  ['D_StateCensus2001', 'D_DistrictCensus2001', 'O_StateCensus2001', 'O_DistrictCensus2001']:
+    for col in  ['D_StateCensus2011', 'D_DistrictCensus2011', 'O_StateCensus2011', 'O_DistrictCensus2011']:
         mm[col] = mm[col].str.title().str.replace("&", "and")
     for state in  states:
-        mm_state = mm[(mm.D_StateCensus2001 == state) & (mm.O_StateCensus2001 == state)]
-        pivot    = mm_state.pivot(index = "D_DistrictCensus2001", columns = "O_DistrictCensus2001", values = "NSS_STMigrants").fillna(0)
+        mm_state = mm[(mm.D_StateCensus2011 == state) & (mm.O_StateCensus2011 == state)]
+        pivot    = mm_state.pivot(index = "D_DistrictCensus2011", columns = "O_DistrictCensus2011", values = "NSS_STMigrants").fillna(0)
         M  = np.matrix(pivot)
         Mn = M/M.sum(axis = 0)
         Mn[np.isnan(Mn)] = 0
         aggregations[state] = (
             pivot.index, 
-            mm_state.groupby("O_DistrictCensus2001")["O_Population_2011"].agg(lambda x: list(x)[0]).values, 
+            mm_state.groupby("O_DistrictCensus2011")["O_Population_2011"].agg(lambda x: list(x)[0]).values, 
             Mn
         )
     return aggregations 
