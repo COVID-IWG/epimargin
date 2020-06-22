@@ -1,4 +1,4 @@
-<h1 align="center">adaptive-lockdown</h1>
+<h1 align="center">adaptive-control</h1>
 
 <div align="center"> <img src="./docs/logo.svg" height="250"> </div>
 

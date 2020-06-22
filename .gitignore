@@ -142,3 +142,4 @@ cython_debug/
 .vscode/
 *data/
 legacy_models/
+studies/*/figs

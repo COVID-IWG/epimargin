@@ -100,7 +100,7 @@ if __name__ == "__main__":
     Bvs = {s: R * gamma for (s, R) in Rvs.items()}
     Bms = {s: R * gamma for (s, R) in Rms.items()}
 
-    migration_matrices = district_migration_matrices(data/"Migration Matrix - District.csv", states = states)
+    migration_matrices = district_migration_matrices(data/"Migration Matrix - 2011 District.csv", states = states)
 
     # seed range 
     si, sf = 0, 1000
