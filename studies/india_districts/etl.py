@@ -169,97 +169,11 @@ column_ordering_v4  = [
      'num_cases'
  ]
 
-district_replacements = {
-    'Maharashtra': {
-        'Ahmednagar': 'Ahmadnagar',
-        'Beed'      : 'Bid',
-        'Buldhana'  : 'Buldana',
-        'Gondia'    : 'Gondiya',
-        'Raigad'    : 'Raigarh',
-        ''          : 'Mumbai (Suburban)',
-        'Palghar'   : '' 
-    },
-    'Andhra Pradesh': {
-        ''                  : 'Adilabad',
-        ''                  : 'Cuddapah',
-        'Foreign Evacuees'  : '',
-        ''                  : 'Hyderabad',
-        ''                  : 'Karimnagar',
-        ''                  : 'Khammam',
-        ''                  : 'Mahbubnagar',
-        ''                  : 'Medak', 
-        ''                  : 'Nalgonda',       
-        ''                  : 'Nizamabad',       
-        'Other State'       : '',
-        ''                  : 'Rangareddi',
-        'S.P.S. Nellore'    : 'Nellore',
-        ''                  : 'Warangal',
-        'Y.S.R. Kadapa'     : ''
-    },
-    "Tamil Nadu": {
-        'Airport Quarantine': '',
-        'Chengalpattu'      : '',
-        'Kallakurichi'      : '',
-        'Kanyakumari'       : 'Kanniyakumari',
-        'Krishnagiri'       : '',
-        'Nilgiris'          : 'The Nilgiris',
-        'Other State'       : '',
-        'Railway Quarantine': '',
-        'Ranipet'           : '',
-        'Tenkasi'           : '',
-        'Tirupathur'        : '',
-        'Tiruppur'          : ''
-    },
-    "Madhya Pradesh": {
-        'Agar Malwa'  : '',
-        'Alirajpur'   : '',
-        'Anuppur'     : '',
-        'Ashoknagar'  : '',
-        'Burhanpur'   : '',
-        ''            : 'East Nimar',
-        'Khandwa'     : '',
-        'Khargone'    : '',
-        'Narsinghpur' : 'Narsimhapur',
-        'Niwari'      : '',
-        'Other Region': '',
-        'Singrauli'   : '',
-        ''            : 'West Nimar'
-    },
-    "Punjab": {
-        'Barnala'                  : '',
-        'Fazilka'                  : '',
-        'Ferozepur'                : 'Firozpur',
-        ''                         : 'Muktsar',
-        ''                         : 'Nawanshahr',
-        'Pathankot'                : '',
-        'S.A.S. Nagar'             : '',
-        'Shahid Bhagat Singh Nagar': '',
-        'Sri Muktsar Sahib'        : '',
-        'Tarn Taran'               : ''
-    },
-    "Gujarat": {
-        'Ahmedabad'      : 'Ahmadabad',
-        'Aravalli'       : '',
-        'Banaskantha'    : 'Banas Kantha',
-        'Botad'          : '',
-        'Chhota Udaipur' : '',
-        'Dahod'          : 'Dohad',
-        'Dang'           : 'The Dangs',
-        'Devbhumi Dwarka': '',
-        'Gir Somnath'    : '',
-        'Kutch'          : 'Kachchh',
-        'Mahisagar'      : '',
-        'Mehsana'        : 'Mahesana',
-        'Morbi'          : '',
-        'Other State'    : '',
-        'Panchmahal'     : 'Panch Mahals',
-        'Sabarkantha'    : 'Sabar Kantha',
-        'Tapi'           : ''
-    },
-    "Kerala": {
-        'Other State'  : ''
-    }
-}
+district_2011_replacements = {
+    'Maharashtra' : {
+        'Mumbai Suburban' : 'Mumbai'}
+ }
+ 
 
 def download_data(data_path: Path, filename: str, base_url: str = 'https://api.covid19india.org/csv/latest/'):
     url = base_url + filename
@@ -326,12 +240,21 @@ def load_data(datapath: Path, reduced: bool = False, schema: Optional[Sequence[s
     standardize_column_headers(df)
     return df
 
-def replace_district_names(state_df, state):
-    return state_df.replace({'detected_district': district_replacements[state]})
-
 def load_population_data(pop_path: Path) -> pd.DataFrame:
     return pd.read_csv(pop_path, names = ["name", "pop"])\
              .sort_values("name")
+
+# load csv mapping 2011 districts to current district names
+def load_district_mappings(dist_path: Path) -> pd.DataFrame:
+    return pd.read_csv(dist_path).iloc[:,1:]
+
+# replace covid api detected_district names with 2011 district name
+def replace_district_names(df_state: pd.DataFrame, state_district_maps: pd.DataFrame) -> pd.DataFrame:
+    state_district_maps = state_district_maps[['district_covid_api', 'district_2011']].set_index('district_covid_api')
+    district_map_dict = state_district_maps.to_dict()['district_2011']
+
+    df_state['detected_district'].replace(district_map_dict, inplace=True)
+    return df_state
 
 def load_migration_matrix(matrix_path: Path, populations: np.array) -> np.matrix:
     M  = np.loadtxt(matrix_path, delimiter=',') # read in raw data
@@ -348,13 +271,19 @@ def district_migration_matrices(
         mm[col] = mm[col].str.title().str.replace("&", "and")
     for state in  states:
         mm_state = mm[(mm.D_StateCensus2011 == state) & (mm.O_StateCensus2011 == state)]
-        pivot    = mm_state.pivot(index = "D_DistrictCensus2011", columns = "O_DistrictCensus2011", values = "NSS_STMigrants").fillna(0)
+
+        if state in district_2011_replacements:
+            mm_state.replace(district_2011_replacements[state], inplace=True)
+
+        grouped_mm_state = mm_state.groupby(['D_DistrictCensus2011', 'O_DistrictCensus2011'])[['O_Population_2011','NSS_STMigrants']].sum().reset_index()
+
+        pivot    = grouped_mm_state.pivot(index = "D_DistrictCensus2011", columns = "O_DistrictCensus2011", values = "NSS_STMigrants").fillna(0)
         M  = np.matrix(pivot)
         Mn = M/M.sum(axis = 0)
         Mn[np.isnan(Mn)] = 0
         aggregations[state] = (
             pivot.index, 
-            mm_state.groupby("O_DistrictCensus2011")["O_Population_2011"].agg(lambda x: list(x)[0]).values, 
+            grouped_mm_state.groupby("O_DistrictCensus2011")["O_Population_2011"].agg(lambda x: list(x)[0]).values, 
             Mn
         )
     return aggregations 

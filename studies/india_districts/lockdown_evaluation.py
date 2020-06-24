@@ -11,7 +11,7 @@ from adaptive.model import Model, ModelUnit, gravity_matrix
 from adaptive.plots import plot_simulation_range
 from adaptive.policy import simulate_adaptive_control, simulate_lockdown
 from adaptive.utils import cwd, days, weeks
-from etl import download_data, district_migration_matrices, get_time_series, load_all_data
+from etl import download_data, district_migration_matrices, get_time_series, load_all_data, load_district_mappings, replace_district_names
 
 
 def get_model(districts, populations, timeseries, seed = 0):
@@ -102,8 +102,10 @@ if __name__ == "__main__":
 
     migration_matrices = district_migration_matrices(data/"Migration Matrix - 2011 District.csv", states = states)
 
+    district_matches = load_district_mappings(data/"matched_districts_api_2011.csv")
+
     # seed range 
-    si, sf = 0, 1000
+    si, sf = 0, 10
 
     for state in states: 
         if state in new_state_data_paths.keys():
@@ -113,9 +115,13 @@ if __name__ == "__main__":
 
         df_state = dfn[dfn['detected_state'] == state]
 
-        df_state_renamed = replace_district_names(df_state, state)
+        # replace covid data district names with 2011 district names 
+        dist_map_state = district_matches[district_matches['state'] == state]
+        df_state_renamed = replace_district_names(df_state, dist_map_state)
 
-        tsd = get_time_series(df_state, 'detected_district') 
+        districts = list(set(districts).intersection(set(df_state_renamed['detected_district'])))
+
+        tsd = get_time_series(df_state_renamed, 'detected_district') 
         tsd['Hospitalized'] *= prevalence
 
         grd = tsd.groupby(level=0).apply(lambda x: run_regressions(x.reset_index(level=0, drop=True), window = 5, infectious_period = 1/gamma) if len(x) > 5 else None)
