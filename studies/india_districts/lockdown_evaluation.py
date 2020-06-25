@@ -100,7 +100,7 @@ if __name__ == "__main__":
     district_matches = load_district_mappings(data/"matched_districts_api_2011.csv")
 
     # seed range 
-    si, sf = 0, 10
+    si, sf = 0, 1000
 
     for state in states: 
         if state in new_state_data_paths.keys():
