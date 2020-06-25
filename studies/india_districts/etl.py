@@ -242,7 +242,7 @@ def load_data(datapath: Path, reduced: bool = False, schema: Optional[Sequence[s
 
 # load csv mapping 2011 districts to current district names
 def load_district_mappings(dist_path: Path) -> pd.DataFrame:
-    return pd.read_csv(dist_path).iloc[:,1:]
+    return pd.read_csv(dist_path)
 
 # replace covid api detected_district names with 2011 district name
 def replace_district_names(df_state: pd.DataFrame, state_district_maps: pd.DataFrame) -> pd.DataFrame:

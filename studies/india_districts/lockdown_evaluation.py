@@ -97,7 +97,7 @@ if __name__ == "__main__":
 
     migration_matrices = district_migration_matrices(data/"Migration Matrix - 2011 District.csv", states = states)
 
-    district_matches = load_district_mappings(data/"matched_districts_api_2011.csv")
+    district_matches = load_district_mappings(data/"india_district_matches.csv")
 
     # seed range 
     si, sf = 0, 1000
