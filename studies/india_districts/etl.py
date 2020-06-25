@@ -213,7 +213,6 @@ def get_time_series(df: pd.DataFrame, group_col: Optional[Sequence[str]] = None)
         return pd.DataFrame()
     totals = totals.unstack().fillna(0)[['Deceased','Hospitalized','Recovered']]
     totals["date"] = totals.index.get_level_values('status_change_date')
-    # totals["time"]     = (totals["date"] - totals["date"].min()).dt.days
     totals = totals.groupby(level=0).apply(add_time_col) if group_col else add_time_col(totals)
     totals["logdelta"] = np.log(assume_missing_0(totals, "Hospitalized") - assume_missing_0(totals, "Recovered") - assume_missing_0(totals, "Deceased"))
     return totals
@@ -239,10 +238,6 @@ def load_data(datapath: Path, reduced: bool = False, schema: Optional[Sequence[s
         parse_dates = ["Date Announced", "Status Change Date"])
     standardize_column_headers(df)
     return df
-
-# load csv mapping 2011 districts to current district names
-def load_district_mappings(dist_path: Path) -> pd.DataFrame:
-    return pd.read_csv(dist_path)
 
 # replace covid api detected_district names with 2011 district name
 def replace_district_names(df_state: pd.DataFrame, state_district_maps: pd.DataFrame) -> pd.DataFrame:

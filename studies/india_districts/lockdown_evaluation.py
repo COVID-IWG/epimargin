@@ -11,7 +11,7 @@ from adaptive.model import Model, ModelUnit, gravity_matrix
 from adaptive.plots import plot_simulation_range
 from adaptive.policy import simulate_adaptive_control, simulate_lockdown
 from adaptive.utils import cwd, days, weeks
-from etl import download_data, district_migration_matrices, get_time_series, load_all_data, load_district_mappings, replace_district_names
+from etl import download_data, district_migration_matrices, get_time_series, load_all_data, replace_district_names
 
 
 def get_model(districts, populations, timeseries, seed = 0):
@@ -97,7 +97,8 @@ if __name__ == "__main__":
 
     migration_matrices = district_migration_matrices(data/"Migration Matrix - 2011 District.csv", states = states)
 
-    district_matches = load_district_mappings(data/"india_district_matches.csv")
+    # load csv mapping 2011 districts to current district names
+    district_matches = pd.read_csv(data/"india_district_matches.csv")
 
     # seed range 
     si, sf = 0, 1000
