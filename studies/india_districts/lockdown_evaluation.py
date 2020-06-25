@@ -79,19 +79,14 @@ if __name__ == "__main__":
     grn = run_regressions(tsn, window = 5, infectious_period = 1/gamma)
 
     # disaggregate down to states
-    # dfs = {state: dfn[dfn["detected_state"] == state] for state in states}
     tss = get_time_series(dfn, 'detected_state')
     tss['Hospitalized'] *= prevalence
 
     grs = tss.groupby(level=0).apply(lambda x: run_regressions(x, window = 5, infectious_period = 1/gamma) if len(x) > 5 else None)
-
-    # grs = {state: run_regressions(timeseries, window = 5, infectious_period = 1/gamma) for (state, timeseries) in tss.items() if len(timeseries) > 5}
     
     # voluntary and mandatory reproductive numbers
     Rvn = np.mean(grn["2020-03-24":"2020-03-31"].R)
     Rmn = np.mean(grn["2020-04-01":].R)
-    # Rvs = {s: np.mean(grs[s]["2020-03-24":"2020-03-31"].R) if s in grs else Rvn for s in states}
-    # Rms = {s: np.mean(grs[s]["2020-04-01":].R)             if s in grs else Rmn for s in states}
 
     Rvs = {s: np.mean(grs.loc[s].loc["2020-03-24":"2020-03-31"].R) if s in grs.index else Rvn for s in states}
     Rms = {s: np.mean(grs.loc[s].loc["2020-04-01":].R)             if s in grs.index else Rmn for s in states}
@@ -119,6 +114,7 @@ if __name__ == "__main__":
         dist_map_state = district_matches[district_matches['state'] == state]
         df_state_renamed = replace_district_names(df_state, dist_map_state)
 
+        # only keep district names that are present in both migration and api data
         districts = list(set(districts).intersection(set(df_state_renamed['detected_district'])))
 
         tsd = get_time_series(df_state_renamed, 'detected_district') 
@@ -138,7 +134,6 @@ if __name__ == "__main__":
         projections = []
         for district in districts:
             try:
-                # estimate = grd[district].loc[grd[district].R.last_valid_index()]
                 estimate = grd.loc[district].loc[grd.loc[district].R.last_valid_index()]
                 projections.append((district, estimate.R, estimate.R + estimate.gradient*7))
             except KeyError:

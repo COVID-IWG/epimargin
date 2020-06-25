@@ -240,10 +240,6 @@ def load_data(datapath: Path, reduced: bool = False, schema: Optional[Sequence[s
     standardize_column_headers(df)
     return df
 
-def load_population_data(pop_path: Path) -> pd.DataFrame:
-    return pd.read_csv(pop_path, names = ["name", "pop"])\
-             .sort_values("name")
-
 # load csv mapping 2011 districts to current district names
 def load_district_mappings(dist_path: Path) -> pd.DataFrame:
     return pd.read_csv(dist_path).iloc[:,1:]
@@ -252,7 +248,6 @@ def load_district_mappings(dist_path: Path) -> pd.DataFrame:
 def replace_district_names(df_state: pd.DataFrame, state_district_maps: pd.DataFrame) -> pd.DataFrame:
     state_district_maps = state_district_maps[['district_covid_api', 'district_2011']].set_index('district_covid_api')
     district_map_dict = state_district_maps.to_dict()['district_2011']
-
     df_state['detected_district'].replace(district_map_dict, inplace=True)
     return df_state
 
@@ -271,12 +266,11 @@ def district_migration_matrices(
         mm[col] = mm[col].str.title().str.replace("&", "and")
     for state in  states:
         mm_state = mm[(mm.D_StateCensus2011 == state) & (mm.O_StateCensus2011 == state)]
-
+        # handle states that need migration data combined (e.g. Mumbai and Mumbai Suburban)
         if state in district_2011_replacements:
             mm_state.replace(district_2011_replacements[state], inplace=True)
-
+        # group to combine multiple districts with same name based on above
         grouped_mm_state = mm_state.groupby(['D_DistrictCensus2011', 'O_DistrictCensus2011'])[['O_Population_2011','NSS_STMigrants']].sum().reset_index()
-
         pivot    = grouped_mm_state.pivot(index = "D_DistrictCensus2011", columns = "O_DistrictCensus2011", values = "NSS_STMigrants").fillna(0)
         M  = np.matrix(pivot)
         Mn = M/M.sum(axis = 0)
