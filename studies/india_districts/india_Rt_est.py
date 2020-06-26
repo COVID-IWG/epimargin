@@ -11,6 +11,8 @@ smoothing = 15
 if __name__ == "__main__":
     root = cwd()
     data = root/"data"
+    if not data.exists():
+        data.mkdir()
 
     # define data versions for api files
     paths = {
