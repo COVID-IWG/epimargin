@@ -9,7 +9,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from adaptive.estimators import box_filter, gamma_prior
-from adaptive.utils import cwd, days, weeks
+from adaptive.utils import cwd, days, weeksv
 from adaptive.plots import plot_RR_est, plot_T_anomalies
 from etl import download_data, get_time_series, load_all_data
 
@@ -20,6 +20,8 @@ smoothing  = 15
 if __name__ == "__main__":
     root = cwd()
     data = root/"data"
+    if not data.exists():
+        data.mkdir()
 
     # define data versions for api files
     paths = { "v3": ["raw_data1.csv", "raw_data2.csv"],
