@@ -9,7 +9,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from adaptive.estimators import box_filter, gamma_prior
-from adaptive.utils import cwd, days, weeksv
+from adaptive.utils import cwd
 from adaptive.plots import plot_RR_est, plot_T_anomalies
 from etl import download_data, get_time_series, load_all_data
 
