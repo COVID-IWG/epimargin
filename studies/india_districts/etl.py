@@ -214,7 +214,8 @@ def get_time_series(df: pd.DataFrame, group_col: Optional[Sequence[str]] = None)
     totals = totals.unstack().fillna(0)[['Deceased','Hospitalized','Recovered']]
     totals["date"] = totals.index.get_level_values('status_change_date')
     totals = totals.groupby(level=0).apply(add_time_col) if group_col else add_time_col(totals)
-    totals["logdelta"] = np.log(assume_missing_0(totals, "Hospitalized") - assume_missing_0(totals, "Recovered") - assume_missing_0(totals, "Deceased"))
+    totals["delta"] = assume_missing_0(totals, "Hospitalized") - assume_missing_0(totals, "Recovered") - assume_missing_0(totals, "Deceased")
+    totals["logdelta"] = np.ma.log(totals["delta"].values).filled(0)
     return totals
 
 def load_all_data(v3_paths: Sequence[Path], v4_paths: Sequence[Path]) -> pd.DataFrame:
