@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from adaptive.estimators import box_filter, gamma_prior, lowess
+from adaptive.estimators import box_filter, gamma_prior
 from adaptive.utils import cwd, days, weeks
 from adaptive.plots import plot_RR_est, plot_T_anomalies
 from etl import download_data, get_time_series, load_all_data
@@ -37,7 +37,6 @@ if __name__ == "__main__":
         v3_paths = [data/filepath for filepath in paths['v3']], 
         v4_paths = [data/filepath for filepath in paths['v4']]
     )
-    data_recency = str(dfn["date_announced"].max()).split()[0]
 
     # first, check reimplementation against known figures 
     CI = 0.99

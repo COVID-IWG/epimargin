@@ -14,7 +14,7 @@ from adaptive.utils import assume_missing_0
 new_states = set("Telangana")
 
 # states renamed in 2011 
-renames = { 
+renames_states = { 
     "Orissa"      : "Odisha",
     "Pondicherry" : "Puducherry"
 }
@@ -169,6 +169,12 @@ column_ordering_v4  = [
      'num_cases'
  ]
 
+district_2011_replacements = {
+    'Maharashtra' : {
+        'Mumbai Suburban' : 'Mumbai'}
+ }
+ 
+
 def download_data(data_path: Path, filename: str, base_url: str = 'https://api.covid19india.org/csv/latest/'):
     url = base_url + filename
     response = requests.get(url)
@@ -195,15 +201,20 @@ def load_data_v4(path: Path):
     standardize_column_headers(cases)
     return cases[column_ordering_v4]
 
+def add_time_col(grp_df):
+    grp_df['time'] = (grp_df["date"] - grp_df["date"].min()).dt.days
+    return grp_df
+
 # calculate daily totals and growth rate
-def get_time_series(df: pd.DataFrame) -> pd.DataFrame:
-    totals = df.groupby(["status_change_date", "current_status"])["num_cases"].agg(lambda counts: np.sum(np.abs(counts)))
+def get_time_series(df: pd.DataFrame, group_col: Optional[Sequence[str]] = None) -> pd.DataFrame:
+    group_cols = [group_col] + ["status_change_date", "current_status"] if group_col else ["status_change_date", "current_status"] 
+    totals = df.groupby(group_cols)["num_cases"].agg(lambda counts: np.sum(np.abs(counts)))
     if len(totals) == 0:
         return pd.DataFrame()
-    totals = totals.unstack().fillna(0)
-    totals["date"]     = totals.index
-    totals["time"]     = (totals["date"] - totals["date"].min()).dt.days
-    totals["delta"]    = assume_missing_0(totals, "Hospitalized") - assume_missing_0(totals, "Recovered") - assume_missing_0(totals, "Deceased")
+    totals = totals.unstack().fillna(0)[['Deceased','Hospitalized','Recovered']]
+    totals["date"] = totals.index.get_level_values('status_change_date')
+    totals = totals.groupby(level=0).apply(add_time_col) if group_col else add_time_col(totals)
+    totals["delta"] = assume_missing_0(totals, "Hospitalized") - assume_missing_0(totals, "Recovered") - assume_missing_0(totals, "Deceased")
     totals["logdelta"] = np.ma.log(totals["delta"].values).filled(0)
     return totals
 
@@ -212,7 +223,9 @@ def load_all_data(v3_paths: Sequence[Path], v4_paths: Sequence[Path]) -> pd.Data
     cases_v4 = [load_data_v4(path) for path in v4_paths]
     all_cases = pd.concat(cases_v3 + cases_v4)
     all_cases["status_change_date"] = all_cases["status_change_date"].fillna(all_cases["date_announced"])
-    return all_cases.dropna(subset = ["detected_state"])
+    all_cases["detected_state"]     = all_cases["detected_state"].str.strip().str.title()
+    all_cases["detected_district"]  = all_cases["detected_district"].str.strip().str.title()  
+    return all_cases.dropna(subset  = ["detected_state"])
 
 # assuming analysis for data structure from COVID19-India saved as resaved, properly-quoted file (v1 and v2)
 def load_data(datapath: Path, reduced: bool = False, schema: Optional[Sequence[str]] = None) -> pd.DataFrame: 
@@ -227,9 +240,12 @@ def load_data(datapath: Path, reduced: bool = False, schema: Optional[Sequence[s
     standardize_column_headers(df)
     return df
 
-def load_population_data(pop_path: Path) -> pd.DataFrame:
-    return pd.read_csv(pop_path, names = ["name", "pop"])\
-             .sort_values("name")
+# replace covid api detected_district names with 2011 district name
+def replace_district_names(df_state: pd.DataFrame, state_district_maps: pd.DataFrame) -> pd.DataFrame:
+    state_district_maps = state_district_maps[['district_covid_api', 'district_2011']].set_index('district_covid_api')
+    district_map_dict = state_district_maps.to_dict()['district_2011']
+    df_state['detected_district'].replace(district_map_dict, inplace=True)
+    return df_state
 
 def load_migration_matrix(matrix_path: Path, populations: np.array) -> np.matrix:
     M  = np.loadtxt(matrix_path, delimiter=',') # read in raw data
@@ -246,13 +262,18 @@ def district_migration_matrices(
         mm[col] = mm[col].str.title().str.replace("&", "and")
     for state in  states:
         mm_state = mm[(mm.D_StateCensus2011 == state) & (mm.O_StateCensus2011 == state)]
-        pivot    = mm_state.pivot(index = "D_DistrictCensus2011", columns = "O_DistrictCensus2011", values = "NSS_STMigrants").fillna(0)
+        # handle states that need migration data combined (e.g. Mumbai and Mumbai Suburban)
+        if state in district_2011_replacements:
+            mm_state.replace(district_2011_replacements[state], inplace=True)
+        # group to combine multiple districts with same name based on above
+        grouped_mm_state = mm_state.groupby(['D_DistrictCensus2011', 'O_DistrictCensus2011'])[['O_Population_2011','NSS_STMigrants']].sum().reset_index()
+        pivot    = grouped_mm_state.pivot(index = "D_DistrictCensus2011", columns = "O_DistrictCensus2011", values = "NSS_STMigrants").fillna(0)
         M  = np.matrix(pivot)
         Mn = M/M.sum(axis = 0)
         Mn[np.isnan(Mn)] = 0
         aggregations[state] = (
             pivot.index, 
-            mm_state.groupby("O_DistrictCensus2011")["O_Population_2011"].agg(lambda x: list(x)[0]).values, 
+            grouped_mm_state.groupby("O_DistrictCensus2011")["O_Population_2011"].agg(lambda x: list(x)[0]).values, 
             Mn
         )
     return aggregations 

@@ -11,16 +11,16 @@ from adaptive.model import Model, ModelUnit, gravity_matrix
 from adaptive.plots import plot_simulation_range
 from adaptive.policy import simulate_adaptive_control, simulate_lockdown
 from adaptive.utils import cwd, days, weeks
-from etl import download_data, district_migration_matrices, get_time_series, load_all_data
+from etl import download_data, district_migration_matrices, get_time_series, load_all_data, replace_district_names
 
 
 def get_model(districts, populations, timeseries, seed = 0):
     units = [ModelUnit(
         name       = district, 
         population = populations[i],
-        I0  = timeseries[district].iloc[-1]['Hospitalized'] if not timeseries[district].empty and 'Hospitalized' in timeseries[district].iloc[-1] else 0,
-        R0  = timeseries[district].iloc[-1]['Recovered']    if not timeseries[district].empty and 'Recovered'    in timeseries[district].iloc[-1] else 0,
-        D0  = timeseries[district].iloc[-1]['Deceased']     if not timeseries[district].empty and 'Deceased'     in timeseries[district].iloc[-1] else 0,
+        I0  = timeseries.loc[district].iloc[-1]['Hospitalized'] if not timeseries.loc[district].empty and 'Hospitalized' in timeseries.loc[district].iloc[-1] else 0,
+        R0  = timeseries.loc[district].iloc[-1]['Recovered']    if not timeseries.loc[district].empty and 'Recovered'    in timeseries.loc[district].iloc[-1] else 0,
+        D0  = timeseries.loc[district].iloc[-1]['Deceased']     if not timeseries.loc[district].empty and 'Deceased'     in timeseries.loc[district].iloc[-1] else 0,
     ) for (i, district) in enumerate(districts)]
     return Model(units, random_seed = seed)
 
@@ -79,23 +79,26 @@ if __name__ == "__main__":
     grn = run_regressions(tsn, window = 5, infectious_period = 1/gamma)
 
     # disaggregate down to states
-    dfs = {state: dfn[dfn["detected_state"] == state] for state in states}
-    tss = {state: get_time_series(cases) for (state, cases) in dfs.items()}
-    for (_, ts) in tss.items():
-        ts['Hospitalized'] *= prevalence
-    grs = {state: run_regressions(timeseries, window = 5, infectious_period = 1/gamma) for (state, timeseries) in tss.items() if len(timeseries) > 5}
+    tss = get_time_series(dfn, 'detected_state')
+    tss['Hospitalized'] *= prevalence
+
+    grs = tss.groupby(level=0).apply(lambda x: run_regressions(x, window = 5, infectious_period = 1/gamma) if len(x) > 5 else None)
     
     # voluntary and mandatory reproductive numbers
     Rvn = np.mean(grn["2020-03-24":"2020-03-31"].R)
     Rmn = np.mean(grn["2020-04-01":].R)
-    Rvs = {s: np.mean(grs[s]["2020-03-24":"2020-03-31"].R) if s in grs else Rvn for s in states}
-    Rms = {s: np.mean(grs[s]["2020-04-01":].R)             if s in grs else Rmn for s in states}
+
+    Rvs = {s: np.mean(grs.loc[s].loc["2020-03-24":"2020-03-31"].R) if s in grs.index else Rvn for s in states}
+    Rms = {s: np.mean(grs.loc[s].loc["2020-04-01":].R)             if s in grs.index else Rmn for s in states}
 
     # voluntary and mandatory distancing rates 
     Bvs = {s: R * gamma for (s, R) in Rvs.items()}
     Bms = {s: R * gamma for (s, R) in Rms.items()}
 
     migration_matrices = district_migration_matrices(data/"Migration Matrix - 2011 District.csv", states = states)
+
+    # load csv mapping 2011 districts to current district names
+    district_matches = pd.read_csv(data/"india_district_matches.csv")
 
     # seed range 
     si, sf = 0, 1000
@@ -105,16 +108,23 @@ if __name__ == "__main__":
             districts, populations, migrations = gravity_matrix(*new_state_data_paths[state])
         else: 
             districts, populations, migrations = migration_matrices[state]
-        df_state = dfs[state]
-        dfd = {district: df_state[df_state["detected_district"] == district] for district in districts}
-        tsd = {district: get_time_series(cases) for (district, cases) in dfd.items()}
-        for (_, ts) in tsd.items():
-            if 'Hospitalized' in ts:
-                ts['Hospitalized'] *= prevalence
-        grd = {district: run_regressions(timeseries, window = 5, infectious_period = 1/gamma) for (district, timeseries) in tsd.items() if len(timeseries) > 5}
+
+        df_state = dfn[dfn['detected_state'] == state]
+
+        # replace covid data district names with 2011 district names 
+        dist_map_state = district_matches[district_matches['state'] == state]
+        df_state_renamed = replace_district_names(df_state, dist_map_state)
+
+        # only keep district names that are present in both migration and api data
+        districts = list(set(districts).intersection(set(df_state_renamed['detected_district'])))
+
+        tsd = get_time_series(df_state_renamed, 'detected_district') 
+        tsd['Hospitalized'] *= prevalence
+
+        grd = tsd.groupby(level=0).apply(lambda x: run_regressions(x.reset_index(level=0, drop=True), window = 5, infectious_period = 1/gamma) if len(x) > 5 else None)
     
-        Rv = {district: np.mean(grd[district]["2020-03-24":"2020-03-31"].R) if district in grd.keys() else Rvs[state] for district in districts}
-        Rm = {district: np.mean(grd[district]["2020-04-01":].R)             if district in grd.keys() else Rms[state] for district in districts}
+        Rv = {district: np.mean(grd.loc[district].loc["2020-03-24":"2020-03-31"].R) if district in grd.index else Rvs[state] for district in districts}
+        Rm = {district: np.mean(grd.loc[district].loc["2020-04-01":].R)             if district in grd.index else Rms[state] for district in districts}
 
         # fill in missing values 
         for mapping, default in ((Rv, Rvs[state]), (Rm, Rms[state])):
@@ -123,22 +133,22 @@ if __name__ == "__main__":
                     mapping[key] = default
         
         projections = []
-        for district in grd.keys():
+        for district in districts:
             try:
-                estimate = grd[district].loc[grd[district].R.last_valid_index()]
+                estimate = grd.loc[district].loc[grd.loc[district].R.last_valid_index()]
                 projections.append((district, estimate.R, estimate.R + estimate.gradient*7))
             except KeyError:
                 projections.append((district, np.NaN, np.NaN))
         pd.DataFrame(projections, columns = ["district", "R", "Rproj"]).to_csv(data/(state + ".csv")) 
 
-        # simulation_results = [
-        #     run_policies(migrations, districts, populations, tsd, Rm, Rv, gamma, seed, initial_lockdown = lockdown_period, total_time = total_time) 
-        #     for seed in tqdm(range(si, sf))
-        # ]
+        simulation_results = [
+            run_policies(migrations, districts, populations, tsd, Rm, Rv, gamma, seed, initial_lockdown = lockdown_period, total_time = total_time) 
+            for seed in tqdm(range(si, sf))
+        ]
 
-        # plot_simulation_range(simulation_results, ["31 May Release", "Adaptive Controls"], get_time_series(df_state).Hospitalized)\
-        #     .title(f"{state} Policy Scenarios: Projected Infections over Time")\
-        #     .xlabel("Date")\
-        #     .ylabel("Number of net new infections")\
-        #     .annotate(f"stochastic parameter range: ({si}, {sf}), infectious period: {1/gamma} days, smoothing window: {(5, 5, 5)}, data from {data_recency}")\
-        #     .show()
+        plot_simulation_range(simulation_results, ["31 May Release", "Adaptive Controls"], get_time_series(df_state).Hospitalized)\
+            .title(f"{state} Policy Scenarios: Projected Infections over Time")\
+            .xlabel("Date")\
+            .ylabel("Number of net new infections")\
+            .annotate(f"stochastic parameter range: ({si}, {sf}), infectious period: {1/gamma} days, smoothing window: {(5, 5, 5)}, data from {data_recency}")\
+            .show()

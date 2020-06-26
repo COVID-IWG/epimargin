@@ -25,7 +25,7 @@ def rollingOLS(totals: pd.DataFrame, window: int = 3, infectious_period: float =
     growthrates["R"]            = growthrates.gradient * infectious_period + 1
     growthrates["RM"]           = growthrates.gradient + 2 * growthrates.gradient_stderr * infectious_period + 1
     growthrates["Rm"]           = growthrates.gradient - 2 * growthrates.gradient_stderr * infectious_period + 1
-    growthrates["date"]         = growthrates.index
+    growthrates["date"]         = growthrates.index.get_level_values('status_change_date')
     growthrates["days"]         = totals.time
 
     return growthrates
