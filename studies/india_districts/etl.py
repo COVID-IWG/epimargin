@@ -203,7 +203,8 @@ def get_time_series(df: pd.DataFrame) -> pd.DataFrame:
     totals = totals.unstack().fillna(0)
     totals["date"]     = totals.index
     totals["time"]     = (totals["date"] - totals["date"].min()).dt.days
-    totals["logdelta"] = np.log(assume_missing_0(totals, "Hospitalized") - assume_missing_0(totals, "Recovered") - assume_missing_0(totals, "Deceased"))
+    totals["delta"]    = assume_missing_0(totals, "Hospitalized") - assume_missing_0(totals, "Recovered") - assume_missing_0(totals, "Deceased")
+    totals["logdelta"] = np.ma.log(totals["delta"].values).filled(0)
     return totals
 
 def load_all_data(v3_paths: Sequence[Path], v4_paths: Sequence[Path]) -> pd.DataFrame:
