@@ -1,8 +1,8 @@
 import pandas as pd
 
 from adaptive.estimators import box_filter, gamma_prior
-from adaptive.utils import cwd
-from etl import download_data, get_time_series, load_all_data
+from adaptive.utils import cwd, download
+from etl import BASE_URL, get_time_series, load_all_data
 
 # model details
 CI        = 0.95
@@ -23,8 +23,7 @@ if __name__ == "__main__":
     }
 
     # download data from india covid 19 api
-    for target in paths['v3'] + paths['v4']:
-        download_data(data, target)
+    download(src = BASE_URL, dst = data, filenames = paths['v3'] + paths['v4'])
 
     # run rolling regressions on historical national case data
     df = load_all_data(

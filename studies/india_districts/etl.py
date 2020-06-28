@@ -10,6 +10,8 @@ from adaptive.utils import assume_missing_0
 
 """code to extracts logarithmic growth rates for india-specific data"""
 
+BASE_URL: str = 'https://api.covid19india.org/csv/latest/'
+
 # states created after the 2001 census
 new_states = set("Telangana")
 
@@ -174,11 +176,6 @@ district_2011_replacements = {
         'Mumbai Suburban' : 'Mumbai'}
  }
  
-
-def download_data(data_path: Path, filename: str, base_url: str = 'https://api.covid19india.org/csv/latest/'):
-    url = base_url + filename
-    response = requests.get(url)
-    (data_path/filename).open('wb').write(response.content)
 
 def standardize_column_headers(df: pd.DataFrame):
     df.columns = df.columns.str.lower().str.strip().str.replace(" ","_").str.replace('[^a-zA-Z0-9_]', '')
