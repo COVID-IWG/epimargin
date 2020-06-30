@@ -261,28 +261,34 @@ def redistribute_missing_cases(
     totals = totals.unstack().fillna(0)[['Deceased','Hospitalized','Recovered']].reset_index()
     mask = totals['detected_state'].isin(new_state_data_paths.keys()) | ((totals['detected_state'].isin(current_districts['state'])) & (totals['detected_district'].isin(current_districts['district'])))
     missing_cases = totals[~mask].groupby(['detected_state','status_change_date']).sum()
-    actual_cases = totals[mask]
-    cases = actual_cases.join(populations)
+    actual_cases = totals[mask].set_index(['detected_state','detected_district','status_change_date'], inplace=True)
 
-    cases.groupby(level=0).apply(add_cases, col, missing_cases)
+    # cases = actual_cases.join(populations)
+    populations.groupby(level=0).apply(add_pop_fraction)
 
-    additions = pd.DataFrame(columns=['detected_district','detected_state','status_change_date','Hospitalized', 'Recovered', 'Deceased'])
-    additions.set_index(['detected_state','detected_district','status_change_date'])
+    additions = pd.DataFrame(columns=['detected_district','detected_state','status_change_date','Deceased', 'Hospitalized', 'Recovered'])
+    additions.set_index(['detected_state','detected_district','status_change_date'], inplace=True)
 
-    for state in missing_cases.groupby(level=0):
+    for state in list(missing_cases.groupby(level=0))[:2]:
         for date in state[1].index.get_level_values(level=1):
-            if state[0] in pop_prop.index.get_level_values(level=0):
-                for district in pop_prop.loc[state[0]].index:
-                    additions.loc[(state[0],district,date),:] = missing_cases.loc[state[0],date] * pop_prop.loc[state[0], district].values[0]
+            if state[0] in populations.index.get_level_values(level=0):
+                for district in populations.loc[state[0]].groupby(level=0):
+                    additions.loc[(state[0], district[0], date),:] = missing_cases.loc[state[0],date] * district[1]['population_fraction'].values[0]
 
-def add_cases(grp, missing_cases):
-    if grp.index.get_level_values(level=0)[0] in missing_cases.index.get_level_values(level=0):
-        missing_grp = missing_cases.xs(grp.index.get_level_values(level=0)[0], level=0)
-        for date in missing_grp.index:
-            grp['date'] = date
-            for col in ['Hospitalized', 'Recovered', 'Deceased']:
-                grp[col] = (grp['pop_prop'] * missing_grp.loc[date][col])
+    return additions
+
+def add_pop_fraction(grp):
+    grp['population_fraction'] = grp['population'] / grp['population'].sum()
     return grp
+
+# def add_cases(grp, missing_cases):
+#     if grp.index.get_level_values(level=0)[0] in missing_cases.index.get_level_values(level=0):
+#         missing_grp = missing_cases.xs(grp.index.get_level_values(level=0)[0], level=0)
+#         for date in missing_grp.index:
+#             grp['date'] = date
+#             for col in ['Hospitalized', 'Recovered', 'Deceased']:
+#                 grp[col] = (grp['pop_prop'] * missing_grp.loc[date][col])
+#     return grp
 
 def get_current_state_districts(
     migration_data: pd.DataFrame,
@@ -291,13 +297,13 @@ def get_current_state_districts(
                                          migration_data[['O_StateCensus2011','O_DistrictCensus2011']].rename(columns={'O_StateCensus2011': 'state', 'O_DistrictCensus2011': 'district'})])
     return current_state_districts.drop_duplicates().dropna()
 
-def load_populations(pop_path: Path, current_state_districts: pd.DataFrame):
+def load_populations(pop_path: Path):
     pops = pd.read_csv(pop_path)
     pops.columns = pops.columns.str.lower().str.replace(' ', '_')
     for col in ['state_name', 'district_name']:
         pops[col] = pops[col].str.title().str.strip().str.replace('  ', ' ').str.replace(' And ', ' & ')
     pops['population'] = pd.to_numeric(pops['population'].str.replace(',', ''))
-    return pops
+    return pops.set_index(['state_name', 'district_name'])
 
 def load_migration_matrix(matrix_path: Path, populations: np.array) -> np.matrix:
     M  = np.loadtxt(matrix_path, delimiter=',') # read in raw data

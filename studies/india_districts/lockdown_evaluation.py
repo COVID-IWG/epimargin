@@ -11,7 +11,7 @@ from adaptive.model import Model, ModelUnit, gravity_matrix
 from adaptive.plots import plot_simulation_range
 from adaptive.policy import simulate_adaptive_control, simulate_lockdown
 from adaptive.utils import cwd, days, weeks
-from etl import download_data, district_migration_matrices, get_time_series, load_all_data, replace_district_names, load_migration_data
+from etl import download_data, district_migration_matrices, get_time_series, load_all_data, replace_district_names, load_migration_data, load_populations
 
 
 def get_model(districts, populations, timeseries, seed = 0):
@@ -86,7 +86,7 @@ if __name__ == "__main__":
     current_state_districts = get_current_state_districts(migration_data, district_matches)
 
     # redistribute missing cases based on district/state populations 
-    populations = load_populations(data/"india_district_populations.csv - final.csv", current_state_districts)
+    populations = load_populations(data/"india_district_populations.csv - final.csv")
     dfn_redistributed = redistribute_missing_cases(dfn_renamed, current_state_districts, list(new_state_data_paths.keys()), populations)
 
     data_recency = str(dfn_redistributed["date_announced"].max()).split()[0]
