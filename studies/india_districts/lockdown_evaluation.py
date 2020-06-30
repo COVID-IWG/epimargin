@@ -11,7 +11,7 @@ from adaptive.model import Model, ModelUnit, gravity_matrix
 from adaptive.plots import plot_simulation_range
 from adaptive.policy import simulate_adaptive_control, simulate_lockdown
 from adaptive.utils import cwd, days, weeks
-from etl import download_data, district_migration_matrices, get_time_series, load_all_data, replace_district_names
+from etl import download_data, district_migration_matrices, get_time_series, load_all_data, replace_district_names, load_migration_data
 
 
 def get_model(districts, populations, timeseries, seed = 0):
@@ -74,12 +74,27 @@ if __name__ == "__main__":
         v3_paths = [data/filepath for filepath in paths['v3']], 
         v4_paths = [data/filepath for filepath in paths['v4']]
     )
-    data_recency = str(dfn["date_announced"].max()).split()[0]
-    tsn = get_time_series(dfn)
+
+    # load csv mapping 2011 districts to current district names and rename districts to 2011 spellings
+    district_matches = pd.read_csv(data/"india_district_matches.csv")
+    dfn_renamed = replace_district_names(dfn, district_matches)
+
+    # load migration matrix data
+    migration_data = load_migration_data(data/"Migration Matrix - 2011 District.csv")
+
+    # get list of states and districts used in model (without 'other state' etc)
+    current_state_districts = get_current_state_districts(migration_data, district_matches)
+
+    # redistribute missing cases based on district/state populations 
+    populations = load_populations(data/"india_district_populations.csv - final.csv", current_state_districts)
+    dfn_redistributed = redistribute_missing_cases(dfn_renamed, current_state_districts, list(new_state_data_paths.keys()), populations)
+
+    data_recency = str(dfn_redistributed["date_announced"].max()).split()[0]
+    tsn = get_time_series(dfn_redistributed)
     grn = run_regressions(tsn, window = 5, infectious_period = 1/gamma)
 
     # disaggregate down to states
-    tss = get_time_series(dfn, 'detected_state')
+    tss = get_time_series(dfn_redistributed, 'detected_state')
     tss['Hospitalized'] *= prevalence
 
     grs = tss.groupby(level=0).apply(lambda x: run_regressions(x, window = 5, infectious_period = 1/gamma) if len(x) > 5 else None)
@@ -95,10 +110,7 @@ if __name__ == "__main__":
     Bvs = {s: R * gamma for (s, R) in Rvs.items()}
     Bms = {s: R * gamma for (s, R) in Rms.items()}
 
-    migration_matrices = district_migration_matrices(data/"Migration Matrix - 2011 District.csv", states = states)
-
-    # load csv mapping 2011 districts to current district names
-    district_matches = pd.read_csv(data/"india_district_matches.csv")
+    migration_matrices = district_migration_matrices(migration_data, states = states)
 
     # seed range 
     si, sf = 0, 1000
@@ -109,16 +121,12 @@ if __name__ == "__main__":
         else: 
             districts, populations, migrations = migration_matrices[state]
 
-        df_state = dfn[dfn['detected_state'] == state]
-
-        # replace covid data district names with 2011 district names 
-        dist_map_state = district_matches[district_matches['state'] == state]
-        df_state_renamed = replace_district_names(df_state, dist_map_state)
+        df_state = dfn_redistributed[dfn_redistributed['detected_state'] == state]
 
         # only keep district names that are present in both migration and api data
-        districts = list(set(districts).intersection(set(df_state_renamed['detected_district'])))
+        districts = list(set(districts).intersection(set(df_state['detected_district'])))
 
-        tsd = get_time_series(df_state_renamed, 'detected_district') 
+        tsd = get_time_series(df_state, 'detected_district') 
         tsd['Hospitalized'] *= prevalence
 
         grd = tsd.groupby(level=0).apply(lambda x: run_regressions(x.reset_index(level=0, drop=True), window = 5, infectious_period = 1/gamma) if len(x) > 5 else None)

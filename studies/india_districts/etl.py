@@ -173,6 +173,11 @@ district_2011_replacements = {
     'Maharashtra' : {
         'Mumbai Suburban' : 'Mumbai'}
  }
+
+state_replacements = {
+    'Dadra & Nagar Haveli': 'Dadra & Nagar Haveli & Daman & Diu',
+    'Daman & Diu': 'Dadra & Nagar Haveli & Daman & Diu'
+}
  
 
 def download_data(data_path: Path, filename: str, base_url: str = 'https://api.covid19india.org/csv/latest/'):
@@ -223,8 +228,8 @@ def load_all_data(v3_paths: Sequence[Path], v4_paths: Sequence[Path]) -> pd.Data
     cases_v4 = [load_data_v4(path) for path in v4_paths]
     all_cases = pd.concat(cases_v3 + cases_v4)
     all_cases["status_change_date"] = all_cases["status_change_date"].fillna(all_cases["date_announced"])
-    all_cases["detected_state"]     = all_cases["detected_state"].str.strip().str.title()
-    all_cases["detected_district"]  = all_cases["detected_district"].str.strip().str.title()  
+    for col in ["detected_state", "detected_district"]:
+        all_cases[col] = all_cases[col].str.strip().str.title().str.replace(' And ', ' & ').str.replace('  ', ' ')
     return all_cases.dropna(subset  = ["detected_state"])
 
 # assuming analysis for data structure from COVID19-India saved as resaved, properly-quoted file (v1 and v2)
@@ -247,19 +252,70 @@ def replace_district_names(df_state: pd.DataFrame, state_district_maps: pd.DataF
     df_state['detected_district'].replace(district_map_dict, inplace=True)
     return df_state
 
+def redistribute_missing_cases(
+    df_cases: pd.DataFrame,
+    current_state_districts: pd.DataFrame,
+    new_states: Sequence[str],
+    populations: pd.DataFrame) -> pd.DataFrame:
+    totals = df_cases.groupby(['detected_state','detected_district','status_change_date','current_status'])["num_cases"].agg(lambda counts: np.sum(np.abs(counts)))
+    totals = totals.unstack().fillna(0)[['Deceased','Hospitalized','Recovered']].reset_index()
+    mask = totals['detected_state'].isin(new_state_data_paths.keys()) | ((totals['detected_state'].isin(current_districts['state'])) & (totals['detected_district'].isin(current_districts['district'])))
+    missing_cases = totals[~mask].groupby(['detected_state','status_change_date']).sum()
+    actual_cases = totals[mask]
+    cases = actual_cases.join(populations)
+
+    cases.groupby(level=0).apply(add_cases, col, missing_cases)
+
+    additions = pd.DataFrame(columns=['detected_district','detected_state','status_change_date','Hospitalized', 'Recovered', 'Deceased'])
+    additions.set_index(['detected_state','detected_district','status_change_date'])
+
+    for state in missing_cases.groupby(level=0):
+        for date in state[1].index.get_level_values(level=1):
+            if state[0] in pop_prop.index.get_level_values(level=0):
+                for district in pop_prop.loc[state[0]].index:
+                    additions.loc[(state[0],district,date),:] = missing_cases.loc[state[0],date] * pop_prop.loc[state[0], district].values[0]
+
+def add_cases(grp, missing_cases):
+    if grp.index.get_level_values(level=0)[0] in missing_cases.index.get_level_values(level=0):
+        missing_grp = missing_cases.xs(grp.index.get_level_values(level=0)[0], level=0)
+        for date in missing_grp.index:
+            grp['date'] = date
+            for col in ['Hospitalized', 'Recovered', 'Deceased']:
+                grp[col] = (grp['pop_prop'] * missing_grp.loc[date][col])
+    return grp
+
+def get_current_state_districts(
+    migration_data: pd.DataFrame,
+    district_matches: pd.DataFrame) -> pd.DataFrame:
+    current_state_districts = pd.concat([district_matches[['state', 'district_2011']].rename(columns={'district_2011': 'district'}),
+                                         migration_data[['O_StateCensus2011','O_DistrictCensus2011']].rename(columns={'O_StateCensus2011': 'state', 'O_DistrictCensus2011': 'district'})])
+    return current_state_districts.drop_duplicates().dropna()
+
+def load_populations(pop_path: Path, current_state_districts: pd.DataFrame):
+    pops = pd.read_csv(pop_path)
+    pops.columns = pops.columns.str.lower().str.replace(' ', '_')
+    for col in ['state_name', 'district_name']:
+        pops[col] = pops[col].str.title().str.strip().str.replace('  ', ' ').str.replace(' And ', ' & ')
+    pops['population'] = pd.to_numeric(pops['population'].str.replace(',', ''))
+    return pops
+
 def load_migration_matrix(matrix_path: Path, populations: np.array) -> np.matrix:
     M  = np.loadtxt(matrix_path, delimiter=',') # read in raw data
     M *= populations[:,  None]                  # weight by population
     M /= M.sum(axis = 0)                        # normalize
     return M 
 
-def district_migration_matrices(
-    matrix_path: Path, 
-    states: Sequence[str]) -> Dict[str, np.matrix]:
+def load_migration_data(matrix_path: Path):
     mm = pd.read_csv(matrix_path)
     aggregations = dict()
     for col in  ['D_StateCensus2011', 'D_DistrictCensus2011', 'O_StateCensus2011', 'O_DistrictCensus2011']:
-        mm[col] = mm[col].str.title().str.replace("&", "and")
+        mm[col] = mm[col].str.title()
+    return mm.replace(state_replacements)
+
+def district_migration_matrices(
+    migration_data: pd.DataFrame, 
+    states: Sequence[str]) -> Dict[str, np.matrix]:
+    mm = load_migration_data(matrix_path)
     for state in  states:
         mm_state = mm[(mm.D_StateCensus2011 == state) & (mm.O_StateCensus2011 == state)]
         # handle states that need migration data combined (e.g. Mumbai and Mumbai Suburban)
