@@ -3,6 +3,7 @@ Dummy function to test GCP functionality
 '''
 
 import pandas as pd
+import mod_1
 
 
 def timenow(event, context):
@@ -18,7 +19,9 @@ def timenow(event, context):
     print("""This Function was triggered by messageId {} published at {}
     """.format(context.event_id, context.timestamp))
     
-    d= {"Time": pd.Timestamp.now()}
+    #d= {"Time": pd.Timestamp.now()}
+    
+    d = mod_1.ts()
     
     df = pd.DataFrame(data=d, index=range(1))
 
