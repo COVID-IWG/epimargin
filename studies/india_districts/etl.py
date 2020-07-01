@@ -211,14 +211,12 @@ def add_time_col(grp_df):
     return grp_df
 
 # calculate daily totals and growth rate
-def get_time_series(df: pd.DataFrame, group_col: Optional[Sequence[str]] = None) -> pd.DataFrame:
-    group_cols = [group_col] + ["status_change_date", "current_status"] if group_col else ["status_change_date", "current_status"] 
-    totals = df.groupby(group_cols)["num_cases"].agg(lambda counts: np.sum(np.abs(counts)))
+def get_time_series(df: pd.DataFrame, group_cols: Sequence[str]) -> pd.DataFrame:
+    totals = df.groupby(group_cols).sum()
     if len(totals) == 0:
         return pd.DataFrame()
-    totals = totals.unstack().fillna(0)[['Deceased','Hospitalized','Recovered']]
     totals["date"] = totals.index.get_level_values('status_change_date')
-    totals = totals.groupby(level=0).apply(add_time_col) if group_col else add_time_col(totals)
+    totals = totals.groupby(level=0).apply(add_time_col) if len(group_cols) > 1 else add_time_col(totals)
     totals["delta"] = assume_missing_0(totals, "Hospitalized") - assume_missing_0(totals, "Recovered") - assume_missing_0(totals, "Deceased")
     totals["logdelta"] = np.ma.log(totals["delta"].values).filled(0)
     return totals
@@ -258,14 +256,15 @@ def redistribute_missing_cases(
     new_states: Sequence[str],
     populations: pd.DataFrame) -> pd.DataFrame:
     totals = df_cases.groupby(['detected_state','detected_district','status_change_date','current_status'])["num_cases"].agg(lambda counts: np.sum(np.abs(counts)))
-    totals = totals.unstack().fillna(0)[['Deceased','Hospitalized','Recovered']].reset_index()
+    totals = totals.unstack().fillna(0)[['Deceased','Hospitalized','Recovered']].reset_index()=    
     mask = totals['detected_state'].isin(new_state_data_paths.keys()) | ((totals['detected_state'].isin(current_districts['state'])) & (totals['detected_district'].isin(current_districts['district'])))
     missing_cases = totals[~mask].groupby(['detected_state','status_change_date']).sum()
-    actual_cases = totals[mask].set_index(['detected_state','detected_district','status_change_date'], inplace=True)
+    actual_cases = totals[mask]
 
-    # cases = actual_cases.join(populations)
     populations = populations.groupby(level=0).apply(add_pop_fraction)
     additions = get_additional_cases(missing_cases, populations)
+    additions['detected_district'] = additions['district_name']
+    return pd.concat([additions.iloc[:,:-1], actual_cases]).set_index(['detected_state','detected_district','status_change_date'])
 
 def add_pop_fraction(grp):
     grp['population_fraction'] = grp['population'] / grp['population'].sum()
@@ -276,14 +275,14 @@ def get_additional_cases(missing_cases: pd.DataFrame, populations: pd.DataFrame)
     for state in missing_cases.groupby(level=0):
         for date in state[1].index.get_level_values(level=1):
             if state[0] in populations.index.get_level_values(level=0):
-                df = populations.xs(state[0], level=0).groupby(level=0).apply(add_missing_cases, state[0], date, missing_cases, col).reset_index()[['district_name', 'Deceased','Hospitalized','Recovered']]
+                df = populations.xs(state[0], level=0).groupby(level=0).apply(add_missing_cases, missing_cases.loc[state[0],date]).reset_index()[['district_name', 'Deceased','Hospitalized','Recovered']]
                 df['detected_state'], df['status_change_date'] = state[0], date
                 additions = additions.append(df)
     return additions
 
-def add_missing_cases(grp, state, date, missing_cases, col):
+def add_missing_cases(grp, missing):
     for col in ['Deceased','Hospitalized','Recovered']:
-        grp[col] = grp['population_fraction'] * missing_cases.loc[state,date][col]
+        grp[col] = grp['population_fraction'] * missing[col]
     return grp
 
 def get_current_state_districts(
@@ -309,15 +308,14 @@ def load_migration_matrix(matrix_path: Path, populations: np.array) -> np.matrix
 
 def load_migration_data(matrix_path: Path):
     mm = pd.read_csv(matrix_path)
-    aggregations = dict()
     for col in  ['D_StateCensus2011', 'D_DistrictCensus2011', 'O_StateCensus2011', 'O_DistrictCensus2011']:
-        mm[col] = mm[col].str.title()
+        mm[col] = mm[col].str.title().str.replace('  ', ' ')
     return mm.replace(state_replacements)
 
 def district_migration_matrices(
-    migration_data: pd.DataFrame, 
+    mm: pd.DataFrame, 
     states: Sequence[str]) -> Dict[str, np.matrix]:
-    mm = load_migration_data(matrix_path)
+    aggregations = dict()
     for state in  states:
         mm_state = mm[(mm.D_StateCensus2011 == state) & (mm.O_StateCensus2011 == state)]
         # handle states that need migration data combined (e.g. Mumbai and Mumbai Suburban)
