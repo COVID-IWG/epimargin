@@ -22,7 +22,7 @@ def timenow(event, context):
     
     df = pd.DataFrame(data=d, index=range(1))
 
-    return df.to_csv("/tmp/test_gcp.csv", index=False)
+    df.to_csv("/tmp/test_gcp.csv", index=False)
 
 
 #if __name__ == "__main__":
