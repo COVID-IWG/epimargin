@@ -11,7 +11,7 @@ from adaptive.model import Model, ModelUnit, gravity_matrix
 from adaptive.plots import plot_simulation_range
 from adaptive.policy import simulate_adaptive_control, simulate_lockdown
 from adaptive.utils import cwd, days, weeks
-from etl import download_data, district_migration_matrices, get_time_series, load_all_data, replace_district_names, load_migration_data, load_populations, get_current_state_districts
+from etl import download_data, district_migration_matrices, get_time_series, load_all_data, replace_district_names, load_migration_data, load_populations, get_current_state_districts, redistribute_missing_cases
 
 
 def get_model(districts, populations, timeseries, seed = 0):
@@ -87,7 +87,7 @@ if __name__ == "__main__":
 
     # redistribute missing cases based on district/state populations 
     populations = load_populations(data/"india_district_populations.csv - final.csv")
-    dfn_redistributed = redistribute_missing_cases(dfn_renamed, current_state_districts, list(new_state_data_paths.keys()), populations)
+    dfn_redistributed = redistribute_missing_cases(dfn_renamed, current_state_districts, list(new_state_data_paths.keys()), populations, False)
 
     data_recency = str(dfn["date_announced"].max()).split()[0]
     tsn = get_time_series(dfn_redistributed, ['status_change_date'])
@@ -122,9 +122,6 @@ if __name__ == "__main__":
             districts, populations, migrations = migration_matrices[state]
 
         df_state = dfn_redistributed.loc[state]
-
-        # only keep district names that are present in both migration and api data
-        # districts = list(set(districts).intersection(set(df_state['detected_district'])))
 
         tsd = get_time_series(df_state, ['detected_district', 'status_change_date']) 
         tsd['Hospitalized'] *= prevalence

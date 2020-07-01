@@ -252,17 +252,17 @@ def replace_district_names(df_state: pd.DataFrame, state_district_maps: pd.DataF
 
 def redistribute_missing_cases(
     df_cases: pd.DataFrame,
-    current_state_districts: pd.DataFrame,
+    current_districts: pd.DataFrame,
     new_states: Sequence[str],
-    populations: pd.DataFrame) -> pd.DataFrame:
+    populations: pd.DataFrame,
+    fraction: bool = True) -> pd.DataFrame:
     totals = df_cases.groupby(['detected_state','detected_district','status_change_date','current_status'])["num_cases"].agg(lambda counts: np.sum(np.abs(counts)))
-    totals = totals.unstack().fillna(0)[['Deceased','Hospitalized','Recovered']].reset_index()=    
-    mask = totals['detected_state'].isin(new_state_data_paths.keys()) | ((totals['detected_state'].isin(current_districts['state'])) & (totals['detected_district'].isin(current_districts['district'])))
+    totals = totals.unstack().fillna(0)[['Deceased','Hospitalized','Recovered']].reset_index()   
+    mask = totals['detected_state'].isin(new_states) | ((totals['detected_state'].isin(current_districts['state'])) & (totals['detected_district'].isin(current_districts['district'])))
     missing_cases = totals[~mask].groupby(['detected_state','status_change_date']).sum()
     actual_cases = totals[mask]
-
     populations = populations.groupby(level=0).apply(add_pop_fraction)
-    additions = get_additional_cases(missing_cases, populations)
+    additions = get_additional_cases(missing_cases, populations, fraction)
     additions['detected_district'] = additions['district_name']
     return pd.concat([additions.iloc[:,:-1], actual_cases]).set_index(['detected_state','detected_district','status_change_date'])
 
@@ -270,17 +270,17 @@ def add_pop_fraction(grp):
     grp['population_fraction'] = grp['population'] / grp['population'].sum()
     return grp
 
-def get_additional_cases(missing_cases: pd.DataFrame, populations: pd.DataFrame):
+def get_additional_cases(missing_cases: pd.DataFrame, populations: pd.DataFrame, fraction: bool):
     additions = pd.DataFrame(columns=['detected_state','status_change_date','detected_district','Deceased', 'Hospitalized', 'Recovered'])
     for state in missing_cases.groupby(level=0):
         for date in state[1].index.get_level_values(level=1):
             if state[0] in populations.index.get_level_values(level=0):
-                df = populations.xs(state[0], level=0).groupby(level=0).apply(add_missing_cases, missing_cases.loc[state[0],date]).reset_index()[['district_name', 'Deceased','Hospitalized','Recovered']]
+                df = populations.xs(state[0], level=0).groupby(level=0).apply(add_missing_cases, missing_cases.loc[state[0],date], fraction).reset_index()[['district_name', 'Deceased','Hospitalized','Recovered']]
                 df['detected_state'], df['status_change_date'] = state[0], date
                 additions = additions.append(df)
     return additions
 
-def add_missing_cases(grp, missing):
+def add_missing_cases(grp, missing, fraction):
     for col in ['Deceased','Hospitalized','Recovered']:
         grp[col] = grp['population_fraction'] * missing[col]
     return grp
