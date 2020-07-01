@@ -21,16 +21,24 @@ def timenow(event, context):
     
     #d= {"Time": pd.Timestamp.now()}
     
-    d = ts()
+    #d = ts()
     
-    print("Test if ts worked", d)
+    #print("Test if ts worked", d)
+    
+    #df = pd.DataFrame(data=d, index=range(1))
+
+    #df.to_csv("/tmp/test_gcp.csv", index=False)
+    
+    #print("Generated csv")
+    
+    
+
+
+if __name__ == "__main__":
+    d = ts()
     
     df = pd.DataFrame(data=d, index=range(1))
 
     df.to_csv("/tmp/test_gcp.csv", index=False)
     
     print("Generated csv")
-
-
-if __name__ == "__main__":
-    timenow()
