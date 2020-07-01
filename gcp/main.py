@@ -2,6 +2,7 @@
 Dummy function to test GCP functionality 
 '''
 
+import base64
 import pandas as pd
 from mod_1 import ts
 
@@ -13,8 +14,8 @@ def timenow(event, context):
     Output:
         Returns a csv file
     '''
-    import base64
-    import pandas as pd
+    
+    #import pandas as pd
     
     print("""This Function was triggered by messageId {} published at {}
     """.format(context.event_id, context.timestamp))
