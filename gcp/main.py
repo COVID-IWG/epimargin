@@ -20,7 +20,12 @@ def timenow(event, context):
     print("""This Function was triggered by messageId {} published at {}
     """.format(context.event_id, context.timestamp))
     
-    d= {"Time": pd.Timestamp.now()}
+    #Import file
+    df_test = pd.read_csv("data/dummy_file.csv")
+    
+    print("Test if import worked",type(df_test))
+    
+    #d= {"Time": pd.Timestamp.now()}
     
     d = ts()
     
