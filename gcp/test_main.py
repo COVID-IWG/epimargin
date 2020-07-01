@@ -32,5 +32,5 @@ def timenow(event, context):
     print("Generated csv")
 
 
-#if __name__ == "__main__":
-#    timenow()
+if __name__ == "__main__":
+    timenow()
