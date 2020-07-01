@@ -3,7 +3,7 @@ Dummy function to test GCP functionality
 '''
 
 import pandas as pd
-import mod_1
+from mod_1 import ts
 
 
 def timenow(event, context):
@@ -21,13 +21,15 @@ def timenow(event, context):
     
     #d= {"Time": pd.Timestamp.now()}
     
-    d = mod_1.ts()
+    d = ts()
+    
+    print("Test if ts worked", d)
     
     df = pd.DataFrame(data=d, index=range(1))
 
     df.to_csv("/tmp/test_gcp.csv", index=False)
     
-    print("Timestamp", d)
+    print("Generated csv")
 
 
 #if __name__ == "__main__":
