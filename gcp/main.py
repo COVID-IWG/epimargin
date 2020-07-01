@@ -33,7 +33,7 @@ def timenow(event, context):
     
     df = pd.DataFrame(data=d, index=range(1))
 
-    df.to_csv("/tmp/test_gcp.csv", index=False)
+    df.to_csv("data/test_gcp.csv", index=False)
     
     print("Generated csv")
     
