@@ -23,6 +23,8 @@ def timenow(event, context):
     df = pd.DataFrame(data=d, index=range(1))
 
     df.to_csv("/tmp/test_gcp.csv", index=False)
+    
+    print("Timestamp", d)
 
 
 #if __name__ == "__main__":
