@@ -51,6 +51,8 @@ def gamma_prior(
         infectious_period: int = 5*days       # inf period = 1/gamma  
     ):
     dates = infection_ts.iloc[1:].index
+    infection_ts = infection_ts.copy(deep = True)
+    infection_ts[infection_ts < 0] = 0
     daily_cases_raw = np.diff(infection_ts).clip(min = 0)
     daily_cases = smoothing(daily_cases_raw)
 
@@ -112,7 +114,7 @@ def gamma_prior(
                 _np = 0.95 * _np 
                 T_upper = nbinom.ppf(CI,   _nr, _np)
                 T_lower = nbinom.ppf(1-CI, _nr, _np)
-
+                T_lower, T_upper = sorted((T_lower, T_upper))
                 flag = 1
             else:
                 if (flag == 1):

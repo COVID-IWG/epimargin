@@ -12,23 +12,11 @@ smoothing = 5
 
 root = cwd()
 data = root/"data"
-figs = root/"figs/comparison/refactor"
-
-# define data versions for api files
-paths = {
-    "v3": ["raw_data1.csv", "raw_data2.csv"],
-    "v4": ["raw_data3.csv", "raw_data4.csv", "raw_data5.csv", "raw_data6.csv", "raw_data7.csv"]
-}
-df = load_all_data(
-    v3_paths = [data/filepath for filepath in paths['v3']], 
-    v4_paths = [data/filepath for filepath in paths['v4']]
-)
-data_recency = str(df["date_announced"].max()).split()[0]
-run_date     = str(pd.Timestamp.now()).split()[0]
-
-ts = get_time_series(df, "detected_state")
+figs = root/"figs/comparison/kaggle"
 
 states = ["Maharashtra"]#, "Bihar", "Delhi", "Andhra Pradesh", "Telangana", "Tamil Nadu", "Madhya Pradesh"]
+
+kaggle = pd.read_csv(data/"covid_19_india.csv", parse_dates=[1], dayfirst=True).set_index("Date")
 
 for state in states: 
     print(state)
@@ -39,7 +27,7 @@ for state in states:
         T_pred, T_CI_upper, T_CI_lower,
         total_cases, new_cases_ts,
         anomalies, anomaly_dates
-    ) = gamma_prior(ts.loc[state].Hospitalized, CI = CI, smoothing = lambda ts: box_filter(ts, smoothing, 3))
+    ) = gamma_prior(kaggle[kaggle["State/UnionTerritory"] == state].Confirmed, CI = CI, smoothing = lambda ts: box_filter(ts, smoothing, 3))
 
     estimates = pd.DataFrame(data = {
         "dates": dates,

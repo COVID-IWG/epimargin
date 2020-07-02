@@ -39,7 +39,7 @@ class ModelUnit():
         self.R  = [R0]
         self.D  = [D0]
         self.P  = [population - I0 - R0 - D0] # total population = S + I + R 
-        self.beta = [RR0/self.gamma] # initial contact rate 
+        self.beta = [RR0 * self.gamma] # initial contact rate 
         self.delta_T     = [I0] # case change rate, initialized with the first introduction, if any
         self.total_cases = [I0] # total cases 
         # self.delta_D = [0]
