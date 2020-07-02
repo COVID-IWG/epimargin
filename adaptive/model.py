@@ -1,10 +1,11 @@
 from pathlib import Path
-from typing import Dict, Iterator, Optional, Sequence, Union, Tuple
+from typing import Dict, Iterator, Optional, Sequence, Tuple, Union
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 from scipy.spatial import distance_matrix
+from scipy.stats import poisson
 
 
 class ModelUnit():
@@ -17,8 +18,10 @@ class ModelUnit():
         infectious_period: int   = 5,       # how long disease is communicable in days 
         introduction_rate: float = 5.0,     # parameter for new community transmissions (lambda) 
         mortality:         float = 0.02,    # I -> D transition probability 
-        mobility:          float = 0.0001, # percentage of total population migrating out at each timestep 
-        RR0:               float = 1.9):    # initial reproductive rate 
+        mobility:          float = 0.0001,  # percentage of total population migrating out at each timestep 
+        RR0:               float = 1.9,     # initial reproductive rate 
+        CI:                float = 0.95     # confidence interval
+        ):
         
         # save params 
         self.name  = name 
@@ -42,8 +45,8 @@ class ModelUnit():
         self.beta = [RR0/self.gamma] # initial contact rate 
         self.delta_T     = [I0] # case change rate, initialized with the first introduction, if any
         self.total_cases = [I0] # total cases 
-        # self.delta_D = [0]
-        # self.delta_R = [0]
+        self.upper_CI = [0]
+        self.lower_CI = [0]
 
     # period 1: inter-state migratory transmission
     def migration_step(self) -> int:
@@ -66,6 +69,8 @@ class ModelUnit():
 
         rate_T    = (delta_B + b * (self.delta_T[-1] - delta_B) + self.gamma * RR * delta_B)
         num_cases = np.random.poisson(max(0, rate_T))
+        self.upper_CI.append(poisson.ppf(CI,     rate_T, 1))
+        self.lower_CI.append(poisson.ppf(1 - CI, rate_T, 1))
 
         I += num_cases
         S -= num_cases
@@ -211,4 +216,3 @@ def gravity_matrix(gdf_path: Path, population_path: Path) -> Tuple[Sequence[str]
     P /= P.sum(axis = 0)
 
     return (districts, populations, P)
-
