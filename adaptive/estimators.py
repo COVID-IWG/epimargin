@@ -45,9 +45,10 @@ def lowess(x: Sequence, y: Sequence[float], frac = 2/3, **kwargs):
 def gamma_prior(
         infection_ts: pd.DataFrame, 
         smoothing: Callable = lambda ts: box_filter(ts, 15, None),
-        alpha: float = 3.0,                  # shape 
-        beta:  float = 2.0,                  # rate
-        CI:    float = 0.95,                 # confidence interval 
+        alpha: float = 3.0,                   # shape 
+        beta:  float = 2.0,                   # rate,
+        variance_shift: float = 0.95,         # factor by which to shift parameters when anomalies encountered
+        CI:    float = 0.95,                  # confidence interval 
         infectious_period: int = 5*days       # inf period = 1/gamma  
     ):
     dates = infection_ts.iloc[1:].index
@@ -110,8 +111,8 @@ def gamma_prior(
                     anomaly_dates.append(dates[i])
                 
                 # nnp = 0.95 *_np # <- where does this come from 
-                _nr = 0.95 * _nr * ((1-_np)/(1-0.95*_np) )
-                _np = 0.95 * _np 
+                _nr = variance_shift * _nr * ((1-_np)/(1-variance_shift*_np) )
+                _np = variance_shift * _np 
                 T_upper = nbinom.ppf(CI,   _nr, _np)
                 T_lower = nbinom.ppf(1-CI, _nr, _np)
                 T_lower, T_upper = sorted((T_lower, T_upper))
