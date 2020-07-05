@@ -1,8 +1,10 @@
 import pandas as pd
 
-from adaptive.estimators import box_filter, gamma_prior
+from adaptive.estimators import gamma_prior
+from adaptive.smoothing import convolution
 from adaptive.utils import cwd
-from etl import download_data, get_time_series, load_all_data
+from adaptive.plots import plot_RR_est, plot_T_anomalies
+from etl import download_data, get_time_series, load_all_data, data_path
 
 # model details
 CI        = 0.95
@@ -16,17 +18,14 @@ if __name__ == "__main__":
 
     # define data versions for api files
     paths = {
-        "v3": ["raw_data1.csv", "raw_data2.csv"],
-        "v4": ["raw_data3.csv", "raw_data4.csv",
-               "raw_data5.csv", "raw_data6.csv",
-               "raw_data7.csv", "raw_data8.csv"]
+        "v3": [data_path(i) for i in (1, 2)],
+        "v4": [data_path(i) for i in (3, 4, 5, 6, 7)]
     }
 
     # download data from india covid 19 api
     for target in paths['v3'] + paths['v4']:
         download_data(data, target)
 
-    # run rolling regressions on historical national case data
     df = load_all_data(
         v3_paths = [data/filepath for filepath in paths['v3']], 
         v4_paths = [data/filepath for filepath in paths['v4']]
@@ -42,7 +41,7 @@ if __name__ == "__main__":
         T_pred, T_CI_upper, T_CI_lower,
         total_cases, new_cases_ts,
         anomalies, anomaly_dates
-    ) = gamma_prior(ts.Hospitalized[ts.Hospitalized > 0], CI = CI, smoothing = lambda ts: box_filter(ts, smoothing, None))
+    ) = gamma_prior(ts.Hospitalized[ts.Hospitalized > 0], CI = CI, smoothing = convolution("hamming", 10))
     estimates = pd.DataFrame(data = {
         "dates": dates,
         "RR_pred": RR_pred,

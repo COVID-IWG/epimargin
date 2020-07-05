@@ -171,7 +171,7 @@ def plot_RR_est(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin = 0, ymax = 4
     plt.fill_between(dates, RR_CI_lower, RR_CI_upper, label = f"{100*CI}% CI", color = "darkorchid", alpha = 0.3)
     plt.ylim(ymin, ymax)
     plt.legend()
-    return plt.gcf()
+    return PlotDevice()
 
 def plot_T_anomalies(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI):
     plt.scatter(dates[-len(new_cases_ts):], new_cases_ts, color = "mediumpurple", marker=".", label="Observed Cases (smoothed)")
@@ -179,5 +179,5 @@ def plot_T_anomalies(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomal
     plt.plot(dates[-len(T_pred):], T_pred, label = "Expected Cases", color = "darkcyan")
     plt.fill_between(dates, T_CI_lower, T_CI_upper, label = f"{100*CI}% CI", facecolor = "gray", alpha = 0.3)
     plt.legend()
-    return plt.gcf()
+    return PlotDevice()
 

@@ -173,10 +173,9 @@ district_2011_replacements = {
     'Maharashtra' : {
         'Mumbai Suburban' : 'Mumbai'}
  }
-
+ 
 def data_path(i: int):
     return f"raw_data{i}.csv"
-
 
 def download_data(data_path: Path, filename: str, base_url: str = 'https://api.covid19india.org/csv/latest/'):
     url = base_url + filename
