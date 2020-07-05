@@ -1,4 +1,3 @@
-#!python3 
 from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
 
@@ -8,13 +7,13 @@ import requests
 
 from adaptive.utils import assume_missing_0
 
-"""code to extracts logarithmic growth rates for india-specific data"""
+"""code to extract time series for COVID19India.org data"""
 
 # states created after the 2001 census
 new_states = set("Telangana")
 
-# states renamed in 2011 
-renames_states = { 
+# states renamed in 2011
+renamed_states = { 
     "Orissa"      : "Odisha",
     "Pondicherry" : "Puducherry"
 }
@@ -173,9 +172,10 @@ district_2011_replacements = {
     'Maharashtra' : {
         'Mumbai Suburban' : 'Mumbai'}
  }
- 
+
 def data_path(i: int):
     return f"raw_data{i}.csv"
+
 
 def download_data(data_path: Path, filename: str, base_url: str = 'https://api.covid19india.org/csv/latest/'):
     url = base_url + filename
@@ -233,7 +233,7 @@ def load_all_data(v3_paths: Sequence[Path], v4_paths: Sequence[Path]) -> pd.Data
 def load_data(datapath: Path, reduced: bool = False, schema: Optional[Sequence[str]] = None) -> pd.DataFrame: 
     if not schema:
         schema = columns_v1
-    df =  pd.read_csv(datapath, 
+    df = pd.read_csv(datapath, 
         skiprows    = 1, # supply fixed header in order to deal with Google Sheets export issues 
         names       = schema, 
         usecols     = (lambda _: _ not in drop_cols) if reduced else None,
@@ -248,34 +248,3 @@ def replace_district_names(df_state: pd.DataFrame, state_district_maps: pd.DataF
     district_map_dict = state_district_maps.to_dict()['district_2011']
     df_state['detected_district'].replace(district_map_dict, inplace=True)
     return df_state
-
-def load_migration_matrix(matrix_path: Path, populations: np.array) -> np.matrix:
-    M  = np.loadtxt(matrix_path, delimiter=',') # read in raw data
-    M *= populations[:,  None]                  # weight by population
-    M /= M.sum(axis = 0)                        # normalize
-    return M 
-
-def district_migration_matrices(
-    matrix_path: Path, 
-    states: Sequence[str]) -> Dict[str, np.matrix]:
-    mm = pd.read_csv(matrix_path)
-    aggregations = dict()
-    for col in  ['D_StateCensus2011', 'D_DistrictCensus2011', 'O_StateCensus2011', 'O_DistrictCensus2011']:
-        mm[col] = mm[col].str.title().str.replace("&", "and")
-    for state in  states:
-        mm_state = mm[(mm.D_StateCensus2011 == state) & (mm.O_StateCensus2011 == state)]
-        # handle states that need migration data combined (e.g. Mumbai and Mumbai Suburban)
-        if state in district_2011_replacements:
-            mm_state.replace(district_2011_replacements[state], inplace=True)
-        # group to combine multiple districts with same name based on above
-        grouped_mm_state = mm_state.groupby(['D_DistrictCensus2011', 'O_DistrictCensus2011'])[['O_Population_2011','NSS_STMigrants']].sum().reset_index()
-        pivot    = grouped_mm_state.pivot(index = "D_DistrictCensus2011", columns = "O_DistrictCensus2011", values = "NSS_STMigrants").fillna(0)
-        M  = np.matrix(pivot)
-        Mn = M/M.sum(axis = 0)
-        Mn[np.isnan(Mn)] = 0
-        aggregations[state] = (
-            pivot.index, 
-            grouped_mm_state.groupby("O_DistrictCensus2011")["O_Population_2011"].agg(lambda x: list(x)[0]).values, 
-            Mn
-        )
-    return aggregations 

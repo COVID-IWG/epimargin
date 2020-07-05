@@ -1,10 +1,11 @@
 import pandas as pd
 
 from adaptive.estimators import gamma_prior
+from adaptive.etl.covid19india import (data_path, download_data,
+                                       get_time_series, load_all_data)
+from adaptive.plots import plot_RR_est, plot_T_anomalies
 from adaptive.smoothing import convolution
 from adaptive.utils import cwd
-from adaptive.plots import plot_RR_est, plot_T_anomalies
-from etl import download_data, get_time_series, load_all_data, data_path
 
 # model details
 CI        = 0.95
@@ -41,7 +42,7 @@ if __name__ == "__main__":
         T_pred, T_CI_upper, T_CI_lower,
         total_cases, new_cases_ts,
         anomalies, anomaly_dates
-    ) = gamma_prior(ts.Hospitalized[ts.Hospitalized > 0], CI = CI, smoothing = convolution("hamming", 10))
+    ) = gamma_prior(ts.Hospitalized[ts.Hospitalized > 0], CI = CI, smoothing = convolution(window = smoothing))
     estimates = pd.DataFrame(data = {
         "dates": dates,
         "RR_pred": RR_pred,
