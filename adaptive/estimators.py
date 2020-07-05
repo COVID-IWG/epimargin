@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 from scipy.stats import gamma as Gamma
 from scipy.stats import nbinom
-from statsmodels.nonparametric.smoothers_lowess import lowess as sm_lowess
 from statsmodels.regression.rolling import RollingOLS
 
 from .utils import days
@@ -30,25 +29,13 @@ def rollingOLS(totals: pd.DataFrame, window: int = 3, infectious_period: float =
 
     return growthrates
 
-def box_filter(data: Sequence[float], window: int = 5, local_smoothing: Optional[int] = 3):
-    box = np.ones(window)/window
-    smoothed = np.convolve(data, box, mode='same')
-    if local_smoothing and len(data) > (local_smoothing + 1):
-        for i in range(local_smoothing-1, 0, -1):
-            smoothed[-i] = np.mean(data[-i-local_smoothing+1: -i+1 if i > 1 else None])
-    return smoothed
-
-def lowess(x: Sequence, y: Sequence[float], frac = 2/3, **kwargs):
-    return sm_lowess(y, x, frac, **kwargs)
-
 # the Gamma distribution is the Bayesian prior and posterior for a Poisson process 
 def gamma_prior(
         infection_ts: pd.DataFrame, 
-        smoothing: Callable = lambda ts: box_filter(ts, 15, None),
-        alpha: float = 3.0,                   # shape 
-        beta:  float = 2.0,                   # rate,
-        variance_shift: float = 0.95,         # factor by which to shift parameters when anomalies encountered
-        CI:    float = 0.95,                  # confidence interval 
+        smoothing: Callable,
+        alpha: float = 3.0,                  # shape 
+        beta:  float = 2.0,                  # rate
+        CI:    float = 0.95,                 # confidence interval 
         infectious_period: int = 5*days       # inf period = 1/gamma  
     ):
     dates = infection_ts.iloc[1:].index

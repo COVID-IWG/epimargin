@@ -148,3 +148,33 @@ def simulate_adaptive_control_MHA(model: Model, initial_run: int, total_time: in
 
     model.gantt = gantt 
     return model 
+
+def simulate_PID_controller(
+    model: Model, 
+    initial_run: int, 
+    total_time: int,
+    Rtarget: float = 0.9,
+    kP: float = 0.05, 
+    kI: float = 0.5,
+    kD: float = 0,
+    Dt: float = 1.0) -> Model:
+    # initial run without PID
+    model.run(initial_run)
+    
+    # set up PID running variables
+    integral   = 0
+    derivative = 0
+    u = 0
+    prev_error = model.RR0[0]
+
+    # run forward model 
+    for i in range(total_time - initial_run):
+        model.run(1)
+        model.RR[i] -= u 
+
+        error = model.RR[i] - Rtarget
+        integral  += error * Dt 
+        derivative = (error - prev_error)/Dt
+
+        u = kP * error + kI * integral + kD * derivative
+        prev_error = error
