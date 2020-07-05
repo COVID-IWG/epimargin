@@ -19,7 +19,7 @@ if __name__ == "__main__":
         "v3": ["raw_data1.csv", "raw_data2.csv"],
         "v4": ["raw_data3.csv", "raw_data4.csv",
                "raw_data5.csv", "raw_data6.csv",
-               "raw_data7.csv"]
+               "raw_data7.csv", "raw_data8.csv"]
     }
 
     # download data from india covid 19 api
