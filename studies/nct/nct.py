@@ -3,10 +3,11 @@ import numpy as np
 import pandas as pd
 
 from adaptive.estimators import box_filter, gamma_prior
+from adaptive.etl.covid19india import (data_path, download_data,
+                                       get_time_series, load_all_data)
 from adaptive.model import Model, ModelUnit
 from adaptive.plots import PlotDevice, plot_RR_est, plot_T_anomalies
 from adaptive.utils import cwd
-from etl import data_path, download_data, get_time_series, load_all_data
 
 # model details
 CI        = 0.99

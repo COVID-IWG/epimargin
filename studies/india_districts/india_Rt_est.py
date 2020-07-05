@@ -1,10 +1,11 @@
 import pandas as pd
 
 from adaptive.estimators import gamma_prior
+from adaptive.etl.covid19india import (data_path, download_data,
+                                       get_time_series, load_all_data)
+from adaptive.plots import plot_RR_est, plot_T_anomalies
 from adaptive.smoothing import convolution
 from adaptive.utils import cwd
-from adaptive.plots import plot_RR_est, plot_T_anomalies
-from etl import download_data, get_time_series, load_all_data, data_path
 
 # model details
 CI        = 0.95
