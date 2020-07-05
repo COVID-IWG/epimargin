@@ -2,7 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from adaptive.estimators import box_filter, gamma_prior
+from adaptive.estimators import gamma_prior
+from adaptive.smoothing import convolution
 from adaptive.etl.covid19india import (data_path, download_data,
                                        get_time_series, load_all_data)
 from adaptive.model import Model, ModelUnit
@@ -11,13 +12,16 @@ from adaptive.utils import cwd
 
 # model details
 CI        = 0.99
-smoothing = 30
+smoothing = 10
 
 if __name__ == "__main__":
-    root = cwd()
-    data = root/"data"
+    root   = cwd()
+    data   = root/"data"
+    output = root/"output"
     if not data.exists():
         data.mkdir()
+    if not output.exists():
+        output.mkdir()
 
     # define data versions for api files
     paths = {
@@ -44,7 +48,7 @@ if __name__ == "__main__":
         T_pred, T_CI_upper, T_CI_lower,
         total_cases, new_cases_ts,
         anomalies, anomaly_dates
-    ) = gamma_prior(ts.delta[ts.delta > 0], CI = CI, smoothing = lambda ts: box_filter(ts, smoothing, smoothing//2)) 
+    ) = gamma_prior(ts.delta[ts.delta > 0], CI = CI, smoothing = convolution(window = smoothing)) 
     #= gamma_prior(ts.Hospitalized[ts.Hospitalized > 0], CI = CI, smoothing = lambda ts: box_filter(ts, smoothing, 10))
 
     np.random.seed(33)
@@ -74,11 +78,11 @@ if __name__ == "__main__":
         "Rt"         : RR_pred, 
         "Rt_CI_upper": RR_CI_upper, 
         "Rt_CI_lower": RR_CI_lower
-    }).set_index("date").to_csv("Rt.csv")
+    }).set_index("date").to_csv(output/"Rt.csv")
     
     pd.DataFrame(data={
         "date"                    : list(dates) + t_pred[1:], 
         "net_daily_cases"         : T_pred + delhi[0].delta_T[1:], 
         "net_daily_cases_CI_upper": T_CI_upper + delhi[0].upper_CI[1:],
         "net_daily_cases_CI_lower": T_CI_lower + delhi[0].lower_CI[1:]
-    }).set_index("date").to_csv("dT.csv")
+    }).set_index("date").to_csv(output/"dT.csv")
