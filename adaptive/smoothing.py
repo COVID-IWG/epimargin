@@ -15,7 +15,7 @@ def convolution(key: str = "hamming",  window: int = 7):
     def smooth(data: Sequence[float]):
         # pad the data with time reversal windows of signal at ends since all kernels here are apodizing 
         padded = np.r_[data[window-1:0:-1], data, data[-2:-window-1:-1]]
-        return np.convolve(kernel/kernel.sum(), padded, mode="valid")
+        return np.convolve(kernel/kernel.sum(), padded, mode="valid")[:-window+1]
     return smooth
 
 def box_filter_local(window: int = 5, local_smoothing: Optional[int] = 3):
