@@ -1,10 +1,11 @@
 from pathlib import Path
-from typing import Dict, Iterator, Optional, Sequence, Union, Tuple
+from typing import Dict, Iterator, Optional, Sequence, Tuple, Union
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 from scipy.spatial import distance_matrix
+from scipy.stats import poisson
 
 
 class ModelUnit():
@@ -17,8 +18,10 @@ class ModelUnit():
         infectious_period: int   = 5,       # how long disease is communicable in days 
         introduction_rate: float = 5.0,     # parameter for new community transmissions (lambda) 
         mortality:         float = 0.02,    # I -> D transition probability 
-        mobility:          float = 0.0001, # percentage of total population migrating out at each timestep 
-        RR0:               float = 1.9):    # initial reproductive rate 
+        mobility:          float = 0.0001,  # percentage of total population migrating out at each timestep 
+        RR0:               float = 1.9,     # initial reproductive rate 
+        CI:                float = 0.95     # confidence interval
+        ):
         
         # save params 
         self.name  = name 
@@ -28,22 +31,23 @@ class ModelUnit():
         self.m     = mortality
         self.mu    = mobility
         self.RR0   = RR0
-        
+        self.CI    = CI 
+
         # state and delta vectors 
         if I0 is None:
             I0 = np.random.poisson(self.ll) # initial number of cases 
         self.RR = [RR0]
         self.b  = [np.exp(self.gamma * (RR0 - 1.0))]
-        self.S  = [population]
+        self.S  = [population - I0 - R0 - D0]
         self.I  = [I0] 
         self.R  = [R0]
         self.D  = [D0]
-        self.P  = [population - I0 - R0 - D0] # total population = S + I + R 
+        self.P  = [population] # total population = S + I + R 
         self.beta = [RR0/self.gamma] # initial contact rate 
         self.delta_T     = [I0] # case change rate, initialized with the first introduction, if any
         self.total_cases = [I0] # total cases 
-        # self.delta_D = [0]
-        # self.delta_R = [0]
+        self.upper_CI = [0]
+        self.lower_CI = [0]
 
     # period 1: inter-state migratory transmission
     def migration_step(self) -> int:
@@ -64,18 +68,21 @@ class ModelUnit():
         RR = self.RR0 * float(S)/float(P)
         b  = np.exp(self.gamma * (RR - 1))
 
-        rate_T    = (delta_B + b * (self.delta_T[-1] - delta_B) + self.gamma * RR * delta_B)
-        num_cases = np.random.poisson(max(0, rate_T))
+        rate_T    = max(0, self.b[-1] * self.delta_T[-1] + (1 - self.b[-1] + self.gamma * self.b[-1] * self.RR[-1])*delta_B)
+        num_cases = poisson.rvs(rate_T)
+        print(self.b[-1], self.delta_T[-1], rate_T, num_cases)
+        self.upper_CI.append(poisson.ppf(self.CI,     rate_T))
+        self.lower_CI.append(poisson.ppf(1 - self.CI, rate_T))
 
         I += num_cases
         S -= num_cases
 
         rate_D    = self.m * self.gamma * I
-        num_dead  = np.random.poisson(rate_D)
+        num_dead  = poisson.rvs(rate_D)
         D        += num_dead
 
         rate_R    = (1 - self.m) * self.gamma * I 
-        num_recov = np.random.poisson(rate_R)
+        num_recov = poisson.rvs(rate_R)
         R        += num_recov
 
         I -= (num_dead + num_recov)
@@ -211,4 +218,3 @@ def gravity_matrix(gdf_path: Path, population_path: Path) -> Tuple[Sequence[str]
     P /= P.sum(axis = 0)
 
     return (districts, populations, P)
-

@@ -1,55 +1,58 @@
-from itertools import product
 from pathlib import Path
-from typing import Dict, Optional, Sequence
 
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-import numpy as np
-import pandas as pd
-from tqdm import tqdm
-
-from adaptive.estimators import box_filter, gamma_prior
-from adaptive.utils import cwd, days, weeks
+from adaptive.estimators import gamma_prior
 from adaptive.plots import plot_RR_est, plot_T_anomalies
-from etl import download_data, get_time_series, load_all_data
+from adaptive.smoothing import convolution, kernels
+from etl import data_path, download_data, get_time_series, load_all_data
 
-if __name__ == "__main__":
-    root = cwd()
-    data = root/"data"
+sns.set_palette("deep")
 
-    # model details 
-    gamma      = 0.2
-    prevalence = 1
-
-    states = ["Maharashtra", "Andhra Pradesh", "Tamil Nadu", "Madhya Pradesh", "Punjab", "Gujarat", "Kerala", "Bihar"]
-
+def get_dataframe(data: Path = Path("./data")):
     # define data versions for api files
-    paths = { "v3": ["raw_data1.csv", "raw_data2.csv"],
-              "v4": ["raw_data3.csv", "raw_data4.csv",
-                     "raw_data5.csv", "raw_data6.csv"] } 
+    paths = {
+        "v3": [data_path(i) for i in (1, 2)],
+        "v4": [data_path(i) for i in (3, 4, 5, 6, 7, 8)]
+    }
 
     # download data from india covid 19 api
     for target in paths['v3'] + paths['v4']:
         download_data(data, target)
 
-    # run rolling regressions on historical national case data 
-    dfn = load_all_data(
+    return load_all_data(
         v3_paths = [data/filepath for filepath in paths['v3']], 
         v4_paths = [data/filepath for filepath in paths['v4']]
     )
 
-    # first, check reimplementation against known figures 
+
+def state_checks():
+    root = cwd()
+    data = root/"data"
+
+    # model details
+    gamma      = 0.2
+    prevalence = 1
+
+    dfn = get_dataframe()
+
+    states = ["Maharashtra", "Andhra Pradesh", "Tamil Nadu", "Madhya Pradesh", "Punjab", "Gujarat", "Kerala", "Bihar"]
+
+    # first, check reimplementation against known figures
     CI = 0.99
     for state in states: 
         ts = get_time_series(dfn[
             (dfn.date_announced <= "2020-05-08") & 
             (dfn.detected_state == state)
         ])
-        (dates, 
-        RR_pred, RR_CI_upper, RR_CI_lower, 
-        T_pred, T_CI_upper, T_CI_lower, 
-        total_cases, new_cases_ts, 
-        anomalies, anomaly_dates) = gamma_prior(ts.Hospitalized, CI = CI)
+        (
+            dates,
+            RR_pred, RR_CI_upper, RR_CI_lower,
+            T_pred, T_CI_upper, T_CI_lower,
+            total_cases, new_cases_ts,
+            anomalies, anomaly_date
+        ) = gamma_prior(ts.Hospitalized, CI = CI)
         plot_RR_est(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI)
         plt.title(f"{state}: Estimated $R_t$", loc="left", fontsize=20)
         plt.figure()
@@ -58,11 +61,11 @@ if __name__ == "__main__":
 
         plt.show()
 
-    # generate smoothing checks for national time series 
+    # generate smoothing checks for national time series
     ts = get_time_series(dfn)
 
     CI = 0.95
-    # 1: box filter 
+    # 1: box filter
     RRfig, RRax = plt.subplots(3, 1, sharex=True)
     T_fig, T_ax = plt.subplots(3, 1, sharex=True)
     for (i, n) in enumerate((5, 10, 15)): 
@@ -91,7 +94,7 @@ if __name__ == "__main__":
     plt.show()
 
 
-    # 2: box filter, local smooothing 
+    # 2: box filter, local smooothing
     RRfig, RRax = plt.subplots(3, 1, sharex=True)
     T_fig, T_ax = plt.subplots(3, 1, sharex=True)
     for (i, n) in enumerate((5, 10, 15)): 
@@ -123,3 +126,19 @@ if __name__ == "__main__":
     plt.subplots_adjust(right = 0.9)
     
     plt.show()
+
+
+def implementation_checks(window: int = 7):
+    df = get_dataframe()
+    ts = get_time_series(df)
+
+    I = ts.Hospitalized.values
+    for kernel in kernels.keys():
+        plt.figure()
+        plt.bar(x = ts.index, height = I, label = "raw")
+        smoother = convolution(kernel, window)
+        plt.plot(ts.index, smoother(I)[:-window+1], label = "smooth")
+        plt.title(f"kernel: {kernel} (window: {window})", loc = "left")
+    plt.show()
+
+implementation_checks(10)

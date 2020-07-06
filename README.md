@@ -2,13 +2,13 @@
 
 <div align="center"> <img src="./docs/logo.svg" height="250"> </div>
 
-<div align="center"> <img alt="Made With Python" src="https://img.shields.io/badge/made%20with-python-%233776AB.svg?style=for-the-badge&logo=python&logoColor=ffdf76"> <a href="https://twitter.com/miurbanchicago"><img alt="Twitter Follow" src="https://img.shields.io/twitter/follow/miurbanchicago?logo=twitter&style=for-the-badge"></a> <img alt="MIT License" src="https://img.shields.io/github/license/mansueto-institute/adaptive-lockdown?logo=open-source-initiative&logoColor=white&style=for-the-badge"> </div>
+<div align="center"> <img alt="Made With Python" src="https://img.shields.io/badge/made%20with-python-%233776AB.svg?style=for-the-badge&logo=python&logoColor=ffdf76"> <a href="https://twitter.com/miurbanchicago"><img alt="Twitter Follow" src="https://img.shields.io/twitter/follow/miurbanchicago?logo=twitter&style=for-the-badge"></a> <a href="https://travis-ci.com/github/mansueto-institute/adaptive-control"><img alt="build status" src="https://img.shields.io/travis/com/mansueto-institute/adaptive-control/master?color=green&style=for-the-badge"></a> </div>
 
 
 
 # summary
-an extension of a real-time Bayesian reproductive number estimation model for pandemic tracking that: 
-1. runs a rolling regression to get a real time estimate of <i>R<sub>t</sub></i>
+a pandemic tracking toolkit that: 
+1. runs a Bayesian update process to obtain a real time estimate of <i>R<sub>t</sub></i>
 2. builds a graph of interactions between geographic units accounting for migratory (re-)introductions
 3. at each <i>t</i> from <i>t<sub>i</sub></i> to <i>t<sub>f</sub></i>:
 

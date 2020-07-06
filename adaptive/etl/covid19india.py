@@ -1,4 +1,3 @@
-#!python3 
 from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
 
@@ -8,13 +7,13 @@ import requests
 
 from adaptive.utils import assume_missing_0
 
-"""code to extracts logarithmic growth rates for india-specific data"""
+"""code to extract time series for COVID19India.org data"""
 
 # states created after the 2001 census
 new_states = set("Telangana")
 
-# states renamed in 2011 
-renames_states = { 
+# states renamed in 2011
+renamed_states = { 
     "Orissa"      : "Odisha",
     "Pondicherry" : "Puducherry"
 }
@@ -179,6 +178,8 @@ state_replacements = {
     'Daman & Diu': 'Dadra & Nagar Haveli & Daman & Diu'
 }
  
+def data_path(i: int):
+    return f"raw_data{i}.csv"
 
 def download_data(data_path: Path, filename: str, base_url: str = 'https://api.covid19india.org/csv/latest/'):
     url = base_url + filename
@@ -234,7 +235,7 @@ def load_all_data(v3_paths: Sequence[Path], v4_paths: Sequence[Path]) -> pd.Data
 def load_data(datapath: Path, reduced: bool = False, schema: Optional[Sequence[str]] = None) -> pd.DataFrame: 
     if not schema:
         schema = columns_v1
-    df =  pd.read_csv(datapath, 
+    df = pd.read_csv(datapath, 
         skiprows    = 1, # supply fixed header in order to deal with Google Sheets export issues 
         names       = schema, 
         usecols     = (lambda _: _ not in drop_cols) if reduced else None,
