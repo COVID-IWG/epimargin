@@ -11,8 +11,8 @@ from adaptive.model import Model, ModelUnit, gravity_matrix
 from adaptive.plots import plot_simulation_range
 from adaptive.policy import simulate_adaptive_control, simulate_lockdown
 from adaptive.utils import cwd, days, weeks
-from etl import download_data, district_migration_matrices, get_time_series, load_all_data, replace_district_names, load_migration_data, load_populations, get_current_state_districts, redistribute_missing_cases
-
+from adaptive.etl.covid19india import download_data, get_time_series, load_all_data, replace_district_names
+from adaptive.etl.devdatalab import district_migration_matrices
 
 def get_model(districts, populations, timeseries, seed = 0):
     units = [ModelUnit(
