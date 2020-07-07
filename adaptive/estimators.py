@@ -33,10 +33,11 @@ def rollingOLS(totals: pd.DataFrame, window: int = 3, infectious_period: float =
 def gamma_prior(
         infection_ts: pd.DataFrame, 
         smoothing: Callable,
-        alpha: float = 3.0,                  # shape 
-        beta:  float = 2.0,                  # rate
-        CI:    float = 0.95,                 # confidence interval 
-        infectious_period: int = 5*days       # inf period = 1/gamma  
+        alpha: float = 3.0,                # shape 
+        beta:  float = 2.0,                # rate
+        CI:    float = 0.95,               # confidence interval 
+        infectious_period: int = 5*days,   # inf period = 1/gamma,
+        variance_shift: float = 0.99       # how much to scale variance parameters by when anomaly detected 
     ):
     dates = infection_ts.iloc[1:].index
     infection_ts = infection_ts.copy(deep = True)
