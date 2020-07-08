@@ -5,6 +5,7 @@ Dummy function to test GCP functionality
 import base64
 import pandas as pd
 from mod_1 import ts
+from google.cloud import storage
 
 
 def timenow(event, context):
@@ -15,8 +16,6 @@ def timenow(event, context):
         Returns a csv file
     '''
     
-    #import pandas as pd
-    
     print("""This Function was triggered by messageId {} published at {}
     """.format(context.event_id, context.timestamp))
     
@@ -24,8 +23,6 @@ def timenow(event, context):
     df_test = pd.read_csv("data/dummy_file.csv")
     
     print("Test if import worked",type(df_test))
-    
-    #d= {"Time": pd.Timestamp.now()}
     
     d = ts()
     
@@ -37,14 +34,22 @@ def timenow(event, context):
     
     print("Generated csv")
     
-    
+def upload_file(bucket_name, source_file_name, destination_blob_name):
+    """Uploads a file to the bucket."""
+    # bucket_name = "your-bucket-name"
+    # source_file_name = "local/path/to/file"
+    # destination_blob_name = "storage-object-name"
 
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(destination_blob_name)
 
-#if __name__ == "__main__":
-#    d = ts()
-    
-#    df = pd.DataFrame(data=d, index=range(1))
+    blob.upload_from_filename(source_file_name)
 
- #   df.to_csv("/tmp/test_gcp.csv", index=False)
+    print(
+        "File {} uploaded to {}.".format(
+            source_file_name, destination_blob_name
+        )
+    )
+
     
-  #  print("Generated csv")
