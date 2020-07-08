@@ -31,7 +31,10 @@ replacements = {
 }
 
 def load_cases(path: Path) -> pd.DataFrame:
-    return pd.read_csv(path, parse_dates=[collect, confirm, release], dayfirst=True)
+    raw = pd.read_csv(path, parse_dates=[collect, confirm, release], dayfirst=True)
+    for col in (collect, confirm, release, death):
+        raw[col] = pd.to_datetime(raw[col], dayfirst=True, errors="coerce")
+    return raw
 
 def split_cases_by_district(cases: pd.DataFrame) -> Dict[str, pd.DataFrame]:
     return {district: cases[cases["DISTRICT"] == district] for district in districts}

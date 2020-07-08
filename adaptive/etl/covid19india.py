@@ -160,12 +160,12 @@ drop_cols_v4 = {
 
 column_ordering_v4  = [
     'patient_number',
-     'date_announced',
-     'detected_district',
-     'detected_state',
-     'current_status',
-     'status_change_date',
-     'num_cases'
+    'date_announced',
+    'detected_district',
+    'detected_state',
+    'current_status',
+    'status_change_date',
+    'num_cases'
  ]
 
 district_2011_replacements = {
