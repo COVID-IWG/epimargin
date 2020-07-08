@@ -3,6 +3,7 @@ from typing import Dict, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 import requests
 
 from adaptive.utils import assume_missing_0
@@ -252,16 +253,19 @@ def replace_district_names(df_state: pd.DataFrame, state_district_maps: pd.DataF
     return df_state
 
 def redistribute_missing_cases(
-    df_cases: pd.DataFrame,
+    dfn: pd.DataFrame,
     current_districts: pd.DataFrame,
-    new_states: Sequence[str],
     populations: pd.DataFrame,
     fraction: bool = True) -> pd.DataFrame:
-    totals = df_cases.groupby(['detected_state','detected_district','status_change_date','current_status'])["num_cases"].agg(lambda counts: np.sum(np.abs(counts)))
+    totals = dfn.groupby(['detected_state','detected_district','status_change_date','current_status'])["num_cases"].agg(lambda counts: np.sum(counts))
     totals = totals.unstack().fillna(0)[['Deceased','Hospitalized','Recovered']].reset_index()   
-    mask = totals['detected_state'].isin(new_states) | ((totals['detected_state'].isin(current_districts['state'])) & (totals['detected_district'].isin(current_districts['district'])))
     missing_cases = totals[~mask].groupby(['detected_state','status_change_date']).sum()
     actual_cases = totals[mask]
+
+    mask = (dfn['detected_state'].isin(current_districts['state'])) & (dfn['detected_district'].isin(current_districts['district']))
+    missing_districts = dfn[~mask]
+    actual_cases = dfn[mask]
+
     populations = populations.groupby(level=0).apply(add_pop_fraction)
     additions = get_additional_cases(missing_cases, populations, fraction)
     additions['detected_district'] = additions['district_name']
@@ -270,6 +274,27 @@ def redistribute_missing_cases(
 def add_pop_fraction(grp):
     grp['population_fraction'] = grp['population'] / grp['population'].sum()
     return grp
+
+def add_fraction_cols(grp):
+    for col in ['Deceased','Hospitalized','Recovered']:
+        col_nm = col + "_fraction"
+        grp[col_nm] = grp[col] / grp[col].sum()
+    return grp
+
+def distribute_negative_full_geo(df_full_geo: pd.DataFrame) -> pd.DataFrame:
+    negative = df_full_geo[df_full_geo['num_cases'] < 0].groupby(['detected_state','detected_district','current_status'])['num_cases'].sum()
+    negative = negative.unstack().fillna(0)
+    negative.columns = ['neg_' + x for x in negative.columns]
+
+    actual = df_full_geo[df_full_geo['num_cases'] >= 0].groupby(['detected_state','detected_district','status_change_date','current_status'])['num_cases'].sum()
+    actual = actual.unstack().fillna(0)
+    actual = actual.groupby(['detected_state','detected_district']).apply(add_fraction_cols)
+
+    joined = actual.reset_index().set_index(['detected_state','detected_district']).join(negative).fillna(0)
+    for col in ['Hospitalized','Deceased','Recovered']:
+        joined[col] = joined[col] + np.round((joined[col + '_fraction'] * joined['neg_' + col]))
+    return joined[['status_change_date','Hospitalized','Deceased','Recovered']]
+
 
 def get_additional_cases(missing_cases: pd.DataFrame, populations: pd.DataFrame, fraction: bool):
     additions = pd.DataFrame(columns=['detected_state','status_change_date','detected_district','Deceased', 'Hospitalized', 'Recovered'])
@@ -286,12 +311,9 @@ def add_missing_cases(grp, missing, fraction):
         grp[col] = grp['population_fraction'] * missing[col]
     return grp
 
-def get_current_state_districts(
-    migration_data: pd.DataFrame,
-    district_matches: pd.DataFrame) -> pd.DataFrame:
-    current_state_districts = pd.concat([district_matches[['state', 'district_2011']].rename(columns={'district_2011': 'district'}),
-                                         migration_data[['O_StateCensus2011','O_DistrictCensus2011']].rename(columns={'O_StateCensus2011': 'state', 'O_DistrictCensus2011': 'district'})])
-    return current_state_districts.drop_duplicates().dropna()
+def get_current_state_districts(geo_filepath: Path) -> pd.DataFrame:
+    geos = gpd.read_file(geo_filepath)[['st_nm', 'district']]
+    return geos.rename(columns={'st_nm':'state'})
 
 def load_populations(pop_path: Path):
     pops = pd.read_csv(pop_path)
