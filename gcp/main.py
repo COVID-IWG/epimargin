@@ -34,17 +34,18 @@ def timenow(event, context):
     
     print("Generated csv")
     
-def upload_file(bucket_name, source_file_name, destination_blob_name):
+def upload_file(event, context):
     """Uploads a file to the bucket."""
     # bucket_name = "your-bucket-name"
     # source_file_name = "local/path/to/file"
     # destination_blob_name = "storage-object-name"
+    #This will not work
 
     storage_client = storage.Client()
-    bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(destination_blob_name)
+    bucket = storage_client.bucket("covid-project-281323.appspot.com/")
+    blob = bucket.blob("dummy_file.csv")
 
-    blob.upload_from_filename(source_file_name)
+    blob.upload_from_filename("~/Desktop/")
 
     print(
         "File {} uploaded to {}.".format(
