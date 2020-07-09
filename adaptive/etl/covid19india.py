@@ -254,22 +254,30 @@ def replace_district_names(df_state: pd.DataFrame, state_district_maps: pd.DataF
 
 def redistribute_missing_cases(
     dfn: pd.DataFrame,
-    current_districts: pd.DataFrame,
+    current_geographies: pd.DataFrame,
     populations: pd.DataFrame,
     fraction: bool = True) -> pd.DataFrame:
-    totals = dfn.groupby(['detected_state','detected_district','status_change_date','current_status'])["num_cases"].agg(lambda counts: np.sum(counts))
-    totals = totals.unstack().fillna(0)[['Deceased','Hospitalized','Recovered']].reset_index()   
-    missing_cases = totals[~mask].groupby(['detected_state','status_change_date']).sum()
-    actual_cases = totals[mask]
+    
+    # drop cases that have no state and no district assigned
+    dfn = dfn[(dfn['detected_state'] != 'State Unassigned') & (dfn['detected_district'] != 'Unassigned')]
 
-    mask = (dfn['detected_state'].isin(current_districts['state'])) & (dfn['detected_district'].isin(current_districts['district']))
-    missing_districts = dfn[~mask]
-    actual_cases = dfn[mask]
+    # split into 
+    mask = (dfn['detected_state'].isin(current_geographies['state'])) & (dfn['detected_district'].isin(current_geographies['district']))
+    missing_district_cases = dfn[~mask]
+    full_geo_cases = dfn[mask]
+
+    cases = distribute_negatives_full_geo(full_geo_cases)
+    cases_no_negs = distribute_negative_no_district(missing_district_cases[missing_district_cases['num_cases'] < 0], cases)
 
     populations = populations.groupby(level=0).apply(add_pop_fraction)
     additions = get_additional_cases(missing_cases, populations, fraction)
     additions['detected_district'] = additions['district_name']
     return pd.concat([additions.iloc[:,:-1], actual_cases]).set_index(['detected_state','detected_district','status_change_date'])
+
+    # totals = dfn.groupby(['detected_state','detected_district','status_change_date','current_status'])["num_cases"].agg(lambda counts: np.sum(counts))
+    # totals = totals.unstack().fillna(0)[['Deceased','Hospitalized','Recovered']].reset_index()   
+    # missing_cases = totals[~mask].groupby(['detected_state','status_change_date']).sum()
+    # actual_cases = totals[mask]
 
 def add_pop_fraction(grp):
     grp['population_fraction'] = grp['population'] / grp['population'].sum()
@@ -281,7 +289,7 @@ def add_fraction_cols(grp):
         grp[col_nm] = grp[col] / grp[col].sum()
     return grp
 
-def distribute_negative_full_geo(df_full_geo: pd.DataFrame) -> pd.DataFrame:
+def distribute_negatives_full_geo(df_full_geo: pd.DataFrame) -> pd.DataFrame:
     negative = df_full_geo[df_full_geo['num_cases'] < 0].groupby(['detected_state','detected_district','current_status'])['num_cases'].sum()
     negative = negative.unstack().fillna(0)
     negative.columns = ['neg_' + x for x in negative.columns]
@@ -295,23 +303,35 @@ def distribute_negative_full_geo(df_full_geo: pd.DataFrame) -> pd.DataFrame:
         joined[col] = joined[col] + np.round((joined[col + '_fraction'] * joined['neg_' + col]))
     return joined[['status_change_date','Hospitalized','Deceased','Recovered']]
 
+def distribute_negative_no_district(neg_cases_no_district: pd.DataFrame, cases: pd.DataFrame) -> pd.DataFrame:
+    neg_grouped = neg_cases_no_district.groupby(['detected_state', 'current_status'])['num_cases'].sum()
+    neg_grouped = neg_grouped.unstack().fillna(0)
+    neg_grouped.columns = ['neg_' + x for x in neg_grouped.columns]
 
-def get_additional_cases(missing_cases: pd.DataFrame, populations: pd.DataFrame, fraction: bool):
+    cases = cases.groupby('detected_state').apply(add_fraction_cols)
+    
+    joined = cases.reset_index().set_index(['detected_state']).join(neg_grouped).fillna(0)
+    for col in ['Hospitalized','Deceased','Recovered']:
+        joined[col] = joined[col] + np.round((joined[col + '_fraction'] * joined['neg_' + col]))
+    return joined[['status_change_date','Hospitalized','Deceased','Recovered']]
+
+
+def get_additional_cases(missing_cases: pd.DataFrame, populations: pd.DataFrame):
     additions = pd.DataFrame(columns=['detected_state','status_change_date','detected_district','Deceased', 'Hospitalized', 'Recovered'])
     for state in missing_cases.groupby(level=0):
         for date in state[1].index.get_level_values(level=1):
             if state[0] in populations.index.get_level_values(level=0):
-                df = populations.xs(state[0], level=0).groupby(level=0).apply(add_missing_cases, missing_cases.loc[state[0],date], fraction).reset_index()[['district_name', 'Deceased','Hospitalized','Recovered']]
+                df = populations.xs(state[0], level=0).groupby(level=0).apply(add_missing_cases, missing_cases.loc[state[0],date]).reset_index()[['district_name', 'Deceased','Hospitalized','Recovered']]
                 df['detected_state'], df['status_change_date'] = state[0], date
                 additions = additions.append(df)
     return additions
 
-def add_missing_cases(grp, missing, fraction):
+def add_missing_cases(grp, missing):
     for col in ['Deceased','Hospitalized','Recovered']:
         grp[col] = grp['population_fraction'] * missing[col]
     return grp
 
-def get_current_state_districts(geo_filepath: Path) -> pd.DataFrame:
+def get_current_geographies(geo_filepath: Path) -> pd.DataFrame:
     geos = gpd.read_file(geo_filepath)[['st_nm', 'district']]
     return geos.rename(columns={'st_nm':'state'})
 

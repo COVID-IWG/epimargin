@@ -84,7 +84,7 @@ if __name__ == "__main__":
     migration_data = load_migration_data(data/"Migration Matrix - 2011 District.csv")
 
     # get list of states and districts used in model (without 'other state' etc)
-    current_state_districts = get_current_state_districts(migration_data, district_matches)
+    current_geographies = get_current_geographies(data/"india.json")
 
     # redistribute missing cases based on district/state populations 
     populations = load_populations(data/"india_district_populations.csv - final.csv")
