@@ -33,12 +33,15 @@ def rollingOLS(totals: pd.DataFrame, window: int = 3, infectious_period: float =
 def gamma_prior(
         infection_ts: pd.DataFrame, 
         smoothing: Callable,
-        alpha: float = 3.0,                  # shape 
-        beta:  float = 2.0,                  # rate
-        CI:    float = 0.95,                 # confidence interval 
-        infectious_period: int = 5*days       # inf period = 1/gamma  
+        alpha: float = 3.0,                # shape 
+        beta:  float = 2.0,                # rate
+        CI:    float = 0.95,               # confidence interval 
+        infectious_period: int = 5*days,   # inf period = 1/gamma,
+        variance_shift: float = 0.99       # how much to scale variance parameters by when anomaly detected 
     ):
     dates = infection_ts.iloc[1:].index
+    infection_ts = infection_ts.copy(deep = True)
+    infection_ts[infection_ts < 0] = 0
     daily_cases_raw = np.diff(infection_ts).clip(min = 0)
     daily_cases = smoothing(daily_cases_raw)
 
@@ -96,11 +99,11 @@ def gamma_prior(
                     anomaly_dates.append(dates[i])
                 
                 # nnp = 0.95 *_np # <- where does this come from 
-                _nr = 0.95 * _nr * ((1-_np)/(1-0.95*_np) )
-                _np = 0.95 * _np 
+                _nr = variance_shift * _nr * ((1-_np)/(1-variance_shift*_np) )
+                _np = variance_shift * _np 
                 T_upper = nbinom.ppf(CI,   _nr, _np)
                 T_lower = nbinom.ppf(1-CI, _nr, _np)
-
+                T_lower, T_upper = sorted((T_lower, T_upper))
                 flag = 1
             else:
                 if (flag == 1):

@@ -42,8 +42,8 @@ class ModelUnit():
         self.I  = [I0] 
         self.R  = [R0]
         self.D  = [D0]
-        self.P  = [population] # total population = S + I + R 
-        self.beta = [RR0/self.gamma] # initial contact rate 
+        self.P  = [population - I0 - R0 - D0] # total population = S + I + R 
+        self.beta = [RR0 * self.gamma] # initial contact rate 
         self.delta_T     = [I0] # case change rate, initialized with the first introduction, if any
         self.total_cases = [I0] # total cases 
         self.upper_CI = [0]
@@ -70,7 +70,7 @@ class ModelUnit():
 
         rate_T    = max(0, self.b[-1] * self.delta_T[-1] + (1 - self.b[-1] + self.gamma * self.b[-1] * self.RR[-1])*delta_B)
         num_cases = poisson.rvs(rate_T)
-        print(self.b[-1], self.delta_T[-1], rate_T, num_cases)
+        # print(self.b[-1], self.delta_T[-1], rate_T, num_cases)
         self.upper_CI.append(poisson.ppf(self.CI,     rate_T))
         self.lower_CI.append(poisson.ppf(1 - self.CI, rate_T))
 
