@@ -5,7 +5,6 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 from scipy.spatial import distance_matrix
-from scipy.stats import gamma as Gamma
 from scipy.stats import poisson
 
 
