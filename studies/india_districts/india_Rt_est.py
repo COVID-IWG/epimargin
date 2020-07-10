@@ -49,26 +49,26 @@ for state in states:
         total_cases, new_cases_ts,
         anomalies, anomaly_dates
     ) = gamma_prior(ts.loc[state].Hospitalized, CI = CI, smoothing = convolution(window = smoothing))
-    # estimates = pd.DataFrame(data = {
-    #     "dates": dates,
-    #     "RR_pred": RR_pred,
-    #     "RR_CI_upper": RR_CI_upper,
-    #     "RR_CI_lower": RR_CI_lower,
-    #     "T_pred": T_pred,
-    #     "T_CI_upper": T_CI_upper,
-    #     "T_CI_lower": T_CI_lower,
-    #     "total_cases": total_cases[2:],
-    #     "new_cases_ts": new_cases_ts,
-    # })
+    estimates = pd.DataFrame(data = {
+        "dates": dates,
+        "RR_pred": RR_pred,
+        "RR_CI_upper": RR_CI_upper,
+        "RR_CI_lower": RR_CI_lower,
+        "T_pred": T_pred,
+        "T_CI_upper": T_CI_upper,
+        "T_CI_lower": T_CI_lower,
+        "total_cases": total_cases[2:],
+        "new_cases_ts": new_cases_ts,
+    })
     print("  + Rt today:", RR_pred[-1])
 
-    plot_RR_est(dates, RR_pred, RR_CI_lower, RR_CI_upper, CI)\
-        .ylabel("Estimated $R_t$")\
-        .xlabel("Date")\
-        .title(state)\
-        .size(11, 8)\
-        .save(figs/f"Rt_est_{state}.png", dpi=600, bbox_inches="tight")\
-        .show()
+    # plot_RR_est(dates, RR_pred, RR_CI_lower, RR_CI_upper, CI)\
+    #     .ylabel("Estimated $R_t$")\
+    #     .xlabel("Date")\
+    #     .title(state)\
+    #     .size(11, 8)\
+    #     .save(figs/f"Rt_est_{state}.png", dpi=600, bbox_inches="tight")\
+    #     .show()
 
     # plot_T_anomalies(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI)\
     #     .ylabel("Predicted/Observed Cases")\
@@ -77,8 +77,6 @@ for state in states:
     #     .size(11, 8)\
     #     .save(figs/f"T_est_{state}.png", dpi=600, bbox_inches="tight")\
     #     .show()
-
-
 
     estimates["anomaly"] = estimates["dates"].isin(set(anomaly_dates))
     estimates.to_csv(data/f"india_rt_data{data_recency}_run{run_date}.csv")
