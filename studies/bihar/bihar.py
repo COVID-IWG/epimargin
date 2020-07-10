@@ -6,25 +6,39 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+from statsmodels.regression.linear_model import OLS 
+from statsmodels.tools import add_constant
 
 import etl
 from adaptive.estimators import gamma_prior
 from adaptive.model import Model, ModelUnit
 from adaptive.plots import PlotDevice, plot_RR_est, plot_T_anomalies
 from adaptive.smoothing import convolution
-from adaptive.utils import cwd
+from adaptive.utils import cwd, days
 
 simplefilter("ignore")
+
+def project(dates, R_values, smoothing, period = 7*days):
+    julian_dates = [_.to_julian_date() for _ in dates[-smoothing//2:None]]
+    return OLS(
+        RR_pred[-smoothing//2:None], 
+        add_constant(julian_dates)
+    )\
+    .fit()\
+    .predict([1, julian_dates[-1] + period])[0]
 
 root = cwd()
 data = root/"data"
 figs = root/"figs"
 
 gamma     = 0.2
-smoothing = 5
+smoothing = 15
 CI        = 0.95
 
 state_cases = etl.load_cases(data/"Bihar_case_data_May29.csv")
+district_names, population_counts, _ = etl.district_migration_matrix(data/"Migration Matrix - District.csv")
+populations = dict(zip(district_names, population_counts))
+
 
 # first, look at state level predictions
 (
@@ -50,9 +64,6 @@ t_pred = [dates[-1] + pd.Timedelta(days = i) for i in range(len(Bihar[0].delta_T
 
 Bihar[0].lower_CI[0] = T_CI_lower[-1]
 Bihar[0].upper_CI[0] = T_CI_upper[-1]
-print(Bihar[0].delta_T)
-print(Bihar[0].lower_CI)
-print(Bihar[0].upper_CI)
 plot_T_anomalies(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI)
 plt.scatter(t_pred, Bihar[0].delta_T, color = "tomato", s = 4, label = "Predicted Net Cases")
 plt.fill_between(t_pred, Bihar[0].lower_CI, Bihar[0].upper_CI, color = "tomato", alpha = 0.3, label="99% CI (forecast)")
@@ -61,24 +72,21 @@ PlotDevice().title("Bihar: Net Daily Cases").xlabel("Date").ylabel("Cases")
 plt.show()
 
 # now, do district-level estimation 
+smoothing = 10
 district_time_series = etl.get_district_time_series(state_cases)
+migration = np.zeros((len(district_names), len(district_names)))
 estimates = []
-district_names = district_time_series.index.get_level_values(0).unique()
 max_len = 1 + max(map(len, district_names))
 with tqdm(district_names) as districts:
     for district in districts:
-        districts.set_description(f"{district :>{max_len}}")
+        districts.set_description(f"{district :<{max_len}}")
         try: 
-            (dates, RR_pred, RR_CI_upper, RR_CI_lower, *_) = gamma_prior(district_time_series.loc[district], CI = CI, smoothing = convolution(window = smoothing))
-        except ValueError: 
-            estimates.append((district, np.nan, np.nan, np.nan))
-            continue
-        if len(RR_pred) == 0:
-            estimates.append((district, np.nan, np.nan, np.nan))
-        else:
-            estimates.append((district, RR_pred[-1], RR_CI_lower[-1], RR_CI_upper[-1])) 
+            (dates, RR_pred, RR_CI_upper, RR_CI_lower, T_pred, T_CI_upper, T_CI_lower, total_cases, new_cases_ts, anomalies, anomaly_dates) = gamma_prior(district_time_series.loc[district], CI = CI, smoothing = convolution(window = smoothing))
+            estimates.append((district, RR_pred[-1], RR_CI_lower[-1], RR_CI_upper[-1], project(dates, RR_pred, smoothing))) 
+        except (IndexError, ValueError): 
+            estimates.append((district, np.nan, np.nan, np.nan, np.nan))
 estimates = pd.DataFrame(estimates)
-estimates.columns = ["district", "Rt", "Rt_CI_lower", "Rt_CI_upper"]
+estimates.columns = ["district", "Rt", "Rt_CI_lower", "Rt_CI_upper", "Rt_proj"]
 estimates.set_index("district", inplace=True)
 estimates.to_csv(data/"Rt_estimates.csv")
 print(estimates)

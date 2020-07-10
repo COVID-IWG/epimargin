@@ -70,7 +70,6 @@ class ModelUnit():
 
         rate_T    = max(0, self.b[-1] * self.delta_T[-1] + (1 - self.b[-1] + self.gamma * self.b[-1] * self.RR[-1])*delta_B)
         num_cases = poisson.rvs(rate_T)
-        # print(self.b[-1], self.delta_T[-1], rate_T, num_cases)
         self.upper_CI.append(poisson.ppf(self.CI,     rate_T))
         self.lower_CI.append(poisson.ppf(1 - self.CI, rate_T))
 
