@@ -16,11 +16,17 @@ root = cwd()
 data = root/"data"
 figs = root/"figs"
 
+data.mkdir(exist_ok=True)
+figs.mkdir(exist_ok=True)
+
 # define data versions for api files
 paths = {
     "v3": [data_path(i) for i in (1, 2)],
     "v4": [data_path(i) for i in (3, 4, 5, 6, 7)]
 }
+
+for target in paths['v3'] + paths['v4']:
+    download_data(data, target)
 
 df = load_all_data(
     v3_paths = [data/filepath for filepath in paths['v3']], 
