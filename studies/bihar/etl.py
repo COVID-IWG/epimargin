@@ -24,10 +24,11 @@ replacements = {
     "PASHCHIM CHAMPARAN": "WEST CHAMPARAN", 
     "PURBA CHAMPARAN"   : "EAST CHAMPARAN", 
     "KAIMUR (BHABUA)"   : "KAIMUR", 
-    "MUZAFFARPUR"       : "MUZZAFARPUR", 
-    "SHEIKHPURA"        : "SHEIKPURA",
-    "SHIEKHPURA"        : "SHEIKPURA",
-    "PURNIA"            : "PURNEA"
+    "SHIEKHPURA"        : "SHEIKHPURA",
+    # "SHEIKHPURA"        : "SHEIKPURA",
+    # "SHIEKHPURA"        : "SHEIKPURA",
+    # "MUZAFFARPUR"       : "MUZZAFARPUR", 
+    # "PURNIA"            : "PURNEA"
 }
 
 def load_cases(path: Path) -> pd.DataFrame:
@@ -39,7 +40,7 @@ def load_cases(path: Path) -> pd.DataFrame:
 def split_cases_by_district(cases: pd.DataFrame) -> Dict[str, pd.DataFrame]:
     return {district: cases[cases["DISTRICT"] == district] for district in districts}
 
-def get_state_time_series(state_cases: pd.DataFrame) -> pd.DataFrame:
+def get_state_time_series(cases: pd.DataFrame) -> pd.DataFrame:
     R = cases["CASE STATUS"] == "Recovered"
     D = cases["CASE STATUS"] == "Deceased"
     H = cases["CASE STATUS"].isna()
