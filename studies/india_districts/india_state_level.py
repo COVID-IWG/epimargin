@@ -34,7 +34,7 @@ if __name__ == "__main__":
 
     download_data(data, 'state_wise_daily.csv')
 
-    state_df = load_statewise_data(data/"state_wise_daily.csv", data/"india_state_code_lookup.csv")
+    state_df = load_statewise_data(data/"state_wise_daily.csv")
     country_time_series = get_time_series(state_df)
 
     # country level
@@ -72,4 +72,3 @@ if __name__ == "__main__":
     estimates.set_index("state", inplace=True)
     estimates.to_csv(data/"Rt_estimates.csv")
     print(estimates)
-
