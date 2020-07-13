@@ -3,6 +3,7 @@ from typing import Dict, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 import requests
 
 from adaptive.utils import assume_missing_0
@@ -176,7 +177,6 @@ district_2011_replacements = {
 def data_path(i: int):
     return f"raw_data{i}.csv"
 
-
 def download_data(data_path: Path, filename: str, base_url: str = 'https://api.covid19india.org/csv/latest/'):
     url = base_url + filename
     response = requests.get(url)
@@ -214,7 +214,7 @@ def get_time_series(df: pd.DataFrame, group_col: Optional[Sequence[str]] = None)
     if len(totals) == 0:
         return pd.DataFrame()
     totals = totals.unstack().fillna(0)[['Deceased','Hospitalized','Recovered']]
-    totals["date"] = totals.index.get_level_values('status_change_date')
+    totals["date"] = totals.index.get_level_values("status_change_date")
     totals = totals.groupby(level=0).apply(add_time_col) if group_col else add_time_col(totals)
     totals["delta"] = assume_missing_0(totals, "Hospitalized") - assume_missing_0(totals, "Recovered") - assume_missing_0(totals, "Deceased")
     totals["logdelta"] = np.ma.log(totals["delta"].values).filled(0)
@@ -248,3 +248,13 @@ def replace_district_names(df_state: pd.DataFrame, state_district_maps: pd.DataF
     district_map_dict = state_district_maps.to_dict()['district_2011']
     df_state['detected_district'].replace(district_map_dict, inplace=True)
     return df_state
+
+def load_statewise_data(statewise_data_path: Path, state_code_lookup: Path) -> pd.DataFrame:
+    df_raw = pd.read_csv(statewise_data_path, parse_dates = ["Date"])
+    state_code_dict = pd.read_csv(state_code_lookup).set_index("state_code").to_dict()["state_name"]
+    df_raw.rename(columns=state_code_dict, inplace=True)
+    df = pd.DataFrame(df_raw.set_index(["Date","Status"]).unstack().unstack()).reset_index()
+    df.columns = ["state", "current_status", "status_change_date", "num_cases"]
+    df.replace("Confirmed", "Hospitalized", inplace=True)
+    # drop negative cases and cases with no state assigned
+    return df[(df["num_cases"] >= 0) & (~df["state"].isin(["State Unassigned", "TT"]))]
