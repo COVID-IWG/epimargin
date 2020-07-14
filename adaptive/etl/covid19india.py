@@ -173,9 +173,49 @@ district_2011_replacements = {
         'Mumbai Suburban' : 'Mumbai'}
  }
 
+state_code_lookup = {
+    'RJ': 'Rajasthan',
+    'BR': 'Bihar',
+    'DL': 'Delhi',
+    'AP': 'Andhra Pradesh',
+    'KA': 'Karnataka',
+    'HR': 'Haryana',
+    'CT': 'Chhattisgarh',
+    'CH': 'Chandigarh',
+    'HP': 'Himachal Pradesh',
+    'KL': 'Kerala',
+    'LA': 'Ladakh',
+    'UT': 'Uttarakhand',
+    'TN': 'Tamil Nadu',
+    'PB': 'Punjab',
+    'OR': 'Odisha',
+    'WB': 'West Bengal',
+    'JK': 'Jammu & Kashmir',
+    'TG': 'Telangana',
+    'MP': 'Madhya Pradesh',
+    'GJ': 'Gujarat',
+    'PY': 'Puducherry',
+    'JH': 'Jharkhand',
+    'MH': 'Maharashtra',
+    'UP': 'Uttar Pradesh',
+    'TR': 'Tripura',
+    'AS': 'Assam',
+    'DN': 'Dadra & Nagar Haveli',
+    'ML': 'Meghalaya',
+    'GA': 'Goa',
+    'MN': 'Manipur',
+    'UN': 'State Unassigned',
+    'SK': 'Sikkim',
+    'AR': 'Arunachal Pradesh',
+    'NL': 'Nagaland',
+    'MZ': 'Mizoram',
+    'AN': 'Andaman & Nicobar Islands',
+    'LD': 'Lakshadweep',
+    'DD': 'Daman & Diu'
+} 
+
 def data_path(i: int):
     return f"raw_data{i}.csv"
-
 
 def download_data(data_path: Path, filename: str, base_url: str = 'https://api.covid19india.org/csv/latest/'):
     url = base_url + filename
@@ -214,7 +254,7 @@ def get_time_series(df: pd.DataFrame, group_col: Optional[Sequence[str]] = None)
     if len(totals) == 0:
         return pd.DataFrame()
     totals = totals.unstack().fillna(0)[['Deceased','Hospitalized','Recovered']]
-    totals["date"] = totals.index.get_level_values('status_change_date')
+    totals["date"] = totals.index.get_level_values("status_change_date")
     totals = totals.groupby(level=0).apply(add_time_col) if group_col else add_time_col(totals)
     totals["delta"] = assume_missing_0(totals, "Hospitalized") - assume_missing_0(totals, "Recovered") - assume_missing_0(totals, "Deceased")
     totals["logdelta"] = np.ma.log(totals["delta"].values).filled(0)
@@ -248,3 +288,12 @@ def replace_district_names(df_state: pd.DataFrame, state_district_maps: pd.DataF
     district_map_dict = state_district_maps.to_dict()['district_2011']
     df_state['detected_district'].replace(district_map_dict, inplace=True)
     return df_state
+
+def load_statewise_data(statewise_data_path: Path) -> pd.DataFrame:
+    df_raw = pd.read_csv(statewise_data_path, parse_dates = ["Date"])
+    df_raw.rename(columns=state_code_lookup, inplace=True)
+    df = pd.DataFrame(df_raw.set_index(["Date","Status"]).unstack().unstack()).reset_index()
+    df.columns = ["state", "current_status", "status_change_date", "num_cases"]
+    df.replace("Confirmed", "Hospitalized", inplace=True)
+    # drop negative cases and cases with no state assigned
+    return df[(df["num_cases"] >= 0) & (~df["state"].isin(["State Unassigned", "TT"]))]
