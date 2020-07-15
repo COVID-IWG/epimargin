@@ -257,6 +257,17 @@ state_name_lookup = {
     'West Bengal'              : 'WB'
 }
 
+google_mobility_columns = [
+    "sub_region_1",
+    "date",
+    "retail_and_recreation_percent_change_from_baseline",
+    "grocery_and_pharmacy_percent_change_from_baseline",
+    "parks_percent_change_from_baseline",
+    "transit_stations_percent_change_from_baseline",
+    "workplaces_percent_change_from_baseline",
+    "residential_percent_change_from_baseline"
+ ]
+
 def data_path(i: int):
     return f"raw_data{i}.csv"
 
@@ -340,3 +351,9 @@ def load_statewise_data(statewise_data_path: Path) -> pd.DataFrame:
     df.replace("Confirmed", "Hospitalized", inplace=True)
     # drop negative cases and cases with no state assigned
     return df[(df["num_cases"] >= 0) & (~df["state"].isin(["State Unassigned", "TT"]))]
+
+def get_google_mobility_india(mobility_data_path: Path):
+    full_df = pd.read_csv(mobility_data_path, parse_dates = ["date"])
+    india_df = full_df[full_df["country_region_code"] == "IN"]
+    india_df["sub_region_1"] = india_df["sub_region_1"].str.replace(" and ", " & ")
+    return india_df[google_mobility_columns]
