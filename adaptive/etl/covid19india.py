@@ -352,8 +352,8 @@ def load_statewise_data(statewise_data_path: Path) -> pd.DataFrame:
     # drop negative cases and cases with no state assigned
     return df[(df["num_cases"] >= 0) & (~df["state"].isin(["State Unassigned", "TT"]))]
 
-def get_google_mobility_india(mobility_data_path: Path):
+def get_google_mobility(mobility_data_path: Path, country_code: str):
     full_df = pd.read_csv(mobility_data_path, parse_dates = ["date"])
-    india_df = full_df[full_df["country_region_code"] == "IN"]
-    india_df["sub_region_1"] = india_df["sub_region_1"].str.replace(" and ", " & ")
-    return india_df[google_mobility_columns]
+    country_df = full_df[full_df["country_region_code"] == country_code]
+    country_df["sub_region_1"] = country_df["sub_region_1"].str.replace(" and ", " & ")
+    return country_df[google_mobility_columns]
