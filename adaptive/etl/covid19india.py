@@ -99,7 +99,7 @@ columns_v3 = v3 = [
     'Source_2',
     'Source_3',
     'Backup Notes',
-    'Num cases'
+    'Num Cases'
 ]
 
 drop_cols_v3 = {

@@ -6,7 +6,7 @@ cache: pip
 install:
   - pip install -r requirements.txt
   - pip install -e . 
-script: python3 studies/india_districts/india_Rt_est.py --local
+script: python3 studies/india_districts/india_Rt_est.py
 branches:
   only:
   - master
