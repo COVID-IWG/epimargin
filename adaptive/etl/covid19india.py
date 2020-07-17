@@ -99,7 +99,7 @@ columns_v3 = v3 = [
     'Source_2',
     'Source_3',
     'Backup Notes',
-    'Num cases'
+    'Num Cases'
 ]
 
 drop_cols_v3 = {
@@ -160,12 +160,12 @@ drop_cols_v4 = {
 
 column_ordering_v4  = [
     'patient_number',
-     'date_announced',
-     'detected_district',
-     'detected_state',
-     'current_status',
-     'status_change_date',
-     'num_cases'
+    'date_announced',
+    'detected_district',
+    'detected_state',
+    'current_status',
+    'status_change_date',
+    'num_cases'
  ]
 
 district_2011_replacements = {
@@ -173,9 +173,92 @@ district_2011_replacements = {
         'Mumbai Suburban' : 'Mumbai'}
  }
 
+state_code_lookup = {
+    'AN': 'Andaman & Nicobar Islands',
+    'AP': 'Andhra Pradesh',
+    'AR': 'Arunachal Pradesh',
+    'AS': 'Assam',
+    'BR': 'Bihar',
+    'CH': 'Chandigarh',
+    'CT': 'Chhattisgarh',
+    'DD': 'Daman & Diu', 
+    'DL': 'Delhi',
+    'DN': 'Dadra & Nagar Haveli',
+    'GA': 'Goa',
+    'GJ': 'Gujarat',
+    'HP': 'Himachal Pradesh',
+    'HR': 'Haryana',
+    'JH': 'Jharkhand',
+    'JK': 'Jammu & Kashmir',
+    'KA': 'Karnataka',
+    'KL': 'Kerala',
+    'LA': 'Ladakh',
+    'LD': 'Lakshadweep',
+    'MH': 'Maharashtra',
+    'ML': 'Meghalaya',
+    'MN': 'Manipur',
+    'MP': 'Madhya Pradesh',
+    'MZ': 'Mizoram',
+    'NL': 'Nagaland',
+    'OR': 'Odisha',
+    'PB': 'Punjab',
+    'PY': 'Puducherry',
+    'RJ': 'Rajasthan',
+    'SK': 'Sikkim',
+    'TG': 'Telangana',
+    'TN': 'Tamil Nadu',
+    'TR': 'Tripura',
+    'TT': 'India',
+    'UN': 'State Unassigned',
+    'UP': 'Uttar Pradesh',
+    'UT': 'Uttarakhand',
+    'WB': 'West Bengal',
+}
+
+state_name_lookup = { 
+    'Andaman & Nicobar Islands': 'AN', 
+    'Andhra Pradesh'           : 'AP', 
+    'Arunachal Pradesh'        : 'AR', 
+    'Assam'                    : 'AS', 
+    'Bihar'                    : 'BR', 
+    'Chandigarh'               : 'CH', 
+    'Chhattisgarh'             : 'CT', 
+    'Daman & Diu'              : 'DD', 
+    'Delhi'                    : 'DL', 
+    'Dadra & Nagar Haveli'     : 'DN', 
+    'Goa'                      : 'GA', 
+    'Gujarat'                  : 'GJ', 
+    'Himachal Pradesh'         : 'HP', 
+    'Haryana'                  : 'HR', 
+    'Jharkhand'                : 'JH', 
+    'Jammu & Kashmir'          : 'JK', 
+    'Karnataka'                : 'KA', 
+    'Kerala'                   : 'KL', 
+    'Ladakh'                   : 'LA', 
+    'Lakshadweep'              : 'LD', 
+    'Maharashtra'              : 'MH', 
+    'Meghalaya'                : 'ML', 
+    'Manipur'                  : 'MN', 
+    'Madhya Pradesh'           : 'MP', 
+    'Mizoram'                  : 'MZ', 
+    'Nagaland'                 : 'NL', 
+    'Odisha'                   : 'OR', 
+    'Punjab'                   : 'PB', 
+    'Puducherry'               : 'PY', 
+    'Rajasthan'                : 'RJ', 
+    'Sikkim'                   : 'SK', 
+    'Telangana'                : 'TG', 
+    'Tamil Nadu'               : 'TN', 
+    'Tripura'                  : 'TR', 
+    'India'                    : 'TT', 
+    'State Unassigned'         : 'UN', 
+    'Uttar Pradesh'            : 'UP', 
+    'Uttarakhand'              : 'UT',
+    'West Bengal'              : 'WB'
+}
+
 def data_path(i: int):
     return f"raw_data{i}.csv"
-
 
 def download_data(data_path: Path, filename: str, base_url: str = 'https://api.covid19india.org/csv/latest/'):
     url = base_url + filename
@@ -214,7 +297,7 @@ def get_time_series(df: pd.DataFrame, group_col: Optional[Sequence[str]] = None)
     if len(totals) == 0:
         return pd.DataFrame()
     totals = totals.unstack().fillna(0)[['Deceased','Hospitalized','Recovered']]
-    totals["date"] = totals.index.get_level_values('status_change_date')
+    totals["date"] = totals.index.get_level_values("status_change_date")
     totals = totals.groupby(level=0).apply(add_time_col) if group_col else add_time_col(totals)
     totals["delta"] = assume_missing_0(totals, "Hospitalized") - assume_missing_0(totals, "Recovered") - assume_missing_0(totals, "Deceased")
     totals["logdelta"] = np.ma.log(totals["delta"].values).filled(0)
@@ -248,3 +331,12 @@ def replace_district_names(df_state: pd.DataFrame, state_district_maps: pd.DataF
     district_map_dict = state_district_maps.to_dict()['district_2011']
     df_state['detected_district'].replace(district_map_dict, inplace=True)
     return df_state
+
+def load_statewise_data(statewise_data_path: Path) -> pd.DataFrame:
+    df_raw = pd.read_csv(statewise_data_path, parse_dates = ["Date"])
+    df_raw.rename(columns=state_code_lookup, inplace=True)
+    df = pd.DataFrame(df_raw.set_index(["Date","Status"]).unstack().unstack()).reset_index()
+    df.columns = ["state", "current_status", "status_change_date", "num_cases"]
+    df.replace("Confirmed", "Hospitalized", inplace=True)
+    # drop negative cases and cases with no state assigned
+    return df[(df["num_cases"] >= 0) & (~df["state"].isin(["State Unassigned", "TT"]))]
