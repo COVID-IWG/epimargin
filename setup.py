@@ -1,7 +1,7 @@
-from distutils.core import setup
+from setuptools import setup, find_namespace_packages
 
 setup(
     name='adaptive',
     version='0.1dev',
-    packages=['adaptive', 'adaptive.etl'],
+    packages=find_namespace_packages(where='adaptive'),
 )
