@@ -11,7 +11,7 @@ import seaborn as sns
 
 from .model import Model
 
-sns.set(style = "whitegrid", palette = "bright", font = "Fira Code")
+sns.set(style = "whitegrid", palette = "bright", font = "Inconsolata")
 sns.despine()
 
 
@@ -21,35 +21,32 @@ class PlotDevice():
         self.figure = fig if fig else plt.gcf()
         
     def xlabel(self, xl: str, **kwargs):
-        if "fontdict" not in kwargs.keys():
-            kwargs["fontdict"] = {"size": 20, "family": "Fira Sans", "fontweight": "500"}
+        kwargs["fontdict"] = kwargs.get("fontdict", {"size": 20, "family": "Libre Franklin", "fontweight": "500"})
         plt.xlabel(xl, **kwargs)
         return self 
 
     def ylabel(self, yl: str, **kwargs):
-        if "fontdict" not in kwargs.keys():
-            kwargs["fontdict"] = {"size": 20, "family": "Fira Sans", "fontweight": "500"}
+        kwargs["fontdict"] = kwargs.get("fontdict", {"size": 20, "family": "Libre Franklin", "fontweight": "500"})
         plt.ylabel(yl, **kwargs)
         return self 
 
     def title(self, text: str, **kwargs):
-        if "fontdict" not in kwargs.keys():
-            kwargs["fontdict"] = {"size": 36, "family": "Fira Sans", "fontweight": "500"}
-        if "loc" not in kwargs.keys():
-            kwargs["loc"] = "left"
+        kwargs["fontdict"] = kwargs.get("fontdict", {"size": 20, "family": "Libre Franklin", "fontweight": "500"})
+        kwargs["loc"]      = kwargs.get("loc", "left")
         plt.title(text, **kwargs)
         return self 
     
     def annotate(self, note: str, **kwargs):
-        if "xy" not in kwargs:
-            kwargs["xy"] = (0.05, 0.05)
-        if "xycoords" not in kwargs:
-            kwargs["xycoords"] = "figure fraction"
-        if "size" not in kwargs:
-            kwargs["size"] = 8
+        kwargs["xy"] = kwargs.get("xy", (0.05, 0.05))
+        kwargs["xycoords"] = kwargs.get("xycoords", "figure fraction")
+        kwargs["size"] = kwargs.get("size", 8)
         plt.annotate(note, **kwargs)
         return self
     
+    def size(self, w, h):
+        self.figure.set_size_inches(w, h)
+        return self
+
     def save(self, filename: Path, **kwargs):
         if "transparent" not in kwargs.keys():
             kwargs["transparent"] = str(filename).endswith("svg")
@@ -166,10 +163,10 @@ def plot_simulation_range(
     
     return PlotDevice()
 
-def plot_RR_est(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin = 0, ymax = 4, fig = None):
+def plot_RR_est(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin = 0, ymax = 4):
     plt.plot(dates, RR_pred, label = "Estimated $R_t$", color = "darkorchid")
     plt.fill_between(dates, RR_CI_lower, RR_CI_upper, label = f"{100*CI}% CI", color = "darkorchid", alpha = 0.3)
-    plt.ylim(ymin, ymax)
+    # plt.ylim(ymin, ymax)
     plt.legend()
     return PlotDevice()
 
