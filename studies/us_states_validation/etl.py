@@ -32,10 +32,23 @@ def import_and_clean_cases(save_path: Path) -> pd.DataFrame:
     return df
 
 
-def get_rt_live_data(save_path: Path) -> pd.DataFrame:
-    '''
-    Gets Rt estimates from Rt.live.
-    '''
+def get_adaptive_estimates(path: Path) -> pd.DataFrame:
+    
+    # Parameters for filtering raw df
+    kept_columns   = ['date','state','RR_pred','RR_CI_lower','RR_CI_upper','T_pred',
+                      'T_CI_lower','T_CI_upper','new_cases_ts','anamoly']
+
+    # Import and subset columns
+    df = pd.read_csv(path/"adaptive_estimates.csv")
+    df = df[kept_columns]
+    
+    # Format date properly and return
+    df.loc[:,'date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+    return df
+
+
+def get_new_rt_live_estimates(path: Path) -> pd.DataFrame:
+    
     # Parameters for filtering raw df
     kept_columns   = ['date','region','mean','lower_80','upper_80',
                       'infections','test_adjusted_positive']
@@ -43,15 +56,55 @@ def get_rt_live_data(save_path: Path) -> pd.DataFrame:
     # Import and save as csv
     res = requests.get("https://d14wlfuexuxgcm.cloudfront.net/covid/rt.csv")
     df = pd.read_csv(StringIO(res.text))
-    df.to_csv(save_path/"rtlive_estimates.csv", index=False)
+    df.to_csv(path/"rtlive_new_estimates.csv", index=False)
     
     # Filter to just necessary features
     df = df[kept_columns]
     
     # Format date properly and rename columns
     df.loc[:,'date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
-    df.rename(columns={'region':'state','mean':'RR_pred_rtlive',
-                            'lower_80':'RR_lower_rtlive', 'upper_80':'RR_upper_rtlive',
-                            'test_adjusted_positive':'adj_positive_rtlive',
-                            'infections':'infections_rtlive'}, inplace=True)
+    df.rename(columns={'region':'state','mean':'RR_pred_rtlivenew',
+                        'lower_80':'RR_lower_rtlivenew', 'upper_80':'RR_upper_rtlivenew',
+                        'test_adjusted_positive':'adj_positive_rtlivenew',
+                        'infections':'infections_rtlivenew'}, inplace=True)
+    return df
+
+
+def get_old_rt_live_estimates(path: Path) -> pd.DataFrame:
+    
+    # Parameters for filtering raw df
+    kept_columns   = ['date','state','mean','lower_95','upper_95']
+
+    # Import and save as csv
+    df = pd.read_csv(path/"rtlive_old_estimates.csv")
+    
+    # Filter to just necessary features
+    df = df[kept_columns]
+    
+    # Format date properly and rename columns
+    df.loc[:,'date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+    df.rename(columns={'region':'state','mean':'RR_pred_rtliveold',
+                       'lower_95':'RR_lower_rtliveold', 
+                       'upper_95':'RR_upper_rtliveold'}, inplace=True)
+    return df
+
+
+def get_cori_estimates(path: Path) -> pd.DataFrame:
+    
+    # Import and save as csv
+    df = pd.read_csv(path/"cori_estimates.csv")
+        
+    # Format date properly and rename columns
+    df.loc[:,'date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+
+    return df
+
+def get_luis_estimates(path: Path) -> pd.DataFrame:
+    
+    # Import and save as csv
+    df = pd.read_csv(path/"luis_code_estimates.csv")
+        
+    # Format date properly and rename columns
+    df.loc[:,'date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+    
     return df
