@@ -62,6 +62,12 @@ state_name_lookup = {
     'WY': 'Wyoming'
 }
 
+colours = [
+    "darkorange", "tomato", "olivedrab", 
+    "forestgreen", "lightseagreen", "deepskyblue",
+    "mediumpurple", "darkmagenta"
+    ]
+
 google_mobility_columns = [
     "sub_region_1",
     "sub_region_2",
@@ -84,7 +90,7 @@ def load_us_county_data(file: str, url: Optional[str] = "https://usafactsstatic.
     df = pd.read_csv(url + file)
     df.columns = df.columns.str.lower().str.replace(" ", "_")
     df["state_name"] = df["state"].map(state_name_lookup)
-    return df
+    return df.dropna()
 
 def load_intervention_data():
     interventions = pd.read_csv('https://raw.githubusercontent.com/JieYingWu/COVID-19_US_County-level_Summaries/master/raw_data/national/public_implementations_fips.csv')
@@ -99,6 +105,7 @@ def get_case_timeseries(case_df: pd.DataFrame) -> pd.DataFrame:
     county_cases = pd.DataFrame(case_df.set_index(["state_name", "county_name"]).iloc[:,3:].stack()).rename(columns={0:"cumulative_confirmed_cases"}).reset_index()
     county_cases["date"] = pd.to_datetime(county_cases["level_2"],format="%m/%d/%y")
     county_cases = county_cases.set_index(["state_name", "county_name", "date"]).iloc[:,1:]
+    county_cases["cumulative_confirmed_cases"] = pd.to_numeric(county_cases["cumulative_confirmed_cases"])
     county_cases = county_cases.groupby(["state_name", "county_name"]).apply(add_delta_col)
     county_cases["daily_confirmed_cases"].fillna(county_cases["cumulative_confirmed_cases"], inplace=True)
     return county_cases
@@ -112,6 +119,13 @@ def add_lag_cols(grp: pd.DataFrame):
 def add_delta_col(grp: pd.DataFrame):
     grp["daily_confirmed_cases"] = grp["cumulative_confirmed_cases"].diff()
     return grp
+
+def add_colours(intervention_df):
+    dic = {}
+    for i, k in enumerate(list(interventions["intervention"].unique())):
+        dic[k] = colours[i]
+    interventions["colour"] = interventions["intervention"].map(dic)
+    return interventions
 
 
 
