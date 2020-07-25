@@ -24,6 +24,7 @@ def causal_notch(window: int = 7):
     def smooth(data: Sequence[float]):
         notched = filtfilt(b, a, data)
         return convolve(np.concatenate([notched, notched[:-window-1:-1]]), kernel, mode="same")
+    return smooth
 
 def convolution(key: str = "hamming",  window: int = 7):
     kernel = kernels[key](window)
