@@ -5,7 +5,7 @@ from adaptive.estimators import gamma_prior
 from adaptive.etl.covid19india import (data_path, download_data,
                                        get_time_series, load_all_data)
 from adaptive.plots import plot_RR_est, plot_T_anomalies
-from adaptive.smoothing import convolution
+from adaptive.smoothing import causal_notch
 from adaptive.utils import cwd
 
 # model details
@@ -48,7 +48,7 @@ for state in states:
         T_pred, T_CI_upper, T_CI_lower,
         total_cases, new_cases_ts,
         anomalies, anomaly_dates
-    ) = gamma_prior(ts.loc[state].Hospitalized, CI = CI, smoothing = convolution(window = smoothing))
+    ) = gamma_prior(ts.loc[state].Hospitalized, CI = CI, smoothing = causal_notch(window = smoothing))
     estimates = pd.DataFrame(data = {
         "dates": dates,
         "RR_pred": RR_pred,
