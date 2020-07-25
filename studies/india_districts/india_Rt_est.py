@@ -37,7 +37,7 @@ run_date     = str(pd.Timestamp.now()).split()[0]
 
 ts = get_time_series(df, "detected_state")
 
-states = ["Maharashtra"]#, "Bihar", "Delhi", "Andhra Pradesh", "Telangana", "Tamil Nadu", "Madhya Pradesh"]
+states = ["Maharashtra", "Bihar", "Delhi", "Andhra Pradesh", "Telangana", "Tamil Nadu", "Madhya Pradesh"]
 
 for state in states: 
     print(state)
