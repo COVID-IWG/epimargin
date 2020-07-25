@@ -1,6 +1,8 @@
-import numpy as np
-from statsmodels.nonparametric.smoothers_lowess import lowess as sm_lowess
 from typing import Optional, Sequence
+
+import numpy as np
+from scipy.signal import convolve, filtfilt, iirnotch
+from statsmodels.nonparametric.smoothers_lowess import lowess as sm_lowess
 
 kernels = { 
     "hanning"  : np.hanning,
@@ -9,6 +11,19 @@ kernels = {
     "blackman" : np.blackman,
     "uniform"  : np.ones
 }
+
+def causal_notch(window: int = 7):
+    """ Removes weekly and twice-weekly periodicity before convolving a time-reversed padded signal with a uniform moving average window"""
+    fs, f0, Q = 1, 1/7, 1
+    b1, a1 = iirnotch(f0, Q, fs)
+    b2, a2 = iirnotch(2*f0, 2*Q, fs)
+    # Frequency response
+    b = convolve(b1, b2)
+    a = convolve(a1, a2)
+    kernel = np.ones(window)/window
+    def smooth(data: Sequence[float]):
+        notched = filtfilt(b, a, data)
+        return convolve(np.concatenate([notched, notched[:-window-1:-1]]), kernel, mode="same")
 
 def convolution(key: str = "hamming",  window: int = 7):
     kernel = kernels[key](window)
