@@ -12,7 +12,7 @@ kernels = {
     "uniform"  : np.ones
 }
 
-def causal_notch(window: int = 7):
+def notched_smoothing(window: int = 7):
     """ Removes weekly and twice-weekly periodicity before convolving a time-reversed padded signal with a uniform moving average window"""
     fs, f0, Q = 1, 1/7, 1
     b1, a1 = iirnotch(f0, Q, fs)
