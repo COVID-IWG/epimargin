@@ -4,50 +4,41 @@ import scipy.stats as stats
 from scipy.stats import poisson
 from scipy.stats import nbinom
 from numpy import log as ln
+from typing import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
+from tqdm import tqdm
 
-def run_luis_model(df:pd.DataFrame, filepath:Path) -> None:
+def run_luis_model(df:pd.DataFrame, locationvar:str, CI:float, smoothing:Callable, filepath:Path) -> None:
 
     infperiod = 4.5 # length of infectious period, adjust as needed
 
-    def smooth(y, box_pts):
-        box = np.ones(box_pts)/box_pts
-        y_smooth = np.convolve(y, box, mode='same')
-        return y_smooth
-
-    # Loop through states
-    states = df['state'].unique()
-    
+    # Loop through locs
+    locs = df[locationvar].unique()
     returndf = pd.DataFrame()
-    for state in states:
+    print(f"Estimating Luis code Rt values for each {locationvar}...")
+    for loc in tqdm(locs):
 
-        from scipy.stats import gamma # not sure why this needs to be recalled after each state, but otherwite get a type exception
+        from scipy.stats import gamma # not sure why this needs to be recalled after each loc, but otherwite get a type exception
         import numpy as np
         
-        statedf = df[df['state']==state].sort_values('date')
+        locdf     = df[df[locationvar]==loc].sort_values('date')
+        confirmed = list(locdf['positive'])
+        dates     = list(locdf['date'])
         
-        confirmed=list(statedf['positive'])
-        dates=list(statedf['date'])
-        day=list(range(1,len(statedf['date'])+1))
-        
+        # This skips the Rt analysis for locs for which there are <10 total cases
         if (confirmed[-1] < 10.):
-            continue  # this skips the Rt analysis for states for which there are <10 total cases
+            continue  
 
-    ##### estimation and prediction
-        dconfirmed=np.diff(confirmed)
+        # Calculate incidence (daily change)
+        dconfirmed = np.diff(confirmed)
         for ii in range(len(dconfirmed)):
-            if dconfirmed[ii]<0. : dconfirmed[ii]=0.
+            if dconfirmed[ii] < 0. : dconfirmed[ii] = 0.
         xd=dates[1:]
 
-        sdays=15
-        yy=smooth(dconfirmed,sdays) # smoothing over sdays (number of days) moving window, averages large chunking in reporting in consecutive days
-        yy[-2]=(dconfirmed[-4]+dconfirmed[-3]+dconfirmed[-2])/3. # these 2 last lines should not be necesary but the data tend to be initially underreported and also the smoother struggles.
-        yy[-1]=(dconfirmed[-3]+dconfirmed[-2]+dconfirmed[-1])/3.
-
-
-    #lyyy=np.cumsum(lwy)
-        TotalCases=np.cumsum(yy) # These are confirmed cases after smoothing: tried also a lowess smoother but was a bit more parameer dependent from place to place.
+        # Smoothing over sdays (number of days) moving window, averages large chunking in reporting in consecutive days        
+        yy = np.array(smoothing(dconfirmed)).ravel() 
+        TotalCases = np.cumsum(yy) # These are confirmed cases after smoothing: tried also a lowess smoother but was a bit more parameer dependent from place to place.
 
         alpha=3. # shape parameter of gamma distribution
         beta=2.  # rate parameter of gamma distribution see https://en.wikipedia.org/wiki/Gamma_distribution
@@ -58,7 +49,6 @@ def run_luis_model(df:pd.DataFrame, filepath:Path) -> None:
         pred=[]
         pstdM=[]
         pstdm=[]
-        xx=[]
         NewCases=[]
 
         predR=[]
@@ -83,10 +73,10 @@ def run_luis_model(df:pd.DataFrame, filepath:Path) -> None:
             RRest=1.+infperiod*ln(mean)
             if (RRest<0.): RRest=0.
             predR.append(RRest)
-            testRRM=1.+infperiod*ln( gamma.ppf(0.99, a=alpha, scale=1./beta) )# these are the boundaries of the 99% confidence interval  for new cases
+            testRRM=1.+infperiod*ln( gamma.ppf(CI, a=alpha, scale=1./beta) ) # these are the boundaries of the CI% confidence interval  for new cases
             if (testRRM <0.): testRRM=0.
             pstRRM.append(testRRM)
-            testRRm=1.+infperiod*ln( gamma.ppf(0.01, a=alpha, scale=1./beta) )
+            testRRm=1.+infperiod*ln( gamma.ppf(1-CI, a=alpha, scale=1./beta) )
             if (testRRm <0.): testRRm=0.
             pstRRm.append(testRRm)
                         
@@ -102,12 +92,12 @@ def run_luis_model(df:pd.DataFrame, filepath:Path) -> None:
                 # Using a Negative Binomial as the  Posterior Predictor of New Cases, given old one
                 # This takes parameters r,p which are functions of new alpha, beta from Gamma
                 r, p = alpha, beta/(old_new_cases+beta)
-                mean, var, skew, kurt = nbinom.stats(r, p, moments='mvsk')
+                mean, _, _, _ = nbinom.stats(r, p, moments='mvsk')
                 
                 pred.append(mean) # the expected value of new cases
-                testciM=nbinom.ppf(0.99, r, p) # these are the boundaries of the 99% confidence interval  for new cases
+                testciM=nbinom.ppf(CI, r, p) # these are the boundaries of the CI% confidence interval  for new cases
                 pstdM.append(testciM)
-                testcim=nbinom.ppf(0.01, r, p)
+                testcim=nbinom.ppf(1-CI, r, p)
                 pstdm.append(testcim)
                 
                 np=p
@@ -128,8 +118,8 @@ def run_luis_model(df:pd.DataFrame, filepath:Path) -> None:
                     nr= nr*(nnp/np)*( (1.-np)/(1.-nnp) ) # this assignement preserves the mean of expected cases
                     np=nnp
                     mean, var, skew, kurt = nbinom.stats(nr, np, moments='mvsk')
-                    testciM=nbinom.ppf(0.99, nr, np)
-                    testcim=nbinom.ppf(0.01, nr, np)
+                    testciM=nbinom.ppf(CI, nr, np)
+                    testcim=nbinom.ppf(1-CI, nr, np)
                     
                     flag=1
                 else:
@@ -137,13 +127,13 @@ def run_luis_model(df:pd.DataFrame, filepath:Path) -> None:
                         alpha=nr  # this updates the R distribution  with the new parameters that enclose the anomaly
                         beta=np/(1.-np)*old_new_cases
                         
-                        testciM=nbinom.ppf(0.99, nr, np)
-                        testcim=nbinom.ppf(0.01, nr, np)
+                        testciM=nbinom.ppf(CI, nr, np)
+                        testcim=nbinom.ppf(1-CI, nr, np)
                         
                         # annealing leaves the RR mean unchanged, but we need to adjus its widened CI:
-                        testRRM=1.+infperiod*ln( gamma.ppf(0.99, a=alpha, scale=1./beta) )# these are the boundaries of the 99% confidence interval  for new cases
+                        testRRM=1.+infperiod*ln( gamma.ppf(CI, a=alpha, scale=1./beta) )# these are the boundaries of the CI% confidence interval  for new cases
                         if (testRRM <0.): testRRM=0.
-                        testRRm=1.+infperiod*ln( gamma.ppf(0.01, a=alpha, scale=1./beta) )
+                        testRRm=1.+infperiod*ln( gamma.ppf(1-CI, a=alpha, scale=1./beta) )
                         if (testRRm <0.): testRRm=0.
                         
                         pstRRM=pstRRM[:-1] # remove last element and replace by expanded CI for RRest
@@ -162,7 +152,7 @@ def run_luis_model(df:pd.DataFrame, filepath:Path) -> None:
             dstr.append(xdd.strftime("%Y-%m-%d"))
             
             
-        appenddf = pd.DataFrame({'state':state,
+        appenddf = pd.DataFrame({locationvar:loc,
                                  'date':days,
                                  'RR_pred_luis':predR,
                                  'RR_CI_lower_luis':pstRRm,

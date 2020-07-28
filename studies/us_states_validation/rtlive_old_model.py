@@ -177,7 +177,7 @@ class MCMCModel(object):
         with pm.Model() as model:
 
             # Random walk magnitude
-            step_size = pm.HalfNormal('step_size', sigma=.03)
+            step_size = pm.HalfNormal('step_size', sigma=.1)
 
             # Theta random walk
             theta_raw_init = pm.Normal('theta_raw_init', 0.1, 0.1)
@@ -196,6 +196,7 @@ class MCMCModel(object):
             # Ensure cases stay above zero for poisson
             mu = pm.math.maximum(.1, expected_today)
             observed = self.onset.round().values[1:]
+            #cases = pm.Deterministic('cases', mu, observed=observed)
             cases = pm.Poisson('cases', mu=mu, observed=observed)
 
             self.trace = pm.sample(
@@ -207,28 +208,28 @@ class MCMCModel(object):
             return self
 
 
-def create_and_run_model(name, state_df, p_delay):
+def create_and_run_model(name, loc_df, p_delay, smoothing):
     
-    confirmed = state_df['delta_positive'].dropna().rename('confirmed')
+    loc_df['delta_positive_ma'] = smoothing(loc_df['delta_positive'])
+    confirmed = loc_df['delta_positive_ma'].dropna().rename('confirmed')
     onset = confirmed_to_onset(confirmed, p_delay)
     adjusted, cumulative_p_delay = adjust_onset_for_right_censorship(onset, p_delay)
     return MCMCModel(name, onset, cumulative_p_delay).run()
 
 
-def df_from_model(model):
+def df_from_model(model, CI, locationvar):
     
     r_t = model.trace['r_t']
     mean = np.mean(r_t, axis=0)
     median = np.median(r_t, axis=0)
-    hpd_95 = pm.stats.hpd(r_t, 0.95)
-    hpd_50 = pm.stats.hpd(r_t, 0.5)
+    hpd_CI = pm.stats.hpd(r_t, CI)
     
     idx = pd.MultiIndex.from_product([
             [model.region],
             model.trace_index
-        ], names=['state', 'date'])
+        ], names=[locationvar, 'date'])
         
-    df = pd.DataFrame(data=np.c_[mean, median, hpd_95, hpd_50], index=idx,
-                      columns=['mean', 'median', 'lower_95', 'upper_95', 'lower_50','upper_50'])
+    df = pd.DataFrame(data=np.c_[mean, median, hpd_CI], index=idx,
+                      columns=['mean', 'median', f'lower_{int(CI*100)}', f'upper_{int(CI*100)}'])
     df.reset_index(inplace=True)
     return df

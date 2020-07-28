@@ -1,12 +1,15 @@
 # Set working directory to current file path
-# setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+# UNCOMMENT TO SET WORKING DIRECTORY
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
 library(tidyverse)
 library(lubridate)
 library(EpiEstim)
 
 # Global parameters
-window      <- 15     # MUST BE AN ODD NUMBER IF wend = FALSE
-wend        <- FALSE  # Whether or not to do trailing average or window average (preferred FALSE)
+ma_window   <- 7
+cori_window <- 1     
+wend        <- TRUE  # Whether or not to do trailing average (TRUE) or window average (FALSE)
 SI_mean     <- 6
 SI_mean_std <- 2.5
 SI_mean_min <- max(SI_mean-3,0)
@@ -45,19 +48,23 @@ for(statename in levels(df$state)) {
   
   print(paste0("Estimating Rt for ",statename,"..."))
   
-  # Subset to just state and clean up
+  # Subset to just state and calculate moving averages
   state_df  <- df %>% filter(state == statename)
+  state_df$delta_positive_ma <- pracma::movavg(state_df$delta_positive, n=ma_window, type='t')
+  state_df$delta_death_ma    <- pracma::movavg(state_df$delta_death,    n=ma_window, type='t')
+  
+  # Other clean up
   idat <- state_df %>%
           complete(time = seq.Date(min(time), max(time), by='day')) %>%
-          mutate_at(.vars = c('positive','death','delta_positive','delta_death'), 
+          mutate_at(.vars = c('positive','death','delta_positive','delta_positive_ma', 'delta_death', 'delta_death_ma'), 
                     .funs = function(xx){ifelse(is.na(xx), 0, xx)}) %>%
           arrange(time) %>%
-          rename(dates=time, I=delta_positive)
+          rename(dates=time, I=delta_positive_ma)
   idat$time <- seq(1, nrow(idat))
   
   # Get incidence time series
-  ts <- seq(2, nrow(idat)-window+1)
-  te <- ts+(window-1)
+  ts <- seq(2, nrow(idat)-cori_window+1)
+  te <- ts+(cori_window-1)
   
   # Use Cori method
   estimate_R(

@@ -1,9 +1,9 @@
-#!python3 
 from pathlib import Path
 from io import StringIO
 import numpy as np
 import pandas as pd
 import requests
+
 
 def import_and_clean_cases(save_path: Path) -> pd.DataFrame:
     '''
@@ -36,7 +36,7 @@ def get_adaptive_estimates(path: Path) -> pd.DataFrame:
     
     # Parameters for filtering raw df
     kept_columns   = ['date','state','RR_pred','RR_CI_lower','RR_CI_upper','T_pred',
-                      'T_CI_lower','T_CI_upper','new_cases_ts','anamoly']
+                      'T_CI_lower','T_CI_upper','new_cases_ts','anomaly']
 
     # Import and subset columns
     df = pd.read_csv(path/"adaptive_estimates.csv")
@@ -98,6 +98,7 @@ def get_cori_estimates(path: Path) -> pd.DataFrame:
     df.loc[:,'date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
 
     return df
+
 
 def get_luis_estimates(path: Path) -> pd.DataFrame:
     
