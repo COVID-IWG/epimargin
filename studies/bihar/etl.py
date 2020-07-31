@@ -25,10 +25,10 @@ replacements = {
     "PURBA CHAMPARAN"   : "EAST CHAMPARAN", 
     "KAIMUR (BHABUA)"   : "KAIMUR", 
     "SHIEKHPURA"        : "SHEIKHPURA",
-    # "SHEIKHPURA"        : "SHEIKPURA",
-    # "SHIEKHPURA"        : "SHEIKPURA",
-    # "MUZAFFARPUR"       : "MUZZAFARPUR", 
-    # "PURNIA"            : "PURNEA"
+    "SHEIKHPURA"        : "SHEIKPURA",
+    "SHIEKHPURA"        : "SHEIKPURA",
+    "MUZAFFARPUR"       : "MUZZAFARPUR", 
+    "PURNIA"            : "PURNEA"
 }
 
 def load_cases(path: Path) -> pd.DataFrame:
