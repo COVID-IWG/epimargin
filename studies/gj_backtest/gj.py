@@ -86,5 +86,7 @@ plt.scatter(t_pred, Gujarat[0].delta_T, color = "tomato", s = 4, label = "Predic
 plt.fill_between(t_pred, Gujarat[0].lower_CI, Gujarat[0].upper_CI, color = "tomato", alpha = 0.3, label="99% CI (forecast)")
 plt.legend()
 PlotDevice().title("Gujarat: Net Daily Cases (Covid19India Data)").xlabel("Date").ylabel("Cases")
+plt.plot(state_ts[state_ts.date > "2020-07-17"].index, state_ts[state_ts.date > "2020-07-17"].Hospitalized, "k.", alpha = 0.6, label = "Empirical Observed Cases")
+plt.legend()
 # plt.semilogy()
 plt.show()
