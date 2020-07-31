@@ -104,5 +104,5 @@ with tqdm(district_time_series.index.get_level_values(0).unique()) as districts:
 estimates = pd.DataFrame(estimates)
 estimates.columns = ["district", "Rt", "Rt_CI_lower", "Rt_CI_upper", "Rt_proj"]
 estimates.set_index("district", inplace=True)
-estimates.to_csv(data/"Rt_estimates_public_data.csv")
+estimates.clip(0).to_csv(data/"Rt_estimates_public_data.csv")
 print(estimates)
