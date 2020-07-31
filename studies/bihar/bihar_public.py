@@ -5,12 +5,14 @@ from warnings import simplefilter
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
-from statsmodels.regression.linear_model import OLS 
+from statsmodels.regression.linear_model import OLS
 from statsmodels.tools import add_constant
+from tqdm import tqdm
 
 import etl
 from adaptive.estimators import gamma_prior
+from adaptive.etl.covid19india import (data_path, download_data,
+                                       get_time_series, load_all_data)
 from adaptive.model import Model, ModelUnit
 from adaptive.plots import PlotDevice, plot_RR_est, plot_T_anomalies
 from adaptive.smoothing import convolution
@@ -35,8 +37,20 @@ gamma     = 0.2
 smoothing = 12
 CI        = 0.95
 
-state_cases = pd.read_csv(data/"Bihar_cases_data_Jul23.csv", parse_dates=["date_reported"], dayfirst=True)
-state_ts = state_cases["date_reported"].value_counts().sort_index()
+paths = { 
+    "v3": [data_path(_) for _ in (1, 2)],
+    "v4": [data_path(_) for _ in range(3, 13)]
+}
+
+for target in paths['v3'] + paths['v4']:
+    download_data(data, target)
+
+dfn = load_all_data(
+    v3_paths = [data/filepath for filepath in paths['v3']], 
+    v4_paths = [data/filepath for filepath in paths['v4']]
+)
+ 
+state_ts = get_time_series(dfn, "detected_state").loc["Bihar"]
 district_names, population_counts, _ = etl.district_migration_matrix(data/"Migration Matrix - District.csv")
 populations = dict(zip(district_names, population_counts))
 
@@ -47,10 +61,10 @@ populations = dict(zip(district_names, population_counts))
     T_pred, T_CI_upper, T_CI_lower,
     total_cases, new_cases_ts,
     anomalies, anomaly_dates
-) = gamma_prior(state_ts, CI = CI, smoothing = convolution(window = smoothing)) 
+) = gamma_prior(state_ts.Hospitalized, CI = CI, smoothing = convolution(window = smoothing)) 
 
 plot_RR_est(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin=0, ymax=4)\
-    .title("Bihar: Reproductive Number Estimate")\
+    .title("Bihar: Reproductive Number Estimate (Covid19India Data)")\
     .xlabel("Date")\
     .ylabel("Rt", rotation=0, labelpad=20)
 plt.ylim(0, 4)
@@ -68,18 +82,18 @@ plot_T_anomalies(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_da
 plt.scatter(t_pred, Bihar[0].delta_T, color = "tomato", s = 4, label = "Predicted Net Cases")
 plt.fill_between(t_pred, Bihar[0].lower_CI, Bihar[0].upper_CI, color = "tomato", alpha = 0.3, label="99% CI (forecast)")
 plt.legend()
-PlotDevice().title("Bihar: Net Daily Cases").xlabel("Date").ylabel("Cases")
+PlotDevice().title("Bihar: Net Daily Cases (Covid19India Data)").xlabel("Date").ylabel("Cases")
 # plt.semilogy()
 plt.ylim(0, 1600)
 plt.show()
 
 # now, do district-level estimation 
 smoothing = 10
-district_time_series = state_cases.groupby(["geo_reported", "date_reported"])["date_reported"].count().sort_index()
+district_time_series = get_time_series(dfn[dfn.detected_state == "Bihar"], "detected_district").Hospitalized
 migration = np.zeros((len(district_names), len(district_names)))
 estimates = []
 max_len = 1 + max(map(len, district_names))
-with tqdm([etl.replacements.get(dn, dn) for dn in district_names]) as districts:
+with tqdm(district_time_series.index.get_level_values(0).unique()) as districts:
     for district in districts:
         districts.set_description(f"{district :<{max_len}}")
         try: 
@@ -90,5 +104,5 @@ with tqdm([etl.replacements.get(dn, dn) for dn in district_names]) as districts:
 estimates = pd.DataFrame(estimates)
 estimates.columns = ["district", "Rt", "Rt_CI_lower", "Rt_CI_upper", "Rt_proj"]
 estimates.set_index("district", inplace=True)
-estimates.to_csv(data/"Rt_estimates.csv")
+estimates.to_csv(data/"Rt_estimates_public_data.csv")
 print(estimates)
