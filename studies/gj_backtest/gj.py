@@ -58,6 +58,7 @@ district_names, population_counts, _ = district_migration_matrices(data/"Migrati
 populations = dict(zip(district_names, population_counts))
 
 # first, look at state level predictions
+(full_cases_dates, *_, full_cases_ts, _, _) = gamma_prior(state_ts.Hospitalized, CI = CI, smoothing = convolution(window = smoothing)) 
 (
     dates,
     RR_pred, RR_CI_upper, RR_CI_lower,
@@ -74,7 +75,7 @@ plt.ylim(0, 4)
 plt.show()
 
 np.random.seed(33)
-Gujarat = Model([ModelUnit("Gujarat", 99_000_000, I0 = T_pred[-1], RR0 = RR_pred[-1], mobility = 0)])
+Gujarat = Model([ModelUnit("Gujarat", 62_700_000, I0 = T_pred[-1], RR0 = RR_pred[-1], mobility = 0)])
 Gujarat.run(14, np.zeros((1,1)))
 
 t_pred = [dates[-1] + pd.Timedelta(days = i) for i in range(len(Gujarat[0].delta_T))]
@@ -86,7 +87,7 @@ plt.scatter(t_pred, Gujarat[0].delta_T, color = "tomato", s = 4, label = "Predic
 plt.fill_between(t_pred, Gujarat[0].lower_CI, Gujarat[0].upper_CI, color = "tomato", alpha = 0.3, label="99% CI (forecast)")
 plt.legend()
 PlotDevice().title("Gujarat: Net Daily Cases (Covid19India Data)").xlabel("Date").ylabel("Cases")
-plt.plot(state_ts[state_ts.date > "2020-07-17"].index, state_ts[state_ts.date > "2020-07-17"].Hospitalized, "k.", alpha = 0.6, label = "Empirical Observed Cases")
+plt.plot(full_cases_dates, full_cases_ts, "k-", alpha = 0.6, label = "Empirical Observed Cases")
 plt.legend()
 # plt.semilogy()
 plt.show()
