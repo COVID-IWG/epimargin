@@ -87,19 +87,31 @@ def load_country_google_mobility(country_code: str) -> pd.DataFrame:
     return country_df[google_mobility_columns]
 
 def load_us_county_data(file: str, url: Optional[str] = "https://usafactsstatic.blob.core.windows.net/public/data/covid-19/") -> pd.DataFrame:
-    df = pd.read_csv(url + file)
+    df = pd.read_csv(url + file, parse_dates = ["date"])
     df.columns = df.columns.str.lower().str.replace(" ", "_")
     df["state_name"] = df["state"].map(state_name_lookup)
-    return df.dropna()
+    return df
 
-def load_intervention_data():
+def load_intervention_data() -> pd.DataFrame:
     interventions = pd.read_csv('https://raw.githubusercontent.com/JieYingWu/COVID-19_US_County-level_Summaries/master/raw_data/national/public_implementations_fips.csv')
     interventions.rename(columns={"Unnamed: 1": "county_name", "Unnamed: 2": "state"}, inplace=True)
     interventions["county_name"] = interventions["county_name"].str.title()
-    stacked = pd.DataFrame(interventions.iloc[:,1:].set_index(["state","county_name"]).stack(), columns=["date"]).reset_index().rename(columns={"level_2": "intervention"})
-    stacked["state_name"] = stacked["state"].map(state_name_lookup)
-    stacked["date"] = pd.to_datetime(stacked["date"]+ "-2020", format="%d-%b-%Y")
-    return stacked.set_index(["state_name", "county_name", "date"]).iloc[:,1:]
+    interventions = pd.DataFrame(interventions.iloc[:,1:].set_index(["state","county_name"]).stack(), columns=["date"]).reset_index().rename(columns={"level_2": "intervention"})
+    interventions["state_name"] = stacked["state"].map(state_name_lookup)
+    interventions["date"] = pd.to_datetime(stacked["date"]+ "-2020", format="%d-%b-%Y")
+    interventions = stacked.set_index(["state_name", "county_name", "date"]).iloc[:,1:].sort_index()
+    return pd.get_dummies(interventions)
+
+def load_rt_estimations(data_path: Path) -> pd.DataFrame:
+    rt_df = pd.read_csv(data_path, parse_dates = ["date"])
+    rt_df["state_name"] = rt_df["state"].map(state_name_lookup)
+    return rt_df.iloc[:, 1:].set_index(["state_name", "date"])
+
+def load_metro_areas(data_path: Path, level: str) -> pd.DataFrame:
+    cols = [level + "_name", "cbsa_fips"]
+    cols = ["county_fips"] + cols if level == "county" else ["state_code"] + cols
+    metro_df = pd.read_csv(data_path)
+    metro_df = metro_df[metro_df["area_type"] == "Metro"][cols]
 
 def get_case_timeseries(case_df: pd.DataFrame) -> pd.DataFrame:
     county_cases = pd.DataFrame(case_df.set_index(["state_name", "county_name"]).iloc[:,3:].stack()).rename(columns={0:"cumulative_confirmed_cases"}).reset_index()
@@ -108,12 +120,16 @@ def get_case_timeseries(case_df: pd.DataFrame) -> pd.DataFrame:
     county_cases["cumulative_confirmed_cases"] = pd.to_numeric(county_cases["cumulative_confirmed_cases"])
     county_cases = county_cases.groupby(["state_name", "county_name"]).apply(add_delta_col)
     county_cases["daily_confirmed_cases"].fillna(county_cases["cumulative_confirmed_cases"], inplace=True)
-    return county_cases
+    return county_cases["daily_confirmed_cases"]
 
 def add_lag_cols(grp: pd.DataFrame):
     for lag in [1, 7, 14]:
         for col in ["daily_confirmed_cases","retail_and_recreation_percent_change_from_baseline", "grocery_and_pharmacy_percent_change_from_baseline", "parks_percent_change_from_baseline", "transit_stations_percent_change_from_baseline", "workplaces_percent_change_from_baseline", "residential_percent_change_from_baseline"]:
             grp[col + '_lag_' + str(lag)] = grp[col].shift(-lag)
+    return grp
+
+def pop_prop_col(grp):
+    grp['pop_prop'] = grp['population'] / grp['population'].sum()
     return grp
 
 def add_delta_col(grp: pd.DataFrame):
@@ -122,10 +138,10 @@ def add_delta_col(grp: pd.DataFrame):
 
 def add_colours(intervention_df):
     dic = {}
-    for i, k in enumerate(list(interventions["intervention"].unique())):
+    for i, k in enumerate(list(intervention_df["intervention"].unique())):
         dic[k] = colours[i]
-    interventions["colour"] = interventions["intervention"].map(dic)
-    return interventions
+    intervention_df["colour"] = intervention_df["intervention"].map(dic)
+    return intervention_df
 
 
 
