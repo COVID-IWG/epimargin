@@ -41,11 +41,12 @@ if __name__ == "__main__":
     county_populations = load_us_county_data("covid_county_population_usafacts.csv")
 
     # county level
-    county_case_ts = case_timeseries[case_timeseries.index.get_level_values(level=1) != "Statewide Unallocated"]
+    county_case_ts = pd.DataFrame(case_timeseries[case_timeseries.index.get_level_values(level=1) != "Statewide Unallocated"])
     county_mobility_ts = us_mobility[~(us_mobility["county_name"].isna())].set_index(["state_name", "county_name", "date"])
     county_interventions = interventions[~(interventions.index.get_level_values(0) == interventions.index.get_level_values(1))]
     county_metros = load_metro_areas(data/"county_metro_state_walk.csv", "county")
 
+    (county_interventions.join(county_mobility_ts, how='outer')).join(county_case_ts, how='outer')
 
     # state level
     state_case_ts = case_timeseries.xs("Statewide Unallocated", level=1)

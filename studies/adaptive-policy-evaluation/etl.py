@@ -87,7 +87,7 @@ def load_country_google_mobility(country_code: str) -> pd.DataFrame:
     return country_df[google_mobility_columns]
 
 def load_us_county_data(file: str, url: Optional[str] = "https://usafactsstatic.blob.core.windows.net/public/data/covid-19/") -> pd.DataFrame:
-    df = pd.read_csv(url + file, parse_dates = ["date"])
+    df = pd.read_csv(url + file)
     df.columns = df.columns.str.lower().str.replace(" ", "_")
     df["state_name"] = df["state"].map(state_name_lookup)
     return df
@@ -97,9 +97,9 @@ def load_intervention_data() -> pd.DataFrame:
     interventions.rename(columns={"Unnamed: 1": "county_name", "Unnamed: 2": "state"}, inplace=True)
     interventions["county_name"] = interventions["county_name"].str.title()
     interventions = pd.DataFrame(interventions.iloc[:,1:].set_index(["state","county_name"]).stack(), columns=["date"]).reset_index().rename(columns={"level_2": "intervention"})
-    interventions["state_name"] = stacked["state"].map(state_name_lookup)
-    interventions["date"] = pd.to_datetime(stacked["date"]+ "-2020", format="%d-%b-%Y")
-    interventions = stacked.set_index(["state_name", "county_name", "date"]).iloc[:,1:].sort_index()
+    interventions["state_name"] = interventions["state"].map(state_name_lookup)
+    interventions["date"] = pd.to_datetime(interventions["date"]+ "-2020", format="%d-%b-%Y")
+    interventions = interventions.set_index(["state_name", "county_name", "date"]).iloc[:,1:].sort_index()
     return pd.get_dummies(interventions)
 
 def load_rt_estimations(data_path: Path) -> pd.DataFrame:
@@ -112,6 +112,7 @@ def load_metro_areas(data_path: Path, level: str) -> pd.DataFrame:
     cols = ["county_fips"] + cols if level == "county" else ["state_code"] + cols
     metro_df = pd.read_csv(data_path)
     metro_df = metro_df[metro_df["area_type"] == "Metro"][cols]
+    return metro_df
 
 def get_case_timeseries(case_df: pd.DataFrame) -> pd.DataFrame:
     county_cases = pd.DataFrame(case_df.set_index(["state_name", "county_name"]).iloc[:,3:].stack()).rename(columns={0:"cumulative_confirmed_cases"}).reset_index()
