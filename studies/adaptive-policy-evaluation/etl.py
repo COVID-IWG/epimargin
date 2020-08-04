@@ -107,12 +107,9 @@ def load_rt_estimations(data_path: Path) -> pd.DataFrame:
     rt_df["state_name"] = rt_df["state"].map(state_name_lookup)
     return rt_df.iloc[:, 1:].set_index(["state_name", "date"])
 
-def load_metro_areas(data_path: Path, level: str) -> pd.DataFrame:
-    cols = [level + "_name", "cbsa_fips"]
-    cols = ["county_fips"] + cols if level == "county" else ["state_code"] + cols
+def load_metro_areas(data_path: Path) -> pd.DataFrame:
     metro_df = pd.read_csv(data_path)
-    metro_df = metro_df[metro_df["area_type"] == "Metro"][cols]
-    return metro_df
+    return metro_df[metro_df["area_type"] == "Metro"][["cbsa_fips", "county_fips", "county_name", "state_codes", "state_name"]]
 
 def get_case_timeseries(case_df: pd.DataFrame) -> pd.DataFrame:
     county_cases = pd.DataFrame(case_df.set_index(["state_name", "county_name"]).iloc[:,3:].stack()).rename(columns={0:"cumulative_confirmed_cases"}).reset_index()
