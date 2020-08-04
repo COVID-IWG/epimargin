@@ -52,12 +52,12 @@ if __name__ == "__main__":
 
     county_df.reset_index().to_csv(data/"county_level_policy_evaluation.csv")
 
-    # # state level
-    # state_case_ts = case_timeseries.xs("Statewide Unallocated", level=1)
-    # rt_estimations = load_rt_estimations("rt_estimations.csv")
-    # state_mobility_ts = county_mobility_ts.groupby(["state_name", "date"]).mean() # need to change this to do it proportional to county population
-    # state_interventions = interventions[interventions.index.get_level_values(0) == interventions.index.get_level_values(1)].droplevel(1)
-    # state_metros = load_metro_areas(data/"county_metro_state_walk.csv", "state")
+    # state level
+    state_case_ts = case_timeseries.xs("Statewide Unallocated", level=1)
+    rt_estimations = load_rt_estimations(data/"rt_estimations.csv")
+    state_mobility_ts = county_mobility_ts.groupby(["state_name", "date"]).mean() # need to change this to do it proportional to county population
+    state_metros = load_metro_areas(data/"county_metro_state_walk.csv")
+
 
     # full_df = county_case_timeseries.join(us_mobility_timeseries)
     # full_df.groupby(["state_name", "county_name"]).apply(add_lag_cols)

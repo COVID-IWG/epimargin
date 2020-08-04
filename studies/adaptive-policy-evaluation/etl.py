@@ -80,6 +80,64 @@ google_mobility_columns = [
     "residential_percent_change_from_baseline"
  ]
 
+state_interventions_info = {
+ 'STATE': 'State',
+ 'POSTCODE': 'State Abbreviation',
+ 'STEMERG': 'State of emergency',
+ 'CLSCHOOL': 'Date closed K-12 schools',
+ 'CLDAYCR': 'Closed day cares',
+ 'OPNCLDCR': 'Reopen day cares',
+ 'CLNURSHM': 'Date banned visitors to nursing homes',
+ 'STAYHOME': 'Stay at home/ shelter in place',
+ 'END_STHM': 'End/relax stay at home/shelter in place',
+ 'CLBSNS': 'Closed non-essential businesses',
+ 'END_BSNS': 'Began to reopen businesses',
+ 'RELIGEX': 'Religious Gatherings Exempt Without Clear Social Distance Mandate*',
+ 'FM_ALL': 'Mandate face mask use by all individuals in public spaces',
+ 'FMFINE': 'Face mask mandate enforced by fines',
+ 'FMCITE': 'Face mask mandate enforced by criminal charge/citation',
+ 'FMNOENF': 'No legal enforcement of face mask mandate',
+ 'FM_EMP': 'Mandate face mask use by employees in public-facing businesses',
+ 'ALCOPEN': 'Alcohol/Liquor Stores Open',
+ 'ALCREST': 'Allow restaurants to sell takeout alcohol',
+ 'ALCDELIV': 'Allow restaurants to deliver alcohol',
+ 'GUNOPEN': 'Keep Firearms Sellers Open',
+ 'CLREST': 'Closed restaurants except take out',
+ 'ENDREST': 'Reopen restaurants',
+ 'RSTOUTDR': 'Initially reopen restaurants for outdoor dining only',
+ 'CLGYM': 'Closed gyms',
+ 'ENDGYM': 'Reopened gyms',
+ 'CLMOVIE': 'Closed movie theaters',
+ 'END_MOV': 'Reopened movie theaters',
+ 'CLOSEBAR': 'Closed Bars',
+ 'END_BRS': 'Reopen bars',
+ 'END_HAIR': 'Reopened hair salons/barber shops',
+ 'END_CONST': 'Restart non-essential construction',
+ 'END_RELG': 'Reopen Religious Gatherings',
+ 'ENDRETL': 'Reopen non-essential retail',
+ 'BCLBAR2': 'Begin to Re-Close Bars',
+ 'CLBAR2': 'Re-Close Bars (statewide)',
+ 'CLMV2': 'Re-Close Movie Theaters (statewide)',
+ 'CLGYM2': 'Re-Close Gyms (statewide)',
+ 'CLRST2': 'Re-Close Indoor Dining (Statewide)',
+ 'QRSOMEST': 'Mandate quarantine for those entering the state from specific states',
+ 'QR_ALLST': 'Mandate quarantine for all individuals entering the state from another state',
+ 'QR_END': 'Date all mandated quarantines ended'
+ }
+ 
+state_meta_data = {
+ 'FIPS': 'FIPS Code',
+ 'POPDEN18': 'Population density per square miles',
+ 'POP18': 'Population 2018 ',
+ 'SQML': 'Square Miles',
+ 'HMLS19': 'Number Homeless (2019)',
+ 'UNEMP18': 'Percent Unemployed (2018). ',
+ 'POV18': 'Percent living under the federal poverty line (2018). ',
+ 'RISKCOV': 'Percent at risk for serious illness due to COVID',
+ 'DEATH18': 'All-cause deaths 2018'
+ }
+
+
 def load_country_google_mobility(country_code: str) -> pd.DataFrame:
     full_df = pd.read_csv('https://www.gstatic.com/covid19/mobility/Global_Mobility_Report.csv', parse_dates = ["date"])
     country_df = full_df[full_df["country_region_code"] == country_code]
@@ -110,6 +168,11 @@ def load_rt_estimations(data_path: Path) -> pd.DataFrame:
 def load_metro_areas(data_path: Path) -> pd.DataFrame:
     metro_df = pd.read_csv(data_path)
     return metro_df[metro_df["area_type"] == "Metro"][["cbsa_fips", "county_fips", "county_name", "state_codes", "state_name"]]
+
+def state_level_intervention_data(data_path: Path) -> pd.DataFrame:
+    state_policy_df = pd.read_excel(data/"COVID-19 US state policy database_08_03_2020.xlsx", 1)[list(state_interventions_info.keys())]
+    state_policy_df = state_policy_df.set_index("STATE").iloc[4:, :].dropna(axis=0)
+    return state_policy_df
 
 def get_case_timeseries(case_df: pd.DataFrame) -> pd.DataFrame:
     county_cases = pd.DataFrame(case_df.set_index(["state_name", "county_name"]).iloc[:,3:].stack()).rename(columns={0:"cumulative_confirmed_cases"}).reset_index()
