@@ -46,20 +46,21 @@ if __name__ == "__main__":
     county_mobility_ts = us_mobility[~(us_mobility["county_name"].isna())].set_index(["state_name", "county_name", "date"])
     county_interventions = interventions[~(interventions.index.get_level_values(0) == interventions.index.get_level_values(1))]
 
-    county_df = county_interventions.join(county_mobility_ts, how='outer').join(county_case_ts, how='outer').join(county_populations.set_index(['state_name','county_name'])).
+    county_df = county_interventions.join(county_mobility_ts, how='outer').join(county_case_ts, how='outer').join(county_populations.set_index(['state_name','county_name']))
+    county_df.iloc[:,:8].fillna(0, inplace=True)
     county_df = county_df.join(metro_areas.set_index(["state_name", "county_name"])["cbsa_fips"])
 
     county_df.reset_index().to_csv(data/"county_level_policy_evaluation.csv")
 
-    # state level
-    state_case_ts = case_timeseries.xs("Statewide Unallocated", level=1)
-    rt_estimations = load_rt_estimations("rt_estimations.csv")
-    state_mobility_ts = county_mobility_ts.groupby(["state_name", "date"]).mean() # need to change this to do it proportional to county population
-    state_interventions = interventions[interventions.index.get_level_values(0) == interventions.index.get_level_values(1)].droplevel(1)
-    state_metros = load_metro_areas(data/"county_metro_state_walk.csv", "state")
+    # # state level
+    # state_case_ts = case_timeseries.xs("Statewide Unallocated", level=1)
+    # rt_estimations = load_rt_estimations("rt_estimations.csv")
+    # state_mobility_ts = county_mobility_ts.groupby(["state_name", "date"]).mean() # need to change this to do it proportional to county population
+    # state_interventions = interventions[interventions.index.get_level_values(0) == interventions.index.get_level_values(1)].droplevel(1)
+    # state_metros = load_metro_areas(data/"county_metro_state_walk.csv", "state")
 
-    full_df = county_case_timeseries.join(us_mobility_timeseries)
-    full_df.groupby(["state_name", "county_name"]).apply(add_lag_cols)
+    # full_df = county_case_timeseries.join(us_mobility_timeseries)
+    # full_df.groupby(["state_name", "county_name"]).apply(add_lag_cols)
 
 
     # interventions = add_colours(interventions)
