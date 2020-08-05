@@ -25,6 +25,19 @@ def plot_rt_interventions(group_name, group, interventions):
     plt.title("Interventions in {}".format(state_name))
     plt.show()
 
+def regression_one():
+    # results = smf.ols('daily_confirmed_cases ~ retail_and_recreation_percent_change_from_baseline + transit_stations_percent_change_from_baseline + \
+    #                 workplaces_percent_change_from_baseline + residential_percent_change_from_baseline', data=full_df.loc['Illinois','Cook County']).fit()
+    # print(results.summary())
+
+    X = cook_county.iloc[:,2:].values
+
+    X = sm.add_constant(X)
+    X = sm.add_constant(X, has_constant='add')
+    y = cook_county['daily_confirmed_cases'].values
+    res = sm.OLS(y, X).fit()
+    pass
+
 if __name__ == "__main__":
 
     root = cwd()
@@ -44,14 +57,17 @@ if __name__ == "__main__":
     # county level
     county_case_ts = pd.DataFrame(case_timeseries[case_timeseries.index.get_level_values(level=1) != "Statewide Unallocated"])
     county_mobility_ts = us_mobility[~(us_mobility["county_name"].isna())].set_index(["state_name", "county_name", "date"])
+
+    county_df = county_case_ts.join(county_mobility_ts, how="outer").join(county_populations.set_index(['state_name','county_name']), how='left').reset_index().set_index(["state_name", "countyfips", "date"])
+    
     county_interventions = interventions[~(interventions.index.get_level_values(0) == interventions.index.get_level_values(1))]
     county_mask_policy = load_county_mask_data(data/"county_mask_policy.csv")
 
-    county_df = county_interventions.join(county_mobility_ts, how='outer').join(county_case_ts, how='outer').join(county_populations.set_index(['state_name','county_name']))
-    county_df = county_df.groupby(['state_name','county_name']).apply(fill_dummies, list(county_interventions.columns))
-    county_df = county_df.join(metro_areas.set_index(["state_name", "county_name"])["cbsa_fips"])
+    county_df = county_interventions.join(county_df, how='right').sort_index()
+    county_df = county_df.groupby(['state_name','countyfips']).apply(fill_dummies, list(county_interventions.columns))
+    county_df = county_df.join(metro_areas.set_index(["state_name", "countyfips"])["cbsa_fips"])
     county_df["intervention_mask_all_public"] = 0
-    county_df = county_df.groupby(['state_name','county_name']).apply(add_mask_dummies, county_mask_policy)
+    county_df = county_df.groupby(['state_name','countyfips']).apply(add_mask_dummies, county_mask_policy)
 
     county_df.reset_index().to_csv(data/"county_level_policy_evaluation.csv")
 

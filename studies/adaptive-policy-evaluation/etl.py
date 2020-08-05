@@ -164,12 +164,12 @@ def load_us_county_data(file: str, url: Optional[str] = "https://usafactsstatic.
 
 def load_intervention_data() -> pd.DataFrame:
     interventions = pd.read_csv('https://raw.githubusercontent.com/JieYingWu/COVID-19_US_County-level_Summaries/master/raw_data/national/public_implementations_fips.csv')
-    interventions.rename(columns={"Unnamed: 1": "county_name", "Unnamed: 2": "state"}, inplace=True)
+    interventions.rename(columns={"Unnamed: 1": "county_name", "Unnamed: 2": "state", "FIPS": "countyfips"}, inplace=True)
     interventions["county_name"] = interventions["county_name"].str.title()
-    interventions = pd.DataFrame(interventions.iloc[:,1:].set_index(["state","county_name"]).stack(), columns=["date"]).reset_index().rename(columns={"level_2": "intervention"})
+    interventions = pd.DataFrame(interventions.set_index(["state", "countyfips"]).iloc[:, 1:].stack(), columns=["date"]).reset_index().rename(columns={"level_2": "intervention"})    
     interventions["state_name"] = interventions["state"].map(state_name_lookup)
     interventions["date"] = pd.to_datetime(interventions["date"]+ "-2020", format="%d-%b-%Y")
-    interventions = interventions.set_index(["state_name", "county_name", "date"]).iloc[:,1:].sort_index()
+    interventions = interventions.set_index(["state_name", "countyfips", "date"]).iloc[:,1:].sort_index()
     return pd.get_dummies(interventions)
 
 def load_rt_estimations(data_path: Path) -> pd.DataFrame:
@@ -184,13 +184,14 @@ def load_county_mask_data(data_path: Path) -> pd.DataFrame:
         mask_df["county" + col].fillna(mask_df["state" + col], inplace=True)
     mask_df[['state_name']] = mask_df['state_name'].str.title()
     mask_df = mask_df[mask_df['county_fips'] != 'Yes'] # messy data joys!
-    mask_df['county_fips'] = pd.to_numeric(mask_df['county_fips'])
+    mask_df['countyfips'] = pd.to_numeric(mask_df['county_fips'])
     # for now just including "all public places" mask policies as the other variations are complicated 
     return mask_df[mask_df["county_conditions"] == "all public places"]
 
 def load_metro_areas(data_path: Path) -> pd.DataFrame:
     metro_df = pd.read_csv(data_path)
-    return metro_df[metro_df["area_type"] == "Metro"][["cbsa_fips", "county_fips", "county_name", "state_codes", "state_name"]]
+    metro_df.rename(columns={"county_fips": "countyfips"}, inplace=True)
+    return metro_df[metro_df["area_type"] == "Metro"][["cbsa_fips", "countyfips", "county_name", "state_codes", "state_name"]]
 
 def fill_dummies(grp, cols):
     for col in cols:
@@ -201,8 +202,8 @@ def fill_dummies(grp, cols):
     return grp 
 
 def add_mask_dummies(grp, mask_df):
-    start_date = mask_df["county_mask_policy_start"].values[mask_df["county_fips"] == grp["countyfips"].unique()[0]]
-    end_date = mask_df["state_mask_policy_end"].values[mask_df["county_fips"] == grp["countyfips"].unique()[0]]
+    start_date = mask_df["county_mask_policy_start"].values[mask_df["countyfips"] == grp.name[1]]
+    end_date = mask_df["state_mask_policy_end"].values[mask_df["countyfips"] == grp.name[1]]
     if not start_date.size == 0:
         if not end_date.size == 0:
             grp.loc[(grp.index.get_level_values(level='date') >= start_date[0]) & (grp.index.get_level_values(level='date') <= end_date[0]), "intervention_mask_all_public"] = 1
