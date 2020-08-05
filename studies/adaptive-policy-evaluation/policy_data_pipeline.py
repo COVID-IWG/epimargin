@@ -8,7 +8,7 @@ import statsmodels.api as sm
 import statsmodels.formula.api as smf
 
 from matplotlib.lines import Line2D
-from etl import load_us_county_data, load_country_google_mobility, load_intervention_data, get_case_timeseries, add_lag_cols, load_metro_areas, load_rt_estimations
+from etl import load_us_county_data, load_country_google_mobility, load_intervention_data, get_case_timeseries, add_lag_cols, load_metro_areas, load_rt_estimations, fill_dummies, load_county_mask_data, add_mask_dummies
 from adaptive.utils import cwd, days
 
 def plot_rt_interventions(group_name, group, interventions):
@@ -45,10 +45,13 @@ if __name__ == "__main__":
     county_case_ts = pd.DataFrame(case_timeseries[case_timeseries.index.get_level_values(level=1) != "Statewide Unallocated"])
     county_mobility_ts = us_mobility[~(us_mobility["county_name"].isna())].set_index(["state_name", "county_name", "date"])
     county_interventions = interventions[~(interventions.index.get_level_values(0) == interventions.index.get_level_values(1))]
+    county_mask_policy = load_county_mask_data(data/"county_mask_policy.csv")
 
     county_df = county_interventions.join(county_mobility_ts, how='outer').join(county_case_ts, how='outer').join(county_populations.set_index(['state_name','county_name']))
-    county_df.iloc[:,:8].fillna(0, inplace=True)
+    county_df = county_df.groupby(['state_name','county_name']).apply(fill_dummies, list(county_interventions.columns))
     county_df = county_df.join(metro_areas.set_index(["state_name", "county_name"])["cbsa_fips"])
+    county_df["intervention_mask_all_public"] = 0
+    county_df = county_df.groupby(['state_name','county_name']).apply(add_mask_dummies, county_mask_policy)
 
     county_df.reset_index().to_csv(data/"county_level_policy_evaluation.csv")
 
