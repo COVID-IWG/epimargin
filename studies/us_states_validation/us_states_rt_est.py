@@ -7,8 +7,7 @@ from adaptive.utils      import cwd
 from adaptive.estimators import gamma_prior
 from adaptive.smoothing  import notched_smoothing
 
-from etl import import_clean_smooth_cases
-from etl import get_adaptive_estimates, get_new_rt_live_estimates, get_old_rt_live_estimates, get_cori_estimates, get_luis_estimates
+from etl import import_clean_smooth_cases, get_new_rt_live_estimates
 from rtlive_old_model import run_rtlive_old_model
 from luis_model import run_luis_model
 
