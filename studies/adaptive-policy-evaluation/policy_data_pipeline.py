@@ -4,8 +4,6 @@ from typing import Dict, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import statsmodels.api as sm
-import statsmodels.formula.api as smf
 
 from matplotlib.lines import Line2D
 from etl import load_us_county_data, load_country_google_mobility, load_intervention_data, get_case_timeseries, add_lag_cols, load_metro_areas, load_rt_estimations, fill_dummies, load_county_mask_data, add_mask_dummies
@@ -24,19 +22,6 @@ def plot_rt_interventions(group_name, group, interventions):
     plt.legend(lines, interventions["intervention"])
     plt.title("Interventions in {}".format(state_name))
     plt.show()
-
-# def regression_one():
-#     # results = smf.ols('daily_confirmed_cases ~ retail_and_recreation_percent_change_from_baseline + transit_stations_percent_change_from_baseline + \
-#     #                 workplaces_percent_change_from_baseline + residential_percent_change_from_baseline', data=full_df.loc['Illinois','Cook County']).fit()
-#     # print(results.summary())
-
-#     X = cook_county.iloc[:,2:].values
-
-#     X = sm.add_constant(X)
-#     X = sm.add_constant(X, has_constant='add')
-#     y = cook_county['daily_confirmed_cases'].values
-#     res = sm.OLS(y, X).fit()
-#     pass
 
 if __name__ == "__main__":
 
@@ -70,6 +55,9 @@ if __name__ == "__main__":
     county_df = county_df.groupby(['state_name','countyfips']).apply(add_mask_dummies, county_mask_policy)
 
     county_df.reset_index().to_csv(data/"county_level_policy_evaluation.csv")
+
+    # need some way of only including places once their outbreak has started - what is a good threshold?
+    test_df = county_df.reset_index().groupby(['state_name','countyfips']).apply(lambda x: x[x['date'] >= x['date'][x['daily_confirmed_cases'] >= 50].min()])
 
     # state level
     state_case_ts = case_timeseries.xs("Statewide Unallocated", level=1)

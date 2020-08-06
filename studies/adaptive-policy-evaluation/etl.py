@@ -149,6 +149,22 @@ county_mask_cols = [
  'state_conditions'
  ]
 
+ predictor_cols = ['intervention_>50_gatherings',
+ 'intervention_>500_gatherings',
+ 'intervention_Federal_guidelines',
+ 'intervention_entertainment/gym',
+ 'intervention_foreign_travel_ban',
+ 'intervention_public_schools',
+ 'intervention_restaurant_dine-in',
+ 'intervention_stay_at_home',
+ 'intervention_mask_all_public',
+ 'retail_and_recreation_percent_change_from_baseline',
+ 'grocery_and_pharmacy_percent_change_from_baseline',
+ 'parks_percent_change_from_baseline',
+ 'transit_stations_percent_change_from_baseline',
+ 'workplaces_percent_change_from_baseline',
+ 'residential_percent_change_from_baseline']
+
 
 def load_country_google_mobility(country_code: str) -> pd.DataFrame:
     full_df = pd.read_csv('https://www.gstatic.com/covid19/mobility/Global_Mobility_Report.csv', parse_dates = ["date"])
@@ -225,10 +241,10 @@ def get_case_timeseries(case_df: pd.DataFrame) -> pd.DataFrame:
     county_cases["daily_confirmed_cases"].fillna(county_cases["cumulative_confirmed_cases"], inplace=True)
     return county_cases["daily_confirmed_cases"]
 
-def add_lag_cols(grp: pd.DataFrame):
+def add_lag_cols(grp: pd.DataFrame, cols: Sequence[str]):
     for lag in [1, 7, 14]:
-        for col in ["daily_confirmed_cases","retail_and_recreation_percent_change_from_baseline", "grocery_and_pharmacy_percent_change_from_baseline", "parks_percent_change_from_baseline", "transit_stations_percent_change_from_baseline", "workplaces_percent_change_from_baseline", "residential_percent_change_from_baseline"]:
-            grp[col + '_lag_' + str(lag)] = grp[col].shift(-lag)
+        for col in cols:
+            grp[col + '_lag_' + str(lag)] = grp[col].shift(lag)
     return grp
 
 def pop_prop_col(grp):
