@@ -1,15 +1,15 @@
 from pathlib import Path
-from typing import Dict, Optional, Sequence, Tuple, Callable
-from tqdm import tqdm
-from io import StringIO
+from typing  import Dict, Optional, Sequence, Tuple, Callable
+from tqdm    import tqdm
+from io      import StringIO
 
-from adaptive.utils import cwd
+from adaptive.utils      import cwd
 from adaptive.estimators import gamma_prior
-from adaptive.smoothing import convolution
+from adaptive.smoothing  import notched_smoothing
 
-from etl import import_and_clean_cases
+from etl import import_clean_smooth_cases
 from etl import get_adaptive_estimates, get_new_rt_live_estimates, get_old_rt_live_estimates, get_cori_estimates, get_luis_estimates
-from rtlive_old_model import get_delay_distribution, create_and_run_model, df_from_model
+from rtlive_old_model import run_rtlive_old_model
 from luis_model import run_luis_model
 
 import matplotlib.pyplot as plt
@@ -22,19 +22,21 @@ import subprocess
 # PARAMETERS
 CI               = 0.95
 smoothing_window = 7
-win_type         = "triang"
 rexepath         = 'C:\\Program Files\\R\\R-3.6.1\\bin\\'
 
 
-def run_adaptive_model(df:pd.DataFrame, locationvar:str, CI:float,
-                       smoothing:Callable, filepath:Path) -> None:
+def run_adaptive_model(df:pd.DataFrame, locationvar:str, CI:float, filepath:Path) -> None:
     '''
     Runs adaptive control model of Rt and smoothed case counts based on what is currently in the 
     gamma_prior module. Takes in dataframe of cases and saves to csv a dataframe of results.
     '''
     # Initialize results df
     res_full = pd.DataFrame()
-    
+
+    # Null smoother to pass to gamma_prior (since smoothing was already done)
+    def null_smoother(data: Sequence[float]):
+        return data
+
     # Loop through each location
     print(f"Estimating Adaptive Rt values for each {locationvar}...")
     for loc in tqdm(df[locationvar].unique()):
@@ -46,8 +48,8 @@ def run_adaptive_model(df:pd.DataFrame, locationvar:str, CI:float,
         T_pred, T_CI_upper, T_CI_lower,
         total_cases, new_cases_ts,
         _, anomaly_dates
-        ) = gamma_prior(loc_df[loc_df['positive'] > 0]['positive'], 
-                        CI=CI, smoothing=smoothing)
+        ) = gamma_prior(loc_df[loc_df['positive_smooth'] > 0]['positive_smooth'], 
+                        CI=CI, smoothing=null_smoother)
         assert(len(dates) == len(RR_pred))
         
         # Save results
@@ -66,50 +68,17 @@ def run_adaptive_model(df:pd.DataFrame, locationvar:str, CI:float,
     
     # Merge results back onto input df and return
     merged_df = df.merge(res_full, how='outer', on=[locationvar,'date'])
+
+    # Parameters for filtering raw df
+    kept_columns   = ['date',locationvar,'RR_pred','RR_CI_lower','RR_CI_upper','T_pred',
+                      'T_CI_lower','T_CI_upper','new_cases_ts','anomaly']
+    merged_df      = merged_df[kept_columns]
+    
+    # Format date properly and return
+    merged_df.loc[:,'date'] = pd.to_datetime(merged_df['date'], format='%Y-%m-%d')
+
+    # Save out result
     merged_df.to_csv(filepath/"adaptive_estimates.csv")
-
-
-def run_rtlive_old_model(df:pd.DataFrame, locationvar:str, CI:float, 
-                         smoothing:Callable, filepath:Path) -> None:
-    '''
-    Runs old rt.live model of Rt. Takes in dataframe of case data and
-    saves out a CSV of results.
-    '''
-    # Get delay empirical distribution
-    p_delay = get_delay_distribution(file_path=filepath, force_update=True)
-
-    # Run model for each location
-    models = {}
-    for loc in df[locationvar].unique():
-        
-        if loc in models:
-            print(f"Skipping {loc}, already in cache")
-            continue
-        print(f'Working on {loc}')
-        loc_df = df[df[locationvar] == loc].set_index('date')
-        models[loc] = create_and_run_model(loc, loc_df, p_delay, smoothing)
-                
-    # Check to see if there were divergences
-    n_diverging = lambda x: x.trace['diverging'].nonzero()[0].size
-    divergences = pd.Series([n_diverging(m) for m in models.values()], index=models.keys())
-    has_divergences = divergences.gt(0)
-
-    # Rerun locs with divergences
-    for loc,_ in divergences[has_divergences].items():
-        models[loc].run()
-
-    # Build df of results
-    results = None
-    for loc, model in models.items():
-        dfres = df_from_model(model, CI, locationvar)
-        if results is None:
-            results = dfres
-        else:
-            results = pd.concat([results, dfres], axis=0)
-            
-    # Save results
-    results.reset_index(inplace=True)
-    results.to_csv(filepath/'rtlive_old_estimates.csv', index=False)
 
 
 def run_cori_model(filepath:Path, rexepath:Path) -> None:
@@ -118,14 +87,6 @@ def run_cori_model(filepath:Path, rexepath:Path) -> None:
     a CSV file.
     '''
     subprocess.call([rexepath/"Rscript.exe", filepath/"cori_model.R"], shell=True)
-
-
-def make_smoother(window: int=7, win_type: str='triang'):
-    def smooth(data: Sequence[float]):
-        ma = np.array(pd.Series(data).rolling(window, win_type=win_type).mean()).ravel()
-        ma = np.nan_to_num(ma, nan=0.0)
-        return ma
-    return smooth
 
 
 def make_state_plots(df:pd.DataFrame, plotspath:Path) -> None:
@@ -191,29 +152,29 @@ if __name__ == "__main__":
         plots.mkdir()
 
     # Get data case data
-    df = import_and_clean_cases(data)
-
-    # Get smoother for models
-    my_smoother = make_smoother(window=smoothing_window, win_type=win_type)
+    df = import_clean_smooth_cases(data, notched_smoothing(window=smoothing_window))
 
     # Run models for adaptive and rt.live old version
-    run_adaptive_model(df=df, locationvar='state', CI=CI, smoothing=my_smoother, filepath=data)
-    run_luis_model(df=df, locationvar='state', CI=CI, smoothing=my_smoother, filepath=data)
-    run_rtlive_old_model(df=df, locationvar='state', CI=CI, smoothing=my_smoother, filepath=data)
+    run_adaptive_model(df=df, locationvar='state', CI=CI, filepath=data)
+    run_luis_model(df=df, locationvar='state', CI=CI, filepath=data)
+    run_rtlive_old_model(df=df, locationvar='state', CI=CI, filepath=data)
     # run_cori_model(filepath=root, rexepath=rexepath) # Have to change R file parameters separately
 
     # Pull CSVs of results
-    adaptive_df    = get_adaptive_estimates(data)
+    adaptive_df    = pd.read_csv(data/"adaptive_estimates.csv")
     rt_live_new_df = get_new_rt_live_estimates(data)
-    rt_live_old_df = get_old_rt_live_estimates(data)
-    cori_df        = get_cori_estimates(data)
-    luis_df        = get_luis_estimates(data)
+    rt_live_old_df = pd.read_csv(data/"rtlive_old_estimates.csv")
+    cori_df        = pd.read_csv(data/"cori_estimates.csv")
+    luis_df        = pd.read_csv(data/"luis_code_estimates.csv")
 
     # Merge all results together
     merged_df      = adaptive_df.merge(rt_live_new_df, how='outer', on=['state','date'])
     merged_df      = merged_df.merge(rt_live_old_df, how='outer', on=['state','date'])
     merged_df      = merged_df.merge(cori_df, how='outer', on=['state','date'])
     merged_df      = merged_df.merge(luis_df, how='outer', on=['state','date'])
+
+    # Fix date formatting   
+    merged_df.loc[:,'date'] = pd.to_datetime(merged_df['date'], format='%Y-%m-%d')
 
     # Save CSV and plots
     merged_df.to_csv(data/"+rt_estimates_comparison.csv")

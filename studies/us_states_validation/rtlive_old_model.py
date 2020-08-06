@@ -13,11 +13,60 @@ import theano.tensor as tt
 from matplotlib import pyplot as plt
 from matplotlib import dates as mdates
 from matplotlib import ticker
-
-from datetime import date
-from datetime import datetime
-
+from pathlib    import Path
+from datetime   import date, datetime
 from IPython.display import clear_output
+
+
+def run_rtlive_old_model(df:pd.DataFrame, locationvar:str, CI:float, filepath:Path) -> None:
+    '''
+    Runs old rt.live model of Rt. Takes in dataframe of case data and
+    saves out a CSV of results.
+    '''
+    # Get delay empirical distribution
+    p_delay = get_delay_distribution(file_path=filepath, force_update=True)
+
+    # Run model for each location
+    models = {}
+    for loc in df[locationvar].unique():
+        
+        if loc in models:
+            print(f"Skipping {loc}, already in cache")
+            continue
+        print(f'Working on {loc}')
+        loc_df = df[df[locationvar] == loc].set_index('date')
+        models[loc] = create_and_run_model(loc, loc_df, p_delay)
+                
+    # Check to see if there were divergences
+    n_diverging = lambda x: x.trace['diverging'].nonzero()[0].size
+    divergences = pd.Series([n_diverging(m) for m in models.values()], index=models.keys())
+    has_divergences = divergences.gt(0)
+
+    # Rerun locs with divergences
+    for loc,_ in divergences[has_divergences].items():
+        models[loc].run()
+
+    # Build df of results
+    results = None
+    for loc, model in models.items():
+        dfres = df_from_model(model, CI, locationvar)
+        if results is None:
+            results = dfres
+        else:
+            results = pd.concat([results, dfres], axis=0)
+
+    # Parameters for filtering raw df
+    kept_columns   = ['date',locationvar,'mean','lower_95','upper_95']
+    results = results[kept_columns].reset_index()
+    
+    # Format date properly and rename columns
+    df.loc[:,'date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+    df.rename(columns={'region':locationvar,'mean':'RR_pred_rtliveold',
+                       'lower_95':'RR_lower_rtliveold', 
+                       'upper_95':'RR_upper_rtliveold'}, inplace=True)
+
+    # Save results
+    results.to_csv(filepath/'rtlive_old_estimates.csv', index=False)
 
 
 def download_patient_data(file_path):
@@ -208,10 +257,9 @@ class MCMCModel(object):
             return self
 
 
-def create_and_run_model(name, loc_df, p_delay, smoothing):
+def create_and_run_model(name, loc_df, p_delay):
     
-    loc_df['delta_positive_ma'] = smoothing(loc_df['delta_positive'])
-    confirmed = loc_df['delta_positive_ma'].dropna().rename('confirmed')
+    confirmed = loc_df['positive_diff_smooth'].dropna().rename('confirmed')
     onset = confirmed_to_onset(confirmed, p_delay)
     adjusted, cumulative_p_delay = adjust_onset_for_right_censorship(onset, p_delay)
     return MCMCModel(name, onset, cumulative_p_delay).run()

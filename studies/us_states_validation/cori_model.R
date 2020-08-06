@@ -30,17 +30,13 @@ neg_to_0 <- function(vec){
 }
 
 # Read data and clean
-raw <- read_csv("data/covidtracking_cases.csv")
+raw <- read_csv("data/covidtracking_cases_clean.csv")
 df  <- raw %>% 
-       select(date, state, positive, death) %>%
-       filter(!(state %in% c('PR','MP','AS','GU','VI'))) %>%
        mutate(date=ymd(date)) %>% mutate(state=as.factor(state)) %>%
        group_by(state) %>% arrange(state, date) %>%
-       mutate(delta_positive = positive - lag(positive)) %>%
-       mutate(delta_death = death - lag(death)) %>% 
        rename(time=date) %>% ungroup()
-df$delta_positive <- na_to_0(df$delta_positive) 
-df$delta_positive <- neg_to_0(df$delta_positive) 
+df$positive_diff_smooth <- na_to_0(df$positive_diff_smooth) 
+df$positive_diff_smooth <- neg_to_0(df$positive_diff_smooth) 
 
 # Loop through each state
 fulldf <- data.frame()
@@ -50,16 +46,14 @@ for(statename in levels(df$state)) {
   
   # Subset to just state and calculate moving averages
   state_df  <- df %>% filter(state == statename)
-  state_df$delta_positive_ma <- pracma::movavg(state_df$delta_positive, n=ma_window, type='t')
-  state_df$delta_death_ma    <- pracma::movavg(state_df$delta_death,    n=ma_window, type='t')
-  
+
   # Other clean up
   idat <- state_df %>%
           complete(time = seq.Date(min(time), max(time), by='day')) %>%
-          mutate_at(.vars = c('positive','death','delta_positive','delta_positive_ma', 'delta_death', 'delta_death_ma'), 
+          mutate_at(.vars = c('positive','death','positive_diff','positive_diff_smooth', 'death_diff', 'death_diff_smooth'), 
                     .funs = function(xx){ifelse(is.na(xx), 0, xx)}) %>%
           arrange(time) %>%
-          rename(dates=time, I=delta_positive_ma)
+          rename(dates=time, I=positive_diff_smooth)
   idat$time <- seq(1, nrow(idat))
   
   # Get incidence time series
@@ -97,7 +91,7 @@ for(statename in levels(df$state)) {
                   'RR_CI_upper_cori'='Quantile.0.975(R)', 
                   'RR_CI_lower_cori'='Quantile.0.025(R)',
                   'date'='dates') %>%
-           select(state,date,RR_pred_cori,RR_CI_upper_cori,RR_CI_lower_cori)
+           select(state, date, RR_pred_cori, RR_CI_upper_cori, RR_CI_lower_cori)
   fulldf <- fulldf %>% bind_rows(outdf)
 }
 

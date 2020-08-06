@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from tqdm import tqdm
 
-def run_luis_model(df:pd.DataFrame, locationvar:str, CI:float, smoothing:Callable, filepath:Path) -> None:
+def run_luis_model(df:pd.DataFrame, locationvar:str, CI:float, filepath:Path) -> None:
 
     infperiod = 4.5 # length of infectious period, adjust as needed
 
@@ -23,7 +23,7 @@ def run_luis_model(df:pd.DataFrame, locationvar:str, CI:float, smoothing:Callabl
         import numpy as np
         
         locdf     = df[df[locationvar]==loc].sort_values('date')
-        confirmed = list(locdf['positive'])
+        confirmed = list(locdf['positive_smooth'])
         dates     = list(locdf['date'])
         
         # This skips the Rt analysis for locs for which there are <10 total cases
@@ -37,7 +37,7 @@ def run_luis_model(df:pd.DataFrame, locationvar:str, CI:float, smoothing:Callabl
         xd=dates[1:]
 
         # Smoothing over sdays (number of days) moving window, averages large chunking in reporting in consecutive days        
-        yy = np.array(smoothing(dconfirmed)).ravel() 
+        yy = np.array(dconfirmed).ravel() 
         TotalCases = np.cumsum(yy) # These are confirmed cases after smoothing: tried also a lowess smoother but was a bit more parameer dependent from place to place.
 
         alpha=3. # shape parameter of gamma distribution
