@@ -11,7 +11,7 @@ import seaborn as sns
 
 from .model import Model
 
-sns.set(style = "whitegrid", palette = "bright", font = "Fira Code")
+sns.set(style = "whitegrid", palette = "bright", font = "Inconsolata")
 sns.despine()
 
 
@@ -21,17 +21,17 @@ class PlotDevice():
         self.figure = fig if fig else plt.gcf()
         
     def xlabel(self, xl: str, **kwargs):
-        kwargs["fontdict"] = kwargs.get("fontdict", {"size": 20, "family": "Fira Sans", "fontweight": "500"})
+        kwargs["fontdict"] = kwargs.get("fontdict", {"size": 20, "family": "Libre Franklin", "fontweight": "500"})
         plt.xlabel(xl, **kwargs)
         return self 
 
     def ylabel(self, yl: str, **kwargs):
-        kwargs["fontdict"] = kwargs.get("fontdict", {"size": 20, "family": "Fira Sans", "fontweight": "500"})
+        kwargs["fontdict"] = kwargs.get("fontdict", {"size": 20, "family": "Libre Franklin", "fontweight": "500"})
         plt.ylabel(yl, **kwargs)
         return self 
 
     def title(self, text: str, **kwargs):
-        kwargs["fontdict"] = kwargs.get("fontdict", {"size": 20, "family": "Fira Sans", "fontweight": "500"})
+        kwargs["fontdict"] = kwargs.get("fontdict", {"size": 20, "family": "Libre Franklin", "fontweight": "500"})
         kwargs["loc"]      = kwargs.get("loc", "left")
         plt.title(text, **kwargs)
         return self 

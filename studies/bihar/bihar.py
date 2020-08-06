@@ -32,13 +32,13 @@ data = root/"data"
 figs = root/"figs"
 
 gamma     = 0.2
-smoothing = 15
+smoothing = 12
 CI        = 0.95
 
-state_cases = etl.load_cases(data/"Bihar_case_data_May29.csv")
+state_cases = pd.read_csv(data/"Bihar_cases_data_Jul23.csv", parse_dates=["date_reported"], dayfirst=True)
+state_ts = state_cases["date_reported"].value_counts().sort_index()
 district_names, population_counts, _ = etl.district_migration_matrix(data/"Migration Matrix - District.csv")
 populations = dict(zip(district_names, population_counts))
-
 
 # first, look at state level predictions
 (
@@ -47,7 +47,7 @@ populations = dict(zip(district_names, population_counts))
     T_pred, T_CI_upper, T_CI_lower,
     total_cases, new_cases_ts,
     anomalies, anomaly_dates
-) = gamma_prior(etl.get_state_time_series(state_cases)["Hospitalized"].iloc[:-1], CI = CI, smoothing = convolution(window = smoothing)) 
+) = gamma_prior(state_ts, CI = CI, smoothing = convolution(window = smoothing)) 
 
 plot_RR_est(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin=0, ymax=4)\
     .title("Bihar: Reproductive Number Estimate")\
@@ -69,19 +69,21 @@ plt.scatter(t_pred, Bihar[0].delta_T, color = "tomato", s = 4, label = "Predicte
 plt.fill_between(t_pred, Bihar[0].lower_CI, Bihar[0].upper_CI, color = "tomato", alpha = 0.3, label="99% CI (forecast)")
 plt.legend()
 PlotDevice().title("Bihar: Net Daily Cases").xlabel("Date").ylabel("Cases")
+# plt.semilogy()
+plt.ylim(0, 1600)
 plt.show()
 
 # now, do district-level estimation 
 smoothing = 10
-district_time_series = etl.get_district_time_series(state_cases)
+district_time_series = state_cases.groupby(["geo_reported", "date_reported"])["date_reported"].count().sort_index()
 migration = np.zeros((len(district_names), len(district_names)))
 estimates = []
 max_len = 1 + max(map(len, district_names))
-with tqdm(district_names) as districts:
+with tqdm([etl.replacements.get(dn, dn) for dn in district_names]) as districts:
     for district in districts:
         districts.set_description(f"{district :<{max_len}}")
         try: 
-            (dates, RR_pred, RR_CI_upper, RR_CI_lower, T_pred, T_CI_upper, T_CI_lower, total_cases, new_cases_ts, anomalies, anomaly_dates) = gamma_prior(district_time_series.loc[district], CI = CI, smoothing = convolution(window = smoothing))
+            (dates, RR_pred, RR_CI_upper, RR_CI_lower, *_) = gamma_prior(district_time_series.loc[district], CI = CI, smoothing = convolution(window = smoothing))
             estimates.append((district, RR_pred[-1], RR_CI_lower[-1], RR_CI_upper[-1], project(dates, RR_pred, smoothing))) 
         except (IndexError, ValueError): 
             estimates.append((district, np.nan, np.nan, np.nan, np.nan))

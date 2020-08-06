@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 from typing import Dict, Optional, Sequence
 from warnings import simplefilter
@@ -27,7 +28,8 @@ def project(dates, R_values, smoothing, period = 7*days):
     .fit()\
     .predict([1, julian_dates[-1] + period])[0]
 
-root = cwd()
+# set to cloud temp directory if not explicitly told to run locally 
+root = cwd() if len(sys.argv) > 1 and sys.argv[1] == "--local" else Path("/tmp")
 data = root/"data"
 
 # model details 
@@ -71,12 +73,13 @@ with tqdm(state_names) as states:
             estimates.append((state_code, RR_pred[-1], RR_CI_lower[-1], RR_CI_upper[-1], project(dates, RR_pred, smoothing)))
         except (IndexError, ValueError): 
             estimates.append((state, np.nan, np.nan, np.nan, np.nan))
-# estimates = pd.DataFrame(estimates)
-# estimates.columns = ["state", "Rt", "Rt_CI_lower", "Rt_CI_upper", "Rt_proj"]
-# estimates.set_index("state", inplace=True)
-# estimates.to_csv(data/"Rt_estimates.csv")
+
+estimates = pd.DataFrame(estimates)
+estimates.columns = ["state", "Rt", "Rt_CI_lower", "Rt_CI_upper", "Rt_proj"]
+estimates.set_index("state", inplace=True)
+estimates.to_csv(data/"Rt_estimates.csv")
+
 timeseries = pd.DataFrame(timeseries)
 timeseries.columns = ["state", "date", "Rt", "Rt_upper", "Rt_lower"]
 timeseries.set_index("state", inplace=True)
 timeseries.to_csv(data/"Rt_timeseries_india.csv")
-print(timeseries)

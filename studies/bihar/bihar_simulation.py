@@ -6,7 +6,8 @@ import pandas as pd
 from tqdm import tqdm
 
 import etl
-from adaptive.estimators import rollingOLS
+from adaptive.estimators import gamma_prior
+from adaptive.smoothing import convolution
 from adaptive.model  import Model, ModelUnit
 from adaptive.plots  import gantt_chart, plot_simulation_range
 from adaptive.policy import simulate_adaptive_control, simulate_lockdown
@@ -14,12 +15,12 @@ from adaptive.utils  import cwd, days, weeks, fmt_params
 
 
 def model(districts, populations, cases, seed) -> Model:
-    # max_ts = max([ts.index.max() for ts in cases.values()]).isoformat()
+    max_ts = cases["date_reported"].max()
     units = [
         ModelUnit(district, populations[i], 
-        I0 = cases[district].iloc[-1].Hospitalized if district in cases.keys() else 0, 
-        R0 = cases[district].iloc[-1].Recovered    if district in cases.keys() else 0, 
-        D0 = cases[district].iloc[-1].Deceased     if district in cases.keys() else 0)
+        I0 = len(cases[(cases.geo_reported == district) & (cases.date_reported == max_ts)]), 
+        R0 = 0, 
+        D0 = 0)
         for (i, district) in enumerate(districts)
     ]
     return Model(units, random_seed=seed)
@@ -44,6 +45,10 @@ def run_policies(
     model_A = model(districts, populations, district_cases, seed)
     simulate_lockdown(model_A, lockdown_period, total, Rmw, Rvw, lockdown_matrix, migrations)
 
+    # lockdown 1
+    model_B = model(districts, populations, district_cases, seed)
+    simulate_lockdown(model_B, lockdown_period + 11, total, Rmw, Rvw, lockdown_matrix, migrations)
+
     # lockdown + adaptive controls
     model_C = model(districts, populations, district_cases, seed)
     simulate_adaptive_control(model_C, lockdown_period, total, lockdown_matrix, migrations, Rmw,
@@ -52,16 +57,7 @@ def run_policies(
         evaluation_period=eval_period
     )
 
-    return model_A, model_C
-
-def estimate(district, ts, default = 1.5, window = 5, use_last = False):
-    try:
-        regressions = rollingOLS(etl.log_delta_smoothed(ts), window = window, infectious_period = 1/gamma)[["R", "Intercept", "gradient", "gradient_stderr"]]
-        if use_last:
-            return next((x for x in regressions.R.iloc[-3:-1] if not np.isnan(x) and x > 0), default)
-        return regressions
-    except (ValueError, IndexError):
-        return default
+    return model_A, model_B, model_C
 
 def project(p: pd.Series):
     t = (p.R - p.Intercept)/p.gradient
@@ -72,65 +68,45 @@ if __name__ == "__main__":
     data = root/"data"
     figs = root/"figs"
 
-    total_time = 120 * days 
-    release_date = pd.to_datetime("14 July, 2020")
-    lockdown_period = (release_date - pd.to_datetime("today")).days
+    total_time = 90 * days 
+    release_date = pd.to_datetime("20 July, 2020")
+    # lockdown_period = (release_date - pd.to_datetime("today")).days
+    lockdown_period = 0
     
     gamma  = 0.2
     window = 5
+    CI = 0.95
 
-    state_cases    = etl.load_cases(data/"Bihar_Case_data_Jul320.csv")
-    # deal with malformed dates
-    state_cases["DATE OF DISCHARGE"] = state_cases["DATE OF DISCHARGE"].mask((state_cases["DATE OF DISCHARGE"].isna()) | (state_cases["DATE OF DISCHARGE"].isna() == "00/01/00"), state_cases["DATE OF POSITIVE TEST CONFIRMATION"])
-    state_cases = state_cases.drop(state_cases.index[state_cases["DISTRICT"] == "PURNEA"])
-
-    district_cases = etl.split_cases_by_district(state_cases)
-    district_ts    = {district: etl.get_time_series(cases) for (district, cases) in district_cases.items()}
+    state_cases = pd.read_csv(data/"Bihar_cases_data_Jul23.csv", parse_dates=["date_reported", "date_status_change"], dayfirst=True)
+    state_cases = state_cases[state_cases.date_reported <= "2020-07-20"]
+    state_ts = state_cases["date_reported"].value_counts().sort_index()
+    district_ts = state_cases.groupby(["geo_reported", "date_reported"])["date_reported"].count().sort_index()
     R_mandatory = dict()
-    district_ts.pop("PURNEA")
-    for (district, ts) in district_ts.items():
-        ts.index.name = "status_change_date"
-        R_mandatory[district] = estimate(district, ts, use_last = True)
+    for district in district_ts.index.get_level_values(0).unique():
+        try: 
+            (_, Rt, *_) = gamma_prior(district_ts.loc[district], CI = CI, smoothing = convolution(window = 5))
+            Rm = np.mean(Rt)
+        except ValueError as v:
+            Rm = 1.5
+        R_mandatory[district] = Rm
     districts, pops, migrations = etl.district_migration_matrix(data/"Migration Matrix - District.csv")
-    for district in districts:
-        if district not in R_mandatory.keys():
-            R_mandatory[district] = 1.5
+    districts = [etl.replacements.get(dn, dn) for dn in districts]
     
-    R_voluntary    = {district: 1.5*R for (district, R) in R_mandatory.items()}
+    R_voluntary = {district: 1.5*R for (district, R) in R_mandatory.items()}
 
     si, sf = 0, 100
 
     simulation_results = [ 
-        run_policies(district_ts, pops, districts, migrations, gamma, R_mandatory, R_voluntary, lockdown_period = lockdown_period, total = total_time, seed = seed)
+        run_policies(state_cases, pops, districts, migrations, gamma, R_mandatory, R_voluntary, lockdown_period = lockdown_period, total = total_time, seed = seed)
         for seed in tqdm(range(si, sf))
     ]
 
-    state_ts = etl.get_time_series(state_cases)
-    # smoothed = etl.lowess(state_ts["Hospitalized"], state_ts.index)
-
     plot_simulation_range(
         simulation_results, 
-        ["14 July Release", "Adaptive Control"], 
-        historical = state_ts["Hospitalized"].iloc[:-1])\
+        ["20 July Release", "31 July Release", "Adaptive Control Starting 20 July"], 
+        historical = state_ts)\
         .title("Bihar Policy Scenarios: Projected Infections over Time")\
         .xlabel("Date")\
         .ylabel("Number of Infections")\
         .annotate(f"stochastic parameter range: ({si}, {sf}), infectious period: {1/gamma} days, smoothing window: {window}")\
         .show()
-
-    # projections
-    estimates = {district: estimate(district, ts, default = -1) for (district, ts) in district_ts.items()}
-    index = {k: v.last_valid_index() if v is not -1 else v for (k, v) in estimates.items()}
-    projections = []
-    for district, estimate in estimates.items():
-        if estimate is -1:
-            projections.append((district, None, None, None, None))
-        else:
-            idx = index[district]
-            if idx is None or idx is -1:
-                projections.append((district, None, None, None, None))
-            else: 
-                projections.append((district, *project(estimate.loc[idx])))
-    projdf = pd.DataFrame(data = projections, columns = ["district", "current R", "1 week projection", "2 week projection", "stderr"])
-    projdf = projdf.drop(columns = ["2 week projection"])
-    print(projdf)
