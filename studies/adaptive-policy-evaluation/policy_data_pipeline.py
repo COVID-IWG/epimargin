@@ -25,18 +25,18 @@ def plot_rt_interventions(group_name, group, interventions):
     plt.title("Interventions in {}".format(state_name))
     plt.show()
 
-def regression_one():
-    # results = smf.ols('daily_confirmed_cases ~ retail_and_recreation_percent_change_from_baseline + transit_stations_percent_change_from_baseline + \
-    #                 workplaces_percent_change_from_baseline + residential_percent_change_from_baseline', data=full_df.loc['Illinois','Cook County']).fit()
-    # print(results.summary())
+# def regression_one():
+#     # results = smf.ols('daily_confirmed_cases ~ retail_and_recreation_percent_change_from_baseline + transit_stations_percent_change_from_baseline + \
+#     #                 workplaces_percent_change_from_baseline + residential_percent_change_from_baseline', data=full_df.loc['Illinois','Cook County']).fit()
+#     # print(results.summary())
 
-    X = cook_county.iloc[:,2:].values
+#     X = cook_county.iloc[:,2:].values
 
-    X = sm.add_constant(X)
-    X = sm.add_constant(X, has_constant='add')
-    y = cook_county['daily_confirmed_cases'].values
-    res = sm.OLS(y, X).fit()
-    pass
+#     X = sm.add_constant(X)
+#     X = sm.add_constant(X, has_constant='add')
+#     y = cook_county['daily_confirmed_cases'].values
+#     res = sm.OLS(y, X).fit()
+#     pass
 
 if __name__ == "__main__":
 
