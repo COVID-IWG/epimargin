@@ -6,7 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from matplotlib.lines import Line2D
-from etl import load_us_county_data, load_country_google_mobility, load_intervention_data, get_case_timeseries, add_lag_cols, load_metro_areas, load_rt_estimations, fill_dummies, load_county_mask_data, add_mask_dummies
+from etl import *
 from adaptive.utils import cwd, days
 
 def plot_rt_interventions(group_name, group, interventions):
@@ -53,17 +53,18 @@ if __name__ == "__main__":
     county_df = county_df.join(metro_areas.set_index(["state_name", "countyfips"])["cbsa_fips"])
     county_df["intervention_mask_all_public"] = 0
     county_df = county_df.groupby(['state_name','countyfips']).apply(add_mask_dummies, county_mask_policy)
+    county_df = county_df.groupby(["state_name","countyfips"]).apply(add_lag_cols, ["daily_confirmed_cases"])
+    
+    # only include places once their outbreak has started - seems that 10 cases is the threshold used 
+    county_df = filter_start_outbreak(county_df)
 
     county_df.reset_index().to_csv(data/"county_level_policy_evaluation.csv")
 
-    # need some way of only including places once their outbreak has started - what is a good threshold?
-    test_df = county_df.reset_index().groupby(['state_name','countyfips']).apply(lambda x: x[x['date'] >= x['date'][x['daily_confirmed_cases'] >= 50].min()])
-
     # state level
-    state_case_ts = case_timeseries.xs("Statewide Unallocated", level=1)
-    rt_estimations = load_rt_estimations(data/"rt_estimations.csv")
-    state_mobility_ts = county_mobility_ts.groupby(["state_name", "date"]).mean() # need to change this to do it proportional to county population
-    state_metros = load_metro_areas(data/"county_metro_state_walk.csv")
+    # state_case_ts = case_timeseries.xs("Statewide Unallocated", level=1)
+    # rt_estimations = load_rt_estimations(data/"rt_estimations.csv")
+    # state_mobility_ts = county_mobility_ts.groupby(["state_name", "date"]).mean() # need to change this to do it proportional to county population
+    # state_metros = load_metro_areas(data/"county_metro_state_walk.csv")
 
 
     # full_df = county_case_timeseries.join(us_mobility_timeseries)

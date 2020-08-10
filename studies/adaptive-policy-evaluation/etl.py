@@ -149,7 +149,7 @@ county_mask_cols = [
  'state_conditions'
  ]
 
- predictor_cols = ['intervention_>50_gatherings',
+predictor_cols = ['intervention_>50_gatherings',
  'intervention_>500_gatherings',
  'intervention_Federal_guidelines',
  'intervention_entertainment/gym',
@@ -241,8 +241,12 @@ def get_case_timeseries(case_df: pd.DataFrame) -> pd.DataFrame:
     county_cases["daily_confirmed_cases"].fillna(county_cases["cumulative_confirmed_cases"], inplace=True)
     return county_cases["daily_confirmed_cases"]
 
+def filter_start_outbreak(case_df: pd.DataFrame) -> pd.DataFrame:
+    case_df = case_df.reset_index().groupby(['state_name','countyfips']).apply(lambda x: x[x['date'] >= x['date'][x['daily_confirmed_cases'] >= 10].min()])
+    return county_df.iloc[:, 2:].reset_index().set_index(['state_name','countyfips','date']).iloc[:, 1:]
+
 def add_lag_cols(grp: pd.DataFrame, cols: Sequence[str]):
-    for lag in [1, 7, 14]:
+    for lag in [-1, -7, -14]:
         for col in cols:
             grp[col + '_lag_' + str(lag)] = grp[col].shift(lag)
     return grp
