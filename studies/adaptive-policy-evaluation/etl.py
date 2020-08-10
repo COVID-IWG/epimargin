@@ -243,7 +243,7 @@ def get_case_timeseries(case_df: pd.DataFrame) -> pd.DataFrame:
 
 def filter_start_outbreak(case_df: pd.DataFrame) -> pd.DataFrame:
     case_df = case_df.reset_index().groupby(['state_name','countyfips']).apply(lambda x: x[x['date'] >= x['date'][x['daily_confirmed_cases'] >= 10].min()])
-    return county_df.iloc[:, 2:].reset_index().set_index(['state_name','countyfips','date']).iloc[:, 1:]
+    return case_df.iloc[:, 2:].reset_index().set_index(['state_name','countyfips','date']).iloc[:, 1:]
 
 def add_lag_cols(grp: pd.DataFrame, cols: Sequence[str]):
     for lag in [-1, -7, -14]:
