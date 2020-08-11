@@ -37,15 +37,16 @@ def gamma_prior(
         beta:  float = 2.0,                # rate
         CI:    float = 0.95,               # confidence interval 
         infectious_period: int = 5*days,   # inf period = 1/gamma,
-        variance_shift: float = 0.99       # how much to scale variance parameters by when anomaly detected 
+        variance_shift: float = 0.99,      # how much to scale variance parameters by when anomaly detected 
+        totals: bool = True                # are these case totals or daily new cases?
     ):
-    dates = infection_ts.iloc[1:].index
     infection_ts = infection_ts.copy(deep = True)
-    infection_ts[infection_ts < 0] = 0
-    daily_cases_raw = np.diff(infection_ts).clip(min = 0)
-    daily_cases = smoothing(daily_cases_raw)
-
-    total_cases = np.cumsum(daily_cases)
+    dates = infection_ts.iloc[1:].index
+    if totals:
+        daily_cases = np.diff(infection_ts.clip(lower = 0)).clip(min = 0) # infection_ts clipped because COVID19India API does weird stuff
+    else: 
+        daily_cases = infection_ts 
+    total_cases = np.cumsum(smoothing(daily_cases))
 
     v_alpha, v_beta = [], []
 
@@ -93,6 +94,7 @@ def gamma_prior(
             _np = p
             _nr = r 
             flag = 0 # why?
+            counter = 0
             while not (T_lower < new_cases < T_upper):
                 if (flag == 0):
                     anomalies.append(new_cases)
@@ -104,7 +106,13 @@ def gamma_prior(
                 T_upper = nbinom.ppf(CI,   _nr, _np)
                 T_lower = nbinom.ppf(1-CI, _nr, _np)
                 T_lower, T_upper = sorted((T_lower, T_upper))
+                if T_lower == T_upper == 0:
+                    T_upper = 10
                 flag = 1
+
+                counter += 1
+                if counter >= 10000:
+                    raise ValueError("Number of iterations exceeded")
             else:
                 if (flag == 1):
                     alpha = _nr # update distribution on R with new parameters that enclose the anomaly 
