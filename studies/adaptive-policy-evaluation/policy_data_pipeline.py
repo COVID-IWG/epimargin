@@ -58,7 +58,9 @@ if __name__ == "__main__":
     # only include places once their outbreak has started - seems that 10 cases is the threshold used 
     county_df = filter_start_outbreak(county_df)
 
-    county_df.reset_index().to_csv(data/"county_level_policy_evaluation.csv")
+    county_df_top_metros = filter_top_metros(county_df)
+
+    county_df_top_metros.reset_index().to_csv(data/"county_level_policy_evaluation.csv")
 
     # state level
     # state_case_ts = case_timeseries.xs("Statewide Unallocated", level=1)

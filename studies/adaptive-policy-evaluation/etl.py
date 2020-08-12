@@ -245,6 +245,13 @@ def filter_start_outbreak(case_df: pd.DataFrame) -> pd.DataFrame:
     case_df = case_df.reset_index().groupby(['state_name','countyfips']).apply(lambda x: x[x['date'] >= x['date'][x['daily_confirmed_cases'] >= 10].min()])
     return case_df.iloc[:, 2:].reset_index().set_index(['state_name','countyfips','date']).iloc[:, 1:]
 
+def filter_top_metros(case_df: pd.DataFrame, num: Optional[int] = 100) -> pd.DataFrame:
+    metro_areas = case_df.reset_index()[['countyfips','cbsa_fips','population']].drop_duplicates()
+    metro_pops = pd.DataFrame(metro_areas.groupby('cbsa_fips')['population'].sum()).reset_index()
+    metro_pops.sort_values(by='population', ascending=False, inplace=True)
+    top_metros = list(metro_pops.iloc[:100,:]['cbsa_fips'])
+    return case_df[case_df['cbsa_fips'].isin(top_metros)]
+
 def add_lag_cols(grp: pd.DataFrame, cols: Sequence[str]):
     for lag in [-1, -7, -14]:
         for col in cols:
