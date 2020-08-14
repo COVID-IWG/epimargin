@@ -1,7 +1,7 @@
-from distutils.core import setup
+from setuptools import setup, find_packages
 
 setup(
     name='adaptive',
-    version='0.1dev',
-    packages=['adaptive',],
+    version='0.2dev',
+    packages=find_packages(where='.'),
 )

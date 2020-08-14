@@ -1,19 +1,23 @@
-from itertools import product
-from pathlib import Path
-from typing import Dict, Optional, Sequence
-
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from adaptive.estimators import rollingOLS as run_regressions
+from adaptive.estimators import gamma_prior
+from adaptive.etl.covid19india import (download_data, get_time_series,
+                                       load_all_data, replace_district_names)
+from adaptive.etl.devdatalab import district_migration_matrices
 from adaptive.model import Model, ModelUnit, gravity_matrix
 from adaptive.plots import plot_simulation_range
 from adaptive.policy import simulate_adaptive_control, simulate_lockdown
+from adaptive.smoothing import convolution
 from adaptive.utils import cwd, days, weeks
-from adaptive.etl.covid19india import download_data, get_time_series, load_all_data, replace_district_names
-from adaptive.etl.devdatalab import district_migration_matrices
 
+
+def estimate(ts, smoothing):
+    (state_dates, R, *_) = gamma_prior(ts.Hospitalized, smoothing = smoothing)
+    dates = [sd[1] if isinstance(sd, tuple) else sd for sd in state_dates]
+    return pd.DataFrame({"date": dates, "R": R}).set_index("date")
 
 def get_model(districts, populations, timeseries, seed = 0):
     units = [ModelUnit(
@@ -30,8 +34,8 @@ def run_policies(migrations, district_names, populations, district_time_series, 
     lockdown = np.zeros(migrations.shape)
 
     # 1. release lockdown 31 May 
-    release_31_may = get_model(district_names, populations, district_time_series, seed)
-    simulate_lockdown(release_31_may, 
+    release = get_model(district_names, populations, district_time_series, seed)
+    simulate_lockdown(release, 
         lockdown_period = initial_lockdown + 4*weeks, 
         total_time      = total_time, 
         RR0_mandatory   = Rm,              RR0_voluntary = Rv, 
@@ -41,20 +45,22 @@ def run_policies(migrations, district_names, populations, district_time_series, 
     adaptive = get_model(district_names, populations, district_time_series, seed)
     simulate_adaptive_control(adaptive, initial_lockdown, total_time, lockdown, migrations, Rm, {district: R * gamma for (district, R) in Rv.items()}, {district: R * gamma for (district, R) in Rm.items()}, evaluation_period=1*weeks)
 
-    return (release_31_may, adaptive)
+    return (release, adaptive)
 
 if __name__ == "__main__":
     root = cwd()
     data = root/"data"
+    figs = root/"figs"
 
     # model details 
     gamma      = 0.2
     prevalence = 1
     total_time = 90 * days 
-    release_date = pd.to_datetime("May 31, 2020")
+    release_date = pd.to_datetime("July 28, 2020")
     lockdown_period = (release_date - pd.to_datetime("today")).days
+    smoothing = convolution()
 
-    states = ["Maharashtra", "Andhra Pradesh", "Tamil Nadu", "Madhya Pradesh", "Punjab", "Gujarat", "Kerala"]
+    states = ["Maharashtra", "Karnataka", "Andhra Pradesh", "Tamil Nadu", "Madhya Pradesh", "Punjab", "Gujarat", "Kerala"]
     
     # use gravity matrix for states after 2001 census 
     new_state_data_paths = { 
@@ -64,7 +70,9 @@ if __name__ == "__main__":
     # define data versions for api files
     paths = { "v3": ["raw_data1.csv", "raw_data2.csv"],
               "v4": ["raw_data3.csv", "raw_data4.csv",
-                     "raw_data5.csv", "raw_data6.csv"] } 
+                     "raw_data5.csv", "raw_data6.csv",
+                     "raw_data7.csv", "raw_data8.csv",
+                     "raw_data9.csv", "raw_data10.csv", "raw_data11.csv"] } 
 
     # download data from india covid 19 api
     for target in paths['v3'] + paths['v4']:
@@ -77,13 +85,12 @@ if __name__ == "__main__":
     )
     data_recency = str(dfn["date_announced"].max()).split()[0]
     tsn = get_time_series(dfn)
-    grn = run_regressions(tsn, window = 5, infectious_period = 1/gamma)
+    grn = estimate(tsn, smoothing)
 
     # disaggregate down to states
-    tss = get_time_series(dfn, 'detected_state')
-    tss['Hospitalized'] *= prevalence
+    tss = get_time_series(dfn, 'detected_state').loc[states]
 
-    grs = tss.groupby(level=0).apply(lambda x: run_regressions(x, window = 5, infectious_period = 1/gamma) if len(x) > 5 else None)
+    grs = tss.groupby(level=0).apply(lambda ts: estimate(ts, smoothing))
     
     # voluntary and mandatory reproductive numbers
     Rvn = np.mean(grn["2020-03-24":"2020-03-31"].R)
@@ -104,6 +111,7 @@ if __name__ == "__main__":
     # seed range 
     si, sf = 0, 1000
 
+    results = {}
     for state in states: 
         if state in new_state_data_paths.keys():
             districts, populations, migrations = gravity_matrix(*new_state_data_paths[state])
@@ -120,9 +128,8 @@ if __name__ == "__main__":
         districts = list(set(districts).intersection(set(df_state_renamed['detected_district'])))
 
         tsd = get_time_series(df_state_renamed, 'detected_district') 
-        tsd['Hospitalized'] *= prevalence
 
-        grd = tsd.groupby(level=0).apply(lambda x: run_regressions(x.reset_index(level=0, drop=True), window = 5, infectious_period = 1/gamma) if len(x) > 5 else None)
+        grd = tsd.groupby(level=0).apply(lambda ts: estimate(ts, smoothing))
     
         Rv = {district: np.mean(grd.loc[district].loc["2020-03-24":"2020-03-31"].R) if district in grd.index else Rvs[state] for district in districts}
         Rm = {district: np.mean(grd.loc[district].loc["2020-04-01":].R)             if district in grd.index else Rms[state] for district in districts}
@@ -133,23 +140,26 @@ if __name__ == "__main__":
                 if np.isnan(mapping[key]):
                     mapping[key] = default
         
-        projections = []
-        for district in districts:
-            try:
-                estimate = grd.loc[district].loc[grd.loc[district].R.last_valid_index()]
-                projections.append((district, estimate.R, estimate.R + estimate.gradient*7))
-            except KeyError:
-                projections.append((district, np.NaN, np.NaN))
-        pd.DataFrame(projections, columns = ["district", "R", "Rproj"]).to_csv(data/(state + ".csv")) 
+        # projections = []
+        # for district in districts:
+        #     try:
+        #         estimate = grd.loc[district].loc[grd.loc[district].R.last_valid_index()]
+        #         projections.append((district, estimate.R, estimate.R + estimate.gradient*7))
+        #     except KeyError:
+        #         projections.append((district, np.NaN, np.NaN))
+        # pd.DataFrame(projections, columns = ["district", "R", "Rproj"]).to_csv(data/(state + ".csv")) 
 
         simulation_results = [
             run_policies(migrations, districts, populations, tsd, Rm, Rv, gamma, seed, initial_lockdown = lockdown_period, total_time = total_time) 
             for seed in tqdm(range(si, sf))
         ]
 
-        plot_simulation_range(simulation_results, ["31 May Release", "Adaptive Controls"], get_time_series(df_state).Hospitalized)\
-            .title(f"{state} Policy Scenarios: Projected Infections over Time")\
+        results[state] = simulation_results
+
+        plot_simulation_range(simulation_results, ["28 July Release", "Adaptive Controls"], get_time_series(df_state).Hospitalized)\
+            .title(f"{state} Policy Scenarios: Projected Cases over Time")\
             .xlabel("Date")\
-            .ylabel("Number of net new infections")\
-            .annotate(f"stochastic parameter range: ({si}, {sf}), infectious period: {1/gamma} days, smoothing window: {(5, 5, 5)}, data from {data_recency}")\
-            .show()
+            .ylabel("Number of new cases")\
+            .size(11, 8)\
+            .save(figs/f"oped_{state}90.png")
+        plt.clf()
