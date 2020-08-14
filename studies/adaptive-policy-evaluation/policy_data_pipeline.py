@@ -32,18 +32,19 @@ if __name__ == "__main__":
     case_df = load_us_county_data("covid_confirmed_usafacts.csv")
     case_timeseries = get_case_timeseries(case_df)
     
-    us_mobility = load_country_google_mobility("US").rename(columns={"sub_region_1": "state_name", "sub_region_2": "county_name"})
+    us_mobility = load_country_google_mobility("US").rename(columns={"sub_region_1": "state_name", "census_fips_code": "countyfips"})
     interventions = load_intervention_data()
     interventions.columns = [x.replace(" ", "_" ) for x in interventions.columns]
 
     metro_areas = load_metro_areas(data/"county_metro_state_walk.csv").rename(columns={"state_codes": "state", "county_fips": "countyfips"})
     county_populations = load_us_county_data("covid_county_population_usafacts.csv")
+    county_populations = county_populations[county_populations['county_name'] != 'Statewide Unallocated']
 
     # county level
-    county_case_ts = pd.DataFrame(case_timeseries[case_timeseries.index.get_level_values(level=1) != "Statewide Unallocated"])
-    county_mobility_ts = us_mobility[~(us_mobility["county_name"].isna())].set_index(["state_name", "county_name", "date"])
+    county_case_ts = pd.DataFrame(case_timeseries[case_timeseries.index.get_level_values(level=1) != 0])
+    county_mobility_ts = us_mobility[~(us_mobility["countyfips"].isna())].set_index(["state_name", "countyfips", "date"])
 
-    county_df = county_case_ts.join(county_mobility_ts, how="outer").join(county_populations.set_index(['state_name','county_name']), how='left').reset_index().set_index(["state_name", "countyfips", "date"])
+    county_df = county_case_ts.join(county_mobility_ts).join(county_populations.set_index(['state_name','countyfips'])).reset_index().set_index(["state_name", "countyfips", "date"])
     
     county_interventions = interventions[~(interventions.index.get_level_values(0) == interventions.index.get_level_values(1))]
     county_mask_policy = load_county_mask_data(data/"county_mask_policy.csv")
@@ -60,7 +61,7 @@ if __name__ == "__main__":
 
     county_df_top_metros = filter_top_metros(county_df)
 
-    county_df_top_metros.reset_index().to_csv(data/"county_level_policy_evaluation.csv")
+    county_df_top_metros.reset_index().to_csv(data/"county_level_policy_evaluation.csv", index=False)
 
     # state level
     # state_case_ts = case_timeseries.xs("Statewide Unallocated", level=1)

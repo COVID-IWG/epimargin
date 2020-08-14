@@ -70,7 +70,7 @@ colours = [
 
 google_mobility_columns = [
     "sub_region_1",
-    "sub_region_2",
+    "census_fips_code",
     "date",
     "retail_and_recreation_percent_change_from_baseline",
     "grocery_and_pharmacy_percent_change_from_baseline",
@@ -173,9 +173,10 @@ def load_country_google_mobility(country_code: str) -> pd.DataFrame:
     return country_df[google_mobility_columns]
 
 def load_us_county_data(file: str, url: Optional[str] = "https://usafactsstatic.blob.core.windows.net/public/data/covid-19/") -> pd.DataFrame:
-    df = pd.read_csv(url + file)
+    df = pd.read_csv(url + file, dtype={'countyfips': str})
     df.columns = df.columns.str.lower().str.replace(" ", "_")
     df["state_name"] = df["state"].map(state_name_lookup)
+    df["county_name"] = df["county_name"].str.title()
     return df
 
 def load_intervention_data() -> pd.DataFrame:
@@ -209,6 +210,11 @@ def load_metro_areas(data_path: Path) -> pd.DataFrame:
     metro_df.rename(columns={"county_fips": "countyfips"}, inplace=True)
     return metro_df[metro_df["area_type"] == "Metro"][["cbsa_fips", "countyfips", "county_name", "state_codes", "state_name"]]
 
+def get_county_google_mobility(county_mobility_df: pd.DataFrame) -> pd.DataFrame:
+    fips_crosswalk = pd.read_csv('./data/mobility_case_xwalk.csv')
+    
+    county_mobility_df
+
 def fill_dummies(grp, cols):
     for col in cols:
         start_date = grp.index.values[grp[col] == 1]
@@ -233,11 +239,11 @@ def state_level_intervention_data(data_path: Path) -> pd.DataFrame:
     return state_policy_df
 
 def get_case_timeseries(case_df: pd.DataFrame) -> pd.DataFrame:
-    county_cases = pd.DataFrame(case_df.set_index(["state_name", "county_name"]).iloc[:,3:].stack()).rename(columns={0:"cumulative_confirmed_cases"}).reset_index()
+    county_cases = pd.DataFrame(case_df.set_index(["state_name", "countyfips"]).iloc[:,3:].stack()).rename(columns={0:"cumulative_confirmed_cases"}).reset_index()
     county_cases["date"] = pd.to_datetime(county_cases["level_2"],format="%m/%d/%y")
-    county_cases = county_cases.set_index(["state_name", "county_name", "date"]).iloc[:,1:]
+    county_cases = county_cases.set_index(["state_name", "countyfips", "date"]).iloc[:,1:]
     county_cases["cumulative_confirmed_cases"] = pd.to_numeric(county_cases["cumulative_confirmed_cases"])
-    county_cases = county_cases.groupby(["state_name", "county_name"]).apply(add_delta_col)
+    county_cases = county_cases.groupby(["state_name", "countyfips"]).apply(add_delta_col)
     county_cases["daily_confirmed_cases"].fillna(county_cases["cumulative_confirmed_cases"], inplace=True)
     return county_cases["daily_confirmed_cases"]
 
