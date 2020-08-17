@@ -17,3 +17,7 @@ def fmt_params(**kwargs) -> str:
 
 def assume_missing_0(df: pd.DataFrame, col: str):
     return df[col] if col in df.columns else 0
+
+def mkdir(p: Path, exist_ok: bool = True) -> Path:
+    p.mkdir(exist_ok=exist_ok)
+    return p
