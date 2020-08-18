@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
 
 import pandas as pd
+import numpy as np
 
 state_name_lookup = {
     'AK': 'Alaska',
@@ -278,6 +279,31 @@ def add_colours(intervention_df):
         dic[k] = colours[i]
     intervention_df["colour"] = intervention_df["intervention"].map(dic)
     return intervention_df
+
+def poli_aff(data_path: Path) -> pd.DataFrame:
+    vote_df = pd.read_csv(data_path)
+    vote16_df = vote_df[vote_df.year==2016]
+
+    #Format data
+    vote16_df.reset_index(inplace=True, drop=True)
+    vote16_df.drop(columns = ["year", "office", "version"], inplace=True)
+    vote16_df.fillna(value={"party": "other"}, inplace=True)
+    vote16_df["pvote"] = vote16_df.candidatevotes / vote16_df.totalvotes
+
+    #Create pivot table
+    tbl_vote16 = pd.pivot_table(vote16_df, values="pvote", \
+                                index=["state", "state_po", "county", "FIPS"], \
+                                columns="party", aggfunc=np.sum).reset_index()
+
+    tbl_vote16.rename(columns={"FIPS": "countyfips"}, inplace=True)
+
+    #Create indicator variables
+    tbl_vote16["dem_ind"] = tbl_vote16.democrat.apply(lambda x: 0 if x <0.5 else 1)
+    tbl_vote16["rep_ind"] = tbl_vote16.republican.apply(lambda x: 0 if x < 0.5 else 1)
+    tbl_vote16["oth_ind"] = tbl_vote16.other.apply(lambda x: 0 if x < 0.5 else 1)
+
+    return tbl_vote16
+
 
 
 
