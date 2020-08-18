@@ -12,7 +12,7 @@ from statsmodels.regression.linear_model import OLS
 from statsmodels.tools import add_constant
 from tqdm import tqdm
 
-from adaptive.estimators import gamma_prior
+from adaptive.estimators import analytical_MPVS
 from adaptive.etl.covid19india import download_data, state_name_lookup
 from adaptive.plots import plot_RR_est
 from adaptive.smoothing import notched_smoothing
@@ -78,7 +78,8 @@ population = {
 
 def estimate(time_series: pd.Series, CI: float, window: int) -> pd.DataFrame:
     (dates, RR_pred, RR_CI_upper, RR_CI_lower, T_pred, T_CI_upper, T_CI_lower, total_cases, new_cases_ts, anomalies, anomaly_dates) =\
-         gamma_prior(time_series, CI = CI, smoothing = notched_smoothing(window = window), totals=True)
+         analytical_MPVS(time_series, CI = CI, smoothing = notched_smoothing(window = window), totals=True)
+    print([len(_) for _ in (dates, RR_pred, RR_CI_upper, RR_CI_lower, T_pred, T_CI_upper, T_CI_lower, total_cases, new_cases_ts, anomalies, anomaly_dates)])
     return pd.DataFrame(data = {
         "date": dates,
         "Rt": RR_pred,
@@ -104,13 +105,12 @@ with (data/'timeseries.json').open("rb") as fp:
     df = flat_table.normalize(pd.read_json(fp)).fillna(0)
 df.columns = df.columns.str.split('.', expand = True)
 dates = np.squeeze(df["index"][None].values)
-df = df.drop(columns = "index").set_index(dates).stack([1, 2])
+df = df.drop(columns = "index").set_index(dates).stack([1, 2]).drop("UN", axis = 1)
 all_estimates = pd.DataFrame()
 
 geos = sorted(df.columns)
-print(geos)
-# for geography in geos:
-for geography in ["TT"]:
+print("dates, RR_pred, RR_CI_upper, RR_CI_lower, T_pred, T_CI_upper, T_CI_lower, total_cases, new_cases_ts, anomalies, anomaly_dates")
+for geography in ["WB"]: #["DL", "AP", "AS", "CH", "CT", "HP", "MN", "MP", "OR", "PY", "UT", "WB"]:
     print(geography, end=" ")
     try: 
         geo_estimate = estimate(df[geography][:, "total", "confirmed"], CI, window)
@@ -134,23 +134,23 @@ for geography in ["TT"]:
         I  =  T -  D -  R
         dI = dT - dD - dR 
 
-        geo_estimate["cases"]       = dT
-        geo_estimate["total_cases"] =  T
+        geo_estimate["cases"]                = dT
+        geo_estimate["total_cases"]          =  T
+    
+        geo_estimate["recovered"]            = dR
+        geo_estimate["total_recovered"]      =  R
+    
+        geo_estimate["deceased"]             = dD
+        geo_estimate["total_deceased"]       =  D 
+    
+        geo_estimate["tested"]               = dTs
+        geo_estimate["total_tested"]         =  Ts
 
-        geo_estimate["recovered"]       = dR
-        geo_estimate["total_recovered"] =  R
-
-        geo_estimate["deceased"]       = dD
-        geo_estimate["total_deceased"] =  D 
-
-        geo_estimate["tested"]       = dTs
-        geo_estimate["total_tested"] =  Ts
-        
-        geo_estimate["cfr"]       = (dD/dT).clip(min=0)
-        geo_estimate["total_cfr"] =  (D/ T).clip(min=0)
-
-        geo_estimate["active"]       = dI
-        geo_estimate["total_active"] =  I
+        geo_estimate["cfr"]                  = (dD/dT).clip(min=0)
+        geo_estimate["total_cfr"]            =  (D/ T).clip(min=0)
+    
+        geo_estimate["active"]               = dI
+        geo_estimate["total_active"]         =  I
 
         geo_estimate["active_per_mn"]        = dI/population[geography]
         geo_estimate["total_active_per_mn"]  =  I/population[geography]
@@ -166,7 +166,7 @@ for geography in ["TT"]:
     except Exception as e:
         print(f"- failure: {e}")
 
-print(all_estimates.state.unique())
+# print(all_estimates.state.unique())
 # plot_cols = [ "Rt", 
 #     "cases", "total_cases", 
 #     "recovered", "total_recovered", 
@@ -184,4 +184,4 @@ print(all_estimates.state.unique())
 #     plt.title(col, loc="left") 
 # plt.show()
 
-all_estimates.to_csv(data/"aux_metrics.csv")
+# all_estimates.to_csv(data/"aux_metrics.csv")
