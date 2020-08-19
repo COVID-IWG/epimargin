@@ -59,45 +59,15 @@ if __name__ == "__main__":
     # only include places once their outbreak has started - seems that 10 cases is the threshold used 
     county_df = filter_start_outbreak(county_df)
 
+    # filter to top 100 metro areas
     county_df_top_metros = filter_top_metros(county_df)
 
-    county_df_top_metros.reset_index(inplace=True)
+    # political affiliation
+    vote_df = poli_aff(data/"countypres_2000_2016.csv").rename(columns={'state':'state_name'}).set_index(['state_name', 'countyfips'])
+    county_df_top_metros = county_df_top_metros.join(vote_df)
 
-    #political affiliation
-    vote_df = poli_aff("data/countypres_2000_2016.csv")
-    county_df_top_metros = county_df_top_metros.join(vote_df, on="countyfips", how="inner", rsuffix="_vote")
-    county_df_top_metros.drop(columns=['state', 'state_po', 'county', 'countyfips_vote'], inplace=True)
+    # impute missing mobility data
+    county_df_top_metros = impute_missing_mobility(county_df_top_metros)
 
-    #data imputation
-    cols = ["retail_and_recreation_percent_change_from_baseline", "grocery_and_pharmacy_percent_change_from_baseline",\
-           "parks_percent_change_from_baseline", "transit_stations_percent_change_from_baseline", \
-           "workplaces_percent_change_from_baseline", "residential_percent_change_from_baseline"]
-
-    for col in cols:
-        county_df_top_metros[col].interpolate(method="cubic", limit_direction="both", limit_area="inside", inplace=True)
-        county_df_top_metros[col].fillna(method="ffill", inplace=True)
-        county_df_top_metros[col].fillna(method="bfill", inplace=True)
-
-    county_df_top_metros.reset_index().to_csv(data/"county_level_policy_evaluation.csv", index=False)
-
-    # state level
-    # state_case_ts = case_timeseries.xs("Statewide Unallocated", level=1)
-    # rt_estimations = load_rt_estimations(data/"rt_estimations.csv")
-    # state_mobility_ts = county_mobility_ts.groupby(["state_name", "date"]).mean() # need to change this to do it proportional to county population
-    # state_metros = load_metro_areas(data/"county_metro_state_walk.csv")
-
-
-    # full_df = county_case_timeseries.join(us_mobility_timeseries)
-    # full_df.groupby(["state_name", "county_name"]).apply(add_lag_cols)
-
-
-    # interventions = add_colours(interventions)
-    # interventions.reset_index(inplace=True)
-
-    # for state_code, state in rt_estimations.groupby("state"):
-    #     state_name = state_name_lookup[state_code]
-    #     state_interventions = interventions[interventions["county_name"] == state_name]
-    #     plot_cases_interventions(state_name, state.loc[state_code].reset_index(), state_interventions)
-
-
+    county_df_top_metros.to_csv(data/"county_level_policy_evaluation.csv", index=False)
 
