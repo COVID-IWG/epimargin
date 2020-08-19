@@ -210,11 +210,6 @@ def load_metro_areas(data_path: Path) -> pd.DataFrame:
     metro_df.rename(columns={"county_fips": "countyfips"}, inplace=True)
     return metro_df[metro_df["area_type"] == "Metro"][["cbsa_fips", "countyfips", "county_name", "state_codes", "state_name"]]
 
-def get_county_google_mobility(county_mobility_df: pd.DataFrame) -> pd.DataFrame:
-    fips_crosswalk = pd.read_csv('./data/mobility_case_xwalk.csv')
-    
-    county_mobility_df
-
 def fill_dummies(grp, cols):
     for col in cols:
         start_date = grp.index.values[grp[col] == 1]
