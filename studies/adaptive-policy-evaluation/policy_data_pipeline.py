@@ -61,6 +61,23 @@ if __name__ == "__main__":
 
     county_df_top_metros = filter_top_metros(county_df)
 
+    county_df_top_metros.reset_index(inplace=True)
+
+    #political affiliation
+    vote_df = poli_aff("data/countypres_2000_2016.csv")
+    county_df_top_metros = county_df_top_metros.join(vote_df, on="countyfips", how="inner", rsuffix="_vote")
+    county_df_top_metros.drop(columns=['state', 'state_po', 'county', 'countyfips_vote'], inplace=True)
+
+    #data imputation
+    cols = ["retail_and_recreation_percent_change_from_baseline", "grocery_and_pharmacy_percent_change_from_baseline",\
+           "parks_percent_change_from_baseline", "transit_stations_percent_change_from_baseline", \
+           "workplaces_percent_change_from_baseline", "residential_percent_change_from_baseline"]
+
+    for col in cols:
+        county_df_top_metros[col].interpolate(method="cubic", limit_direction="both", limit_area="inside", inplace=True)
+        county_df_top_metros[col].fillna(method="ffill", inplace=True)
+        county_df_top_metros[col].fillna(method="bfill", inplace=True)
+
     county_df_top_metros.reset_index().to_csv(data/"county_level_policy_evaluation.csv", index=False)
 
     # state level
