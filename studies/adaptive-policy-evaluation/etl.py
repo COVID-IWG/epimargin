@@ -262,6 +262,11 @@ def filter_top_metros(case_df: pd.DataFrame, num: Optional[int] = 100) -> pd.Dat
     top_metros = list(metro_pops.iloc[:100,:]['cbsa_fips'])
     return case_df[case_df['cbsa_fips'].isin(top_metros)]
 
+def get_metro_dummies(county_df):
+    metro_dummies = pd.get_dummies(county_df['cbsa_fips'])
+    metro_dummies.columns = ['metro_' + str(x) for x in metro_dummies.columns]
+    return county_df.join(metro_dummies)
+
 def add_lag_cols(grp: pd.DataFrame, cols: Sequence[str]):
     for lag in [-1, -7, -14]:
         for col in cols:
