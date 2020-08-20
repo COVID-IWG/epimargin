@@ -286,6 +286,7 @@ def add_colours(intervention_df):
 def poli_aff(data_path: Path) -> pd.DataFrame:
     vote_df = pd.read_csv(data_path)
     vote16_df = vote_df[vote_df.year==2016]
+    
     # Format data
     vote16_df = vote16_df.reset_index(drop=True).fillna(value={"party": "other"})
     vote16_df.drop(columns = ["year", "office", "version"], inplace=True)
