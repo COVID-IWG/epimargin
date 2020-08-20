@@ -301,9 +301,14 @@ def poli_aff(data_path: Path) -> pd.DataFrame:
 
 def impute_missing_mobility(county_df: pd.DataFrame) -> pd.DataFrame:
     county_df.reset_index(inplace=True)
-    for col in google_cols:
-        county_df[col].interpolate(method="cubic", limit_direction="both", limit_area="inside", inplace=True)
-        county_df[col].fillna(method="ffill", inplace=True)
-        county_df[col].fillna(method="bfill", inplace=True)
+    for county in county_df.county_name.unique():
+        for col in google_cols:
+            try:
+                county_df[county_df.county_name==county, col] = county_df[county_df.county_name==county, col].interpolate(method="cubic", limit_direction="both", limit_area="inside", inplace=True)
+            except:
+                continue
+        #county_df[col].interpolate(method="cubic", limit_direction="both", limit_area="inside", inplace=True)
+        #county_df[col].fillna(method="ffill", inplace=True)
+        #county_df[col].fillna(method="bfill", inplace=True)
     return county_df
 
