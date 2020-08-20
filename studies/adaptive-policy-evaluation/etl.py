@@ -310,7 +310,7 @@ def impute_missing_mobility(county_df: pd.DataFrame) -> pd.DataFrame:
     for county in county_df.county_name.unique():
         for col in google_cols:
             try:
-                county_df[county_df.county_name==county, col] = county_df[county_df.county_name==county, col].interpolate(method="cubic", limit_direction="both", limit_area="inside", inplace=True)
+                county_df.loc[county_df.county_name==county, col] = county_df.loc[county_df.county_name==county, col].interpolate(method="cubic", limit_direction="both", limit_area="inside")
             except:
                 continue
         #county_df[col].interpolate(method="cubic", limit_direction="both", limit_area="inside", inplace=True)
