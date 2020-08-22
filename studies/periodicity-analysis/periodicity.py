@@ -10,7 +10,7 @@ from scipy.signal import blackman, periodogram, spectrogram, stft, welch, iirnot
 from scipy.stats import chi2
 from tqdm import tqdm
 
-from adaptive.estimators import gamma_prior
+from adaptive.estimators import analytical_MPVS
 from adaptive.etl.covid19india import (download_data, get_time_series,
                                        load_statewise_data)
 from adaptive.smoothing import convolution
@@ -94,10 +94,10 @@ for state in tqdm(time_series.index.get_level_values(0).unique()):
 # are anomalies falling on certain days?
 print("checking anomalies...")
 smoothing = 5 
-(*_, anomaly_dates) = gamma_prior(natl_time_series["Hospitalized"].iloc[:-1], CI = 0.95, smoothing = convolution(window = smoothing)) 
+(*_, anomaly_dates) = analytical_MPVS(natl_time_series["Hospitalized"].iloc[:-1], CI = 0.95, smoothing = convolution(window = smoothing)) 
 anomaly_histogram(anomaly_dates, "(All India)", filename=figs/"anomaly_DoW_hist_India.png")
 for state in tqdm(time_series.index.get_level_values(0).unique()):
-    (*_, anomaly_dates) = gamma_prior(time_series.loc[state]["Hospitalized"].iloc[:-1], CI = 0.95, smoothing = convolution(window = smoothing)) 
+    (*_, anomaly_dates) = analytical_MPVS(time_series.loc[state]["Hospitalized"].iloc[:-1], CI = 0.95, smoothing = convolution(window = smoothing)) 
     anomaly_histogram(anomaly_dates, f"({state})", filename=figs/f"anomaly_DoW_hist_{state}.png")
 
 print("estimating spectral densities...")

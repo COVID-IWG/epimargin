@@ -1,3 +1,4 @@
+import logging
 from typing import Callable, Optional, Sequence
 
 import numpy as np
@@ -8,6 +9,7 @@ from statsmodels.regression.rolling import RollingOLS
 
 from .utils import days
 
+logger = logging.getLogger(__name__)
 
 def rollingOLS(totals: pd.DataFrame, window: int = 3, infectious_period: float = 4.5) -> pd.DataFrame:
     # run rolling regressions and get parameters
@@ -29,8 +31,7 @@ def rollingOLS(totals: pd.DataFrame, window: int = 3, infectious_period: float =
 
     return growthrates
 
-# the Gamma distribution is the Bayesian prior and posterior for a Poisson process 
-def gamma_prior(
+def analytical_MPVS(
         infection_ts: pd.DataFrame, 
         smoothing: Callable,
         alpha: float = 3.0,                # shape 
@@ -40,7 +41,8 @@ def gamma_prior(
         variance_shift: float = 0.99,      # how much to scale variance parameters by when anomaly detected 
         totals: bool = True                # are these case totals or daily new cases?
     ):
-    infection_ts = infection_ts.copy(deep = True)
+    """Estimates Rt ~ Gamma(alpha, 1/beta), and implements an analytical expression for a mean-preserving variance increase whenever case counts fall outside the CI defined by a negative binomial distribution"""
+    # infection_ts = infection_ts.copy(deep = True)
     dates = infection_ts.iloc[1:].index
     if totals:
         daily_cases = np.diff(infection_ts.clip(lower = 0)).clip(min = 0) # infection_ts clipped because COVID19India API does weird stuff
@@ -60,8 +62,8 @@ def gamma_prior(
     anomaly_dates = []
 
     for i in range(2, len(total_cases)):
-        new_cases     = total_cases[i]   - total_cases[i-1]
-        old_new_cases = total_cases[i-1] - total_cases[i-2]
+        new_cases     = max(0, total_cases[i]   - total_cases[i-1])
+        old_new_cases = max(0, total_cases[i-1] - total_cases[i-2])
 
         alpha += new_cases
         beta  += old_new_cases
@@ -76,12 +78,16 @@ def gamma_prior(
         RR_CI_lower.append(RR_lower)
 
         if (new_cases == 0 or old_new_cases == 0):
+            if new_cases == 0:
+                logger.debug("new_cases at time %s: 0", i)
+            if old_new_cases == 0:
+                logger.debug("old_new_cases at time %s: 0", i)
             T_pred.append(0)
             T_CI_upper.append(10) # <- where does this come from?
             T_CI_lower.append(0)
             new_cases_ts.append(0)
 
-        if (new_cases > 0 and old_new_cases > 0): # <- why is this the entry condition for the nbinom?
+        if (new_cases > 0 and old_new_cases > 0):
             new_cases_ts.append(new_cases)
 
             r, p = alpha, beta/(old_new_cases + beta)
@@ -93,13 +99,14 @@ def gamma_prior(
 
             _np = p
             _nr = r 
-            flag = 0 # why?
+            anomaly_noted = False
             counter = 0
             while not (T_lower < new_cases < T_upper):
-                if (flag == 0):
+                if not anomaly_noted:
                     anomalies.append(new_cases)
                     anomaly_dates.append(dates[i])
                 
+                # logger.debug("anomaly identified at time %s: %s < %s < %s, r: %s, p: %s, annealing iteration: %s", i, T_lower, new_cases, T_upper, _nr, _np, counter+1)
                 # nnp = 0.95 *_np # <- where does this come from 
                 _nr = variance_shift * _nr * ((1-_np)/(1-variance_shift*_np) )
                 _np = variance_shift * _np 
@@ -107,19 +114,21 @@ def gamma_prior(
                 T_lower = nbinom.ppf(1-CI, _nr, _np)
                 T_lower, T_upper = sorted((T_lower, T_upper))
                 if T_lower == T_upper == 0:
-                    T_upper = 10
-                flag = 1
+                    T_upper = 1
+                    logger.debug("CI collapse, setting T_upper -> 1")
+                anomaly_noted = True
 
                 counter += 1
                 if counter >= 10000:
                     raise ValueError("Number of iterations exceeded")
             else:
-                if (flag == 1):
+                if anomaly_noted:
                     alpha = _nr # update distribution on R with new parameters that enclose the anomaly 
                     beta = _np/(1-_np) * old_new_cases
 
-                    T_upper = nbinom.ppf(CI,   _nr, _np)
-                    T_lower = nbinom.ppf(1-CI, _nr, _np)
+                    T_pred[-1] = nbinom.mean(_nr, _np)
+                    T_CI_lower[-1] = nbinom.ppf(CI,   _nr, _np)
+                    T_CI_upper[-1] = nbinom.ppf(1-CI, _nr, _np)
 
                     # annealing leaves the RR mean unchanged, but we need to adjust its widened CI
                     RR_upper = max(0, 1 + infectious_period * np.log(Gamma.ppf(CI    , a = alpha, scale = 1/beta)))

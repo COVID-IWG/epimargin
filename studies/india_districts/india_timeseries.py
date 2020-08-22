@@ -15,12 +15,12 @@ from tqdm import tqdm
 from adaptive.estimators import analytical_MPVS
 from adaptive.etl.covid19india import download_data, state_name_lookup
 from adaptive.plots import plot_RR_est
-from adaptive.smoothing import notched_smoothing
-from adaptive.utils import cwd, days
+from adaptive.smoothing import notch_filter, notched_smoothing
+from adaptive.utils import days, setup
 
 simplefilter("ignore")
 
-sns.set(palette="bright", style="darkgrid", font="Libre Franklin")                                                                                                                                                                                                                                                
+sns.set(palette="bright", style="darkgrid", font="Libre Franklin")
 sns.despine()
 
 save_columns = [
@@ -76,27 +76,25 @@ population = {
     "TT": 1332.83
 }
 
-def estimate(time_series: pd.Series, CI: float, window: int) -> pd.DataFrame:
-    (dates, RR_pred, RR_CI_upper, RR_CI_lower, T_pred, T_CI_upper, T_CI_lower, total_cases, new_cases_ts, anomalies, anomaly_dates) =\
-         analytical_MPVS(time_series, CI = CI, smoothing = notched_smoothing(window = window), totals=True)
-    print([len(_) for _ in (dates, RR_pred, RR_CI_upper, RR_CI_lower, T_pred, T_CI_upper, T_CI_lower, total_cases, new_cases_ts, anomalies, anomaly_dates)])
+# pipeline details, options
+gamma  = 0.2
+window = 5 * days
+CI     = 0.95
+smooth = notched_smoothing(window)
+start_date = pd.Timestamp(year = 2020, month = 3, day = 1)
+
+def estimate(time_series: pd.Series) -> pd.DataFrame:
+    estimates = analytical_MPVS(time_series, CI = CI, smoothing = smooth, totals=True)
     return pd.DataFrame(data = {
-        "date": dates,
-        "Rt": RR_pred,
-        "Rt_upper": RR_CI_upper,
-        "Rt_lower": RR_CI_lower,
-        "total_cases": total_cases[2:],
-        "new_cases": new_cases_ts,
+        "date": estimates[0],
+        "Rt": estimates[1],
+        "Rt_upper": estimates[2],
+        "Rt_lower": estimates[3],
+        "total_cases": estimates[-4][2:],
+        "new_cases": estimates[-3],
     })
 
-root = cwd()
-data = root/"data"
-
-# model details 
-gamma  = 0.2
-window = 7 * days
-CI     = 0.95
-smooth = notched_smoothing(window=window)
+data, figs = setup()
 
 download_data(data, 'timeseries.json', "https://api.covid19india.org/v3/")
 
@@ -106,29 +104,32 @@ with (data/'timeseries.json').open("rb") as fp:
 df.columns = df.columns.str.split('.', expand = True)
 dates = np.squeeze(df["index"][None].values)
 df = df.drop(columns = "index").set_index(dates).stack([1, 2]).drop("UN", axis = 1)
+
+# drop last 2 days to avoid count drops 
+df = df[(start_date <= df.index.get_level_values(0)) & (df.index.get_level_values(0) <= pd.Timestamp.now().normalize() - pd.Timedelta(days = 2))]
+
 all_estimates = pd.DataFrame()
 
-geos = sorted(df.columns)
-print("dates, RR_pred, RR_CI_upper, RR_CI_lower, T_pred, T_CI_upper, T_CI_lower, total_cases, new_cases_ts, anomalies, anomaly_dates")
-for geography in ["WB"]: #["DL", "AP", "AS", "CH", "CT", "HP", "MN", "MP", "OR", "PY", "UT", "WB"]:
+dfs = {}
+for geography in sorted(df.columns):
     print(geography, end=" ")
     try: 
-        geo_estimate = estimate(df[geography][:, "total", "confirmed"], CI, window)
+        geo_estimate = estimate(df[geography][:, "total", "confirmed"])
         geo_estimate["state"] = geography
 
-        T  = geo_estimate["total_cases"].values
-        dT = geo_estimate["new_cases"].values
+        T  = geo_estimate["total_cases"].values.astype(int)
+        dT = geo_estimate["new_cases"].values.astype(int)
         N  = -len(T)
 
-        D  = smooth(df[geography][:, "total", "deceased"])[N:]
-        dD = smooth(df[geography][:, "delta", "deceased"])[N:]
+        D  = smooth(df[geography][:, "total", "deceased"])[N:].astype(int)
+        dD = smooth(df[geography][:, "delta", "deceased"])[N:].astype(int)
 
-        R  = smooth(df[geography][:, "total", "recovered"])[N:]
-        dR = smooth(df[geography][:, "delta", "recovered"])[N:]
+        R  = smooth(df[geography][:, "total", "recovered"])[N:].astype(int)
+        dR = smooth(df[geography][:, "delta", "recovered"])[N:].astype(int)
 
         # testing rates
-        Ts  = smooth(df[geography][:, "total", "tested"])[N:]
-        dTs = smooth(df[geography][:, "delta", "tested"])[N:]
+        Ts  = smooth(df[geography][:, "total", "tested"])[N:].astype(int)
+        dTs = smooth(df[geography][:, "delta", "tested"])[N:].astype(int)
         
         # active infections
         I  =  T -  D -  R
@@ -146,8 +147,8 @@ for geography in ["WB"]: #["DL", "AP", "AS", "CH", "CT", "HP", "MN", "MP", "OR",
         geo_estimate["tested"]               = dTs
         geo_estimate["total_tested"]         =  Ts
 
-        geo_estimate["cfr"]                  = (dD/dT).clip(min=0)
-        geo_estimate["total_cfr"]            =  (D/ T).clip(min=0)
+        geo_estimate["cfr"]                  = ((dD/dT).clip(min=0))
+        geo_estimate["total_cfr"]            =  ((D/ T).clip(min=0))
     
         geo_estimate["active"]               = dI
         geo_estimate["total_active"]         =  I
@@ -158,15 +159,15 @@ for geography in ["WB"]: #["DL", "AP", "AS", "CH", "CT", "HP", "MN", "MP", "OR",
         geo_estimate["recovery_rate"]        = dR/(population[geography]*1e6) * 100
         geo_estimate["total_recovery_rate"]  =  R/(population[geography]*1e6) * 100
         
-        geo_estimate["infection_rate"]       = (dT/dTs).clip(min=0)
-        geo_estimate["total_infection_rate"] =  (T/ Ts).clip(min=0)
+        geo_estimate["infection_rate"]       = ((dT/dTs).clip(min=0))
+        geo_estimate["total_infection_rate"] =  ((T/ Ts).clip(min=0))
 
         all_estimates = pd.concat([all_estimates, geo_estimate[save_columns]])
+        dfs[geography] = geo_estimate
         print("- success")
-    except Exception as e:
+    except ValueError as e:
         print(f"- failure: {e}")
 
-# print(all_estimates.state.unique())
 # plot_cols = [ "Rt", 
 #     "cases", "total_cases", 
 #     "recovered", "total_recovered", 
@@ -177,11 +178,15 @@ for geography in ["WB"]: #["DL", "AP", "AS", "CH", "CT", "HP", "MN", "MP", "OR",
 #     "infection_rate", "total_infection_rate", 
 #     "recovery_rate", "total_recovery_rate" 
 # ]
-
+# plot_cols = ["cases", "recovered", "deceased", "active", "cfr", "infection_rate", "recovery_rate"]
+# geo = "DL"
+# plot_RR_est(dfs[geo].date, dfs[geo].Rt, dfs[geo].Rt_upper, dfs[geo].Rt_lower, 0.95)\
+#     .title(geo).show()
 # for col in plot_cols[::-1]: 
 #     plt.figure() 
-#     plt.plot(all_estimates[col]) 
+#     plt.plot(dfs[geo][col]) 
 #     plt.title(col, loc="left") 
 # plt.show()
 
-# all_estimates.to_csv(data/"aux_metrics.csv")
+
+all_estimates.to_csv(data/"aux_metrics.csv")
