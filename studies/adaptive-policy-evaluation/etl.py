@@ -175,6 +175,22 @@ google_cols = [
     "residential_percent_change_from_baseline"
 ]
 
+#Added dummy_cols
+dummy_cols = ['intervention_>50 gatherings','intervention_>500 gatherings', 'intervention_Federal guidelines',
+    'intervention_entertainment/gym', 'intervention_foreign travel ban', 'intervention_public schools',
+    'intervention_restaurant dine-in', 'intervention_stay at home']
+
+##Added drop_county
+drop_county = [28163, 47111, 47115, 22037, 51735, 45081, 47129, 21023, 22047, 47153, 47159, 22075, 22077, 47169,
+    47173, 22091, 22093, 21077, 21081, 18013, 48229, 22121, 17005, 22125, 21103, 20079, 17013, 51830, 18047, 17027,
+    19077, 20107, 19085, 16015, 37007, 40081, 20121, 39073, 37029, 16045, 19121, 40113, 40117, 19129, 17083, 37053,
+    18111, 18115, 21191, 16073, 39117, 37073, 39123, 39127, 21215, 20191, 12003, 13033, 13035, 18161, 35057, 36095,
+    55049, 13083, 36123, 13085, 31025, 55093, 51007, 53059, 53065, 8014, 8019, 29013, 51036, 13149, 29025, 51043,
+    8039, 13159, 51053, 8047, 51570, 13171, 29049, 13181, 28029, 49023, 51075, 49029, 13189, 13199, 48015, 51600,
+    28051, 48019, 51097, 51610, 13211, 8093, 51101, 51620, 47015, 51113, 51115, 13227, 51630, 13231, 31155,29107,
+    8119, 51127, 5053, 28093, 27079, 47047,31177, 51145, 51157, 27095, 45017, 28127, 51685, 51175, 28137, 45037, 45039,
+    1007, 5105, 28143, 51183, 22007, 29177]
+
 def load_country_google_mobility(country_code: str) -> pd.DataFrame:
     full_df = pd.read_csv('https://www.gstatic.com/covid19/mobility/Global_Mobility_Report.csv', parse_dates = ["date"])
     country_df = full_df[full_df["country_region_code"] == country_code]
@@ -196,7 +212,12 @@ def load_intervention_data() -> pd.DataFrame:
     interventions["state_name"] = interventions["state"].map(state_name_lookup)
     interventions["date"] = pd.to_datetime(interventions["date"]+ "-2020", format="%d-%b-%Y")
     interventions = interventions.set_index(["state_name", "countyfips", "date"]).iloc[:,1:].sort_index()
-    return pd.get_dummies(interventions)
+    
+    #Adding below code
+    interventions_dummy = pd.get_dummies(interventions).reset_index()
+
+    #return pd.get_dummies(interventions) - commented line
+    return interventions_dummy.groupby(["state_name", "countyfips", "date"])[dummy_cols].sum()
 
 def load_rt_estimations(data_path: Path) -> pd.DataFrame:
     rt_df = pd.read_csv(data_path, parse_dates = ["date"])
@@ -302,14 +323,14 @@ def poli_aff(data_path: Path) -> pd.DataFrame:
 
 def impute_missing_mobility(county_df: pd.DataFrame) -> pd.DataFrame:
     county_df.reset_index(inplace=True)
-    for county in county_df.county_name.unique():
+    #Drop 133 counties - refer data analysis
+    county_remain = county_df[~county_df.countyfips.isin(drop_county)]
+    for county in county_remain.countyfips.unique():
         for col in google_cols:
             try:
-                county_df.loc[county_df.county_name==county, col] = county_df.loc[county_df.county_name==county, col].interpolate(method="cubic", limit_direction="both", limit_area="inside")
+                county_remain.loc[county_remain.countyfips==county, col] = county_remain.loc[county_remain.countyfips==county, col].interpolate(method="cubic", limit_direction="both", limit_area="inside")
             except:
                 continue
-        #county_df[col].interpolate(method="cubic", limit_direction="both", limit_area="inside", inplace=True)
-        #county_df[col].fillna(method="ffill", inplace=True)
-        #county_df[col].fillna(method="bfill", inplace=True)
-    return county_df
+
+    return county_remain
 

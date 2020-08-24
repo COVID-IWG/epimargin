@@ -45,11 +45,12 @@ if __name__ == "__main__":
     county_mobility_ts = us_mobility[~(us_mobility["countyfips"].isna())].set_index(["state_name", "countyfips", "date"])
 
     county_df = county_case_ts.join(county_mobility_ts).join(county_populations.set_index(['state_name','countyfips'])).reset_index().set_index(["state_name", "countyfips", "date"])
-    
+  
     county_interventions = interventions[~(interventions.index.get_level_values(0) == interventions.index.get_level_values(1))]
     county_mask_policy = load_county_mask_data(data/"county_mask_policy.csv")
 
     county_df = county_interventions.join(county_df, how='right').sort_index()
+
     county_df = county_df.groupby(['state_name','countyfips']).apply(fill_dummies, list(county_interventions.columns))
     county_df = county_df.join(metro_areas.set_index(["state_name", "countyfips"])["cbsa_fips"])
     county_df["intervention_mask_all_public"] = 0
@@ -57,7 +58,10 @@ if __name__ == "__main__":
     county_df = county_df.groupby(["state_name","countyfips"]).apply(add_lag_cols, ["daily_confirmed_cases"])
     
     # only include places once their outbreak has started - seems that 10 cases is the threshold used 
-    county_df = filter_start_outbreak(county_df)
+    #county_df = filter_start_outbreak(county_df) - COMMENTED OUT FOR TESTING. UNCOMMENT LATER
+
+    #INCLUDE THIS
+    county_df["threshold_ind"] = county_df["daily_confirmed_cases"].apply(lambda x: 1 if x>10 else 0) 
 
     # filter to top 100 metro areas
     county_df_top_metros = filter_top_metros(county_df)
@@ -67,7 +71,7 @@ if __name__ == "__main__":
     county_df_top_metros = county_df_top_metros.join(vote_df)
 
     # impute missing mobility data
-    county_df_top_metros = impute_missing_mobility(county_df_top_metros)
+    county_df_top_metros_remain = impute_missing_mobility(county_df_top_metros)
 
-    county_df_top_metros.to_csv(data/"county_level_policy_evaluation.csv", index=False)
+    county_df_top_metros_remain.to_csv(data/"county_level_policy_evaluation.csv", index=False)
 
