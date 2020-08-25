@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import pymc3 as pm
 import seaborn as sns
+import theano.tensor as tt
 
 from adaptive.etl.covid19india import *
 from adaptive.smoothing import convolution
@@ -15,36 +16,27 @@ def plot(ts, window = 7):
     plt.plot(smooth(ts.values), color = "orange", linewidth = 1)
     plt.show()
 
-def mcmc_gamma_prior(infection_ts, gamma, chains = 1, tune = 3000, draws = 1000, target_accept = 0.95):
+def linearized_SIR(infection_ts, gamma = 0.2, chains = 1, tune = 1000, draws = 1000, target_accept = 0.8):
     with pm.Model() as model:
+        # lag new case counts
         diff = np.diff(infection_ts).clip(0)
-        delta_I      = diff[2:]
-        delta_I_lag1 = diff[1:-1]
+        dT      = diff[2:]
+        dT_lag1 = diff[1:-1]
 
-        # parameters for gamma distribution (branching parameter)
-        # alpha = pm.Normal("alpha", mu = 3, sigma = 1, observed = delta_I.cumsum())
-        # beta  = pm.Normal("beta",  mu = 2, sigma = 1, observed = delta_I_lag1.cumsum())
-        alpha = delta_I.cumsum()
-        beta  = delta_I_lag1.cumsum()
+        # set up random walk for every time point (adapted from Rt.live)
+        step_size   = pm.HalfNormal('step_size', sigma=.03)
+        theta_raw_0 = pm.Normal('theta_raw_init', 0.1, 0.1)
+        theta_raw   = pm.Normal('theta_raw_steps', shape=len(dT)) * step_size
+        theta = pm.Deterministic('theta', tt.concatenate([[theta_raw_0], theta_raw]).cumsum())
 
-        # parameters for negative binomial (case prediction)
-        # p = pm.Deterministic("p", beta/(delta_I_lag1 + beta))
-        p = beta/(delta_I_lag1 + beta)
-        p[np.isnan(p)] = 0
-
-        # assume infection duration is distributed exponentially (cf. Abbott et al. @ CMMID/LHSTM)
-        duration = pm.Exponential("duration", lam = gamma) 
-        # # b(t) ~ Gamma(alpha, beta)
-        branch_factor = pm.Gamma("branch_factor", alpha = alpha, beta = beta, testval = np.exp(0.9 * gamma))
-        Rt = pm.Deterministic("Rt", 1 + duration * pm.math.log(branch_factor))
-
-        cases = pm.NegativeBinomial("cases", mu = alpha, alpha = p, observed = infection_ts[3:])
-
-        print("checking test point")
-        print(model.check_test_point())
-
-        print("sampling")
-        return pm.sample(chains = chains, tune = tune, draws = draws, target_accept = target_accept)
+        # lambda ~ Gamma(alpha_l, beta_l)
+        # bt     ~ Gamma(alpha_b, beta_b)
+        # Rt     = 1 + ln(b_t)/gamma
+        
+        b_t      = pm.Gamma(alpha = alpha_b, beta = beta_b)
+        lambda_t = pm.Deterministic("lambda_t", b_t * dT_lag1)
+        dT_pred  = pm.Poisson(mu = lambda_t, observed = dT)
+        return (model, pm.sample(chains = chains, tune = tune, draws = draws, target_accept = target_accept))
 
 root = cwd()
 data = root/"data"
@@ -66,4 +58,7 @@ df = load_all_data(
 ts = get_time_series(df)
 
 print("running estimator")
-trace = mcmc_gamma_prior(ts.Hospitalized.values, 0.2)
+(model, trace) = linearized_SIR(ts.Hospitalized.values, 0.2)
+pm.summary(trace)
+pm.traceplot(trace)
+plt.show()
