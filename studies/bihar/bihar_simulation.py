@@ -6,7 +6,7 @@ import pandas as pd
 from tqdm import tqdm
 
 import etl
-from adaptive.estimators import gamma_prior
+from adaptive.estimators import analytical_MPVS
 from adaptive.smoothing import convolution
 from adaptive.model  import Model, ModelUnit
 from adaptive.plots  import gantt_chart, plot_simulation_range
@@ -84,7 +84,7 @@ if __name__ == "__main__":
     R_mandatory = dict()
     for district in district_ts.index.get_level_values(0).unique():
         try: 
-            (_, Rt, *_) = gamma_prior(district_ts.loc[district], CI = CI, smoothing = convolution(window = 5))
+            (_, Rt, *_) = analytical_MPVS(district_ts.loc[district], CI = CI, smoothing = convolution(window = 5))
             Rm = np.mean(Rt)
         except ValueError as v:
             Rm = 1.5

@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from adaptive.estimators import box_filter, gamma_prior
+from adaptive.estimators import box_filter, analytical_MPVS
 from adaptive.plots import plot_RR_est, plot_T_anomalies
 from adaptive.utils import cwd
 from etl import download_data, get_time_series, load_all_data
@@ -27,7 +27,7 @@ for state in states:
         T_pred, T_CI_upper, T_CI_lower,
         total_cases, new_cases_ts,
         anomalies, anomaly_dates
-    ) = gamma_prior(kaggle[kaggle["State/UnionTerritory"] == state].Confirmed, CI = CI, smoothing = lambda ts: box_filter(ts, smoothing, 3))
+    ) = analytical_MPVS(kaggle[kaggle["State/UnionTerritory"] == state].Confirmed, CI = CI, smoothing = lambda ts: box_filter(ts, smoothing, 3))
 
     estimates = pd.DataFrame(data = {
         "dates": dates,

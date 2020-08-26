@@ -10,7 +10,7 @@ from statsmodels.tools import add_constant
 from tqdm import tqdm
 
 import etl
-from adaptive.estimators import gamma_prior
+from adaptive.estimators import analytical_MPVS
 from adaptive.etl.covid19india import (data_path, download_data,
                                        get_time_series, load_all_data)
 from adaptive.model import Model, ModelUnit
@@ -50,7 +50,7 @@ populations = dict(zip(district_names, population_counts))
     T_pred, T_CI_upper, T_CI_lower,
     total_cases, new_cases_ts,
     anomalies, anomaly_dates
-) = gamma_prior(state_ts, CI = CI, smoothing = convolution(window = smoothing)) 
+) = analytical_MPVS(state_ts, CI = CI, smoothing = convolution(window = smoothing)) 
 
 plot_RR_est(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin=0, ymax=4)\
     .title("Bihar: Reproductive Number Estimate Comparisons")\
@@ -77,7 +77,7 @@ district_names, population_counts, _ = etl.district_migration_matrix(data/"Migra
 populations = dict(zip(district_names, population_counts))
 
 # first, look at state level predictions
-(dates_public, RR_pred_public, RR_CI_upper_public, RR_CI_lower_public, T_pred_public, T_CI_upper_public, T_CI_lower_public, total_cases_public, new_cases_ts_public, anomalies_public, anomaly_dates_public) = gamma_prior(state_ts.Hospitalized, CI = CI, smoothing = convolution(window = smoothing)) 
+(dates_public, RR_pred_public, RR_CI_upper_public, RR_CI_lower_public, T_pred_public, T_CI_upper_public, T_CI_lower_public, total_cases_public, new_cases_ts_public, anomalies_public, anomaly_dates_public) = analytical_MPVS(state_ts.Hospitalized, CI = CI, smoothing = convolution(window = smoothing)) 
 plt.plot(dates_public, RR_pred_public, label = "Estimated $R_t$", color = "midnightblue")
 plt.fill_between(dates_public, RR_CI_lower_public, RR_CI_upper_public, label = f"{100*CI}% CI", color = "midnightblue", alpha = 0.3)
 plt.legend(["private data estimate", "public data estimate"])
@@ -111,7 +111,7 @@ plt.show()
 #     for district in districts:
 #         districts.set_description(f"{district :<{max_len}}")
 #         try: 
-#             (dates, RR_pred, RR_CI_upper, RR_CI_lower, *_) = gamma_prior(district_time_series.loc[district], CI = CI, smoothing = convolution(window = smoothing))
+#             (dates, RR_pred, RR_CI_upper, RR_CI_lower, *_) = analytical_MPVS(district_time_series.loc[district], CI = CI, smoothing = convolution(window = smoothing))
 #             estimates.append((district, RR_pred[-1], RR_CI_lower[-1], RR_CI_upper[-1], project(dates, RR_pred, smoothing))) 
 #         except (IndexError, ValueError): 
 #             estimates.append((district, np.nan, np.nan, np.nan, np.nan))

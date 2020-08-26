@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from adaptive.estimators import gamma_prior
+from adaptive.estimators import analytical_MPVS
 from adaptive.etl.covid19india import (data_path, download_data,
                                        get_time_series, load_all_data)
 from adaptive.plots import plot_RR_est, plot_T_anomalies
@@ -48,7 +48,7 @@ for state in states:
         T_pred, T_CI_upper, T_CI_lower,
         total_cases, new_cases_ts,
         anomalies, anomaly_dates
-    ) = gamma_prior(ts.loc[state].Hospitalized, CI = CI, smoothing = notched_smoothing(window = smoothing))
+    ) = analytical_MPVS(ts.loc[state].Hospitalized, CI = CI, smoothing = notched_smoothing(window = smoothing))
     estimates = pd.DataFrame(data = {
         "dates": dates,
         "RR_pred": RR_pred,
