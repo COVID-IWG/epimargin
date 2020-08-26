@@ -175,12 +175,18 @@ google_cols = [
     "residential_percent_change_from_baseline"
 ]
 
-#Added dummy_cols
-dummy_cols = ['intervention_>50 gatherings','intervention_>500 gatherings', 'intervention_Federal guidelines',
-    'intervention_entertainment/gym', 'intervention_foreign travel ban', 'intervention_public schools',
-    'intervention_restaurant dine-in', 'intervention_stay at home']
+# Added dummy_cols
+dummy_cols = [
+    'intervention_>50_gatherings',
+    'intervention_>500_gatherings', 
+    'intervention_Federal_guidelines',
+    'intervention_entertainment/gym', 
+    'intervention_foreign_travel_ban', 
+    'intervention_public_schools',
+    'intervention_restaurant_dine-in', 
+    'intervention_stay_at_home']
 
-##Added drop_county
+# Added drop_county
 drop_county = [28163, 47111, 47115, 22037, 51735, 45081, 47129, 21023, 22047, 47153, 47159, 22075, 22077, 47169,
     47173, 22091, 22093, 21077, 21081, 18013, 48229, 22121, 17005, 22125, 21103, 20079, 17013, 51830, 18047, 17027,
     19077, 20107, 19085, 16015, 37007, 40081, 20121, 39073, 37029, 16045, 19121, 40113, 40117, 19129, 17083, 37053,
@@ -211,12 +217,8 @@ def load_intervention_data() -> pd.DataFrame:
     interventions = pd.DataFrame(interventions.set_index(["state", "countyfips"]).iloc[:, 1:].stack(), columns=["date"]).reset_index().rename(columns={"level_2": "intervention"})    
     interventions["state_name"] = interventions["state"].map(state_name_lookup)
     interventions["date"] = pd.to_datetime(interventions["date"]+ "-2020", format="%d-%b-%Y")
-    interventions = interventions.set_index(["state_name", "countyfips", "date"]).iloc[:,1:].sort_index()
-    
-    #Adding below code
-    interventions_dummy = pd.get_dummies(interventions).reset_index()
-
-    #return pd.get_dummies(interventions) - commented line
+    interventions_dummy = pd.get_dummies(interventions.set_index(["state_name", "countyfips", "date"]).iloc[:,1:].sort_index()).reset_index()
+    interventions_dummy.columns = [x.replace(" ", "_" ) for x in interventions_dummy.columns]
     return interventions_dummy.groupby(["state_name", "countyfips", "date"])[dummy_cols].sum()
 
 def load_rt_estimations(data_path: Path) -> pd.DataFrame:
@@ -272,9 +274,17 @@ def get_case_timeseries(case_df: pd.DataFrame) -> pd.DataFrame:
     county_cases["daily_confirmed_cases"].fillna(county_cases["cumulative_confirmed_cases"], inplace=True)
     return county_cases["daily_confirmed_cases"]
 
-def filter_start_outbreak(case_df: pd.DataFrame) -> pd.DataFrame:
-    case_df = case_df.reset_index().groupby(['state_name','countyfips']).apply(lambda x: x[x['date'] >= x['date'][x['daily_confirmed_cases'] >= 10].min()])
-    return case_df.iloc[:, 2:].reset_index().set_index(['state_name','countyfips','date']).iloc[:, 1:]
+def start_outbreak_dummy(case_df: pd.DataFrame) -> pd.DataFrame:
+    start_dates = case_df.reset_index().groupby(['state_name','countyfips']).apply(lambda x: x['date'][x['daily_confirmed_cases'] >= 10].min())
+    case_df = case_df.join(pd.DataFrame(start_dates, columns=['outbreak_start']))
+    return case_df.groupby(['state_name', 'countyfips']).apply(fill_outbreak_dummy)
+
+def fill_outbreak_dummy(grp):
+    start_date = grp['outbreak_start'].unique()
+    grp['threshold_ind'] = 0
+    if not start_date.size == 0:
+        grp.loc[(grp.index.get_level_values(level='date') >= start_date[0]), 'threshold_ind'] = 1
+    return grp
 
 def filter_top_metros(case_df: pd.DataFrame, num: Optional[int] = 100) -> pd.DataFrame:
     metro_areas = case_df.reset_index()[['countyfips','cbsa_fips','population']].drop_duplicates()
@@ -312,7 +322,6 @@ def add_colours(intervention_df):
 def poli_aff(data_path: Path) -> pd.DataFrame:
     vote_df = pd.read_csv(data_path)
     vote16_df = vote_df[vote_df.year==2016]
-    
     # Format data
     vote16_df = vote16_df.reset_index(drop=True).fillna(value={"party": "other"})
     vote16_df.drop(columns = ["year", "office", "version"], inplace=True)
@@ -336,6 +345,5 @@ def impute_missing_mobility(county_df: pd.DataFrame) -> pd.DataFrame:
                 county_remain.loc[county_remain.countyfips==county, col] = county_remain.loc[county_remain.countyfips==county, col].interpolate(method="cubic", limit_direction="both", limit_area="inside")
             except:
                 continue
-
     return county_remain
 

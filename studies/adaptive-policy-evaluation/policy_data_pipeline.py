@@ -34,7 +34,6 @@ if __name__ == "__main__":
     
     us_mobility = load_country_google_mobility("US").rename(columns={"sub_region_1": "state_name", "census_fips_code": "countyfips"})
     interventions = load_intervention_data()
-    interventions.columns = [x.replace(" ", "_" ) for x in interventions.columns]
 
     metro_areas = load_metro_areas(data/"county_metro_state_walk.csv").rename(columns={"state_codes": "state", "county_fips": "countyfips"})
     county_populations = load_us_county_data("covid_county_population_usafacts.csv")
@@ -57,11 +56,8 @@ if __name__ == "__main__":
     county_df = county_df.groupby(['state_name','countyfips']).apply(add_mask_dummies, county_mask_policy)
     county_df = county_df.groupby(["state_name","countyfips"]).apply(add_lag_cols, ["daily_confirmed_cases"])
     
-    # only include places once their outbreak has started - seems that 10 cases is the threshold used 
-    #county_df = filter_start_outbreak(county_df) - COMMENTED OUT FOR TESTING. UNCOMMENT LATER
-
-    #INCLUDE THIS
-    county_df["threshold_ind"] = county_df["daily_confirmed_cases"].apply(lambda x: 1 if x>10 else 0) 
+    # add dummy to only include places once their outbreak has started - seems that 10 cases is the threshold used 
+    county_df = start_outbreak_dummy(county_df)
 
     # filter to top 100 metro areas
     county_df_top_metros = filter_top_metros(county_df)
