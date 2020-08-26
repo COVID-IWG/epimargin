@@ -10,7 +10,7 @@ from statsmodels.regression.linear_model import OLS
 from statsmodels.tools import add_constant
 
 import etl
-from adaptive.estimators import gamma_prior
+from adaptive.estimators import analytical_MPVS
 from adaptive.model import Model, ModelUnit
 from adaptive.plots import PlotDevice, plot_RR_est, plot_T_anomalies
 from adaptive.smoothing import convolution
@@ -47,7 +47,7 @@ populations = dict(zip(district_names, population_counts))
     T_pred, T_CI_upper, T_CI_lower,
     total_cases, new_cases_ts,
     anomalies, anomaly_dates
-) = gamma_prior(state_ts, CI = CI, smoothing = convolution(window = smoothing)) 
+) = analytical_MPVS(state_ts, CI = CI, smoothing = convolution(window = smoothing)) 
 
 plot_RR_est(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin=0, ymax=4)\
     .title("Bihar: Reproductive Number Estimate")\
@@ -83,7 +83,7 @@ with tqdm([etl.replacements.get(dn, dn) for dn in district_names]) as districts:
     for district in districts:
         districts.set_description(f"{district :<{max_len}}")
         try: 
-            (dates, RR_pred, RR_CI_upper, RR_CI_lower, *_) = gamma_prior(district_time_series.loc[district], CI = CI, smoothing = convolution(window = smoothing))
+            (dates, RR_pred, RR_CI_upper, RR_CI_lower, *_) = analytical_MPVS(district_time_series.loc[district], CI = CI, smoothing = convolution(window = smoothing))
             estimates.append((district, RR_pred[-1], RR_CI_lower[-1], RR_CI_upper[-1], project(dates, RR_pred, smoothing))) 
         except (IndexError, ValueError): 
             estimates.append((district, np.nan, np.nan, np.nan, np.nan))

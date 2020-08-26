@@ -3,7 +3,7 @@ import warnings
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from adaptive.estimators import box_filter, gamma_prior
+from adaptive.estimators import box_filter, analytical_MPVS
 from adaptive.plots import plot_RR_est, plot_T_anomalies
 
 warnings.filterwarnings("ignore")
@@ -24,7 +24,7 @@ obs_cases = pd.read_table("./obs_cases.txt", dtype="float", squeeze=True)
     T_pred, T_CI_upper, T_CI_lower,
     total_cases, new_cases_ts,
     anomalies, anomaly_dates
-) = gamma_prior(obs_cases, CI = CI, alpha = alpha, beta = beta, variance_shift = vs, smoothing = lambda ts: box_filter(ts, smoothing, smoothing//2))
+) = analytical_MPVS(obs_cases, CI = CI, alpha = alpha, beta = beta, variance_shift = vs, smoothing = lambda ts: box_filter(ts, smoothing, smoothing//2))
 
 print("Rt today:", RR_pred[-1])
 print("a, b, vs, MSE:", alpha, beta, vs, ((true_Rt.loc[len(true_Rt) - len(RR_pred):] - RR_pred)**2).sum())
