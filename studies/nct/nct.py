@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from adaptive.estimators import gamma_prior
+from adaptive.estimators import analytical_MPVS
 from adaptive.smoothing import convolution
 from adaptive.etl.covid19india import (data_path, download_data,
                                        get_time_series, load_all_data)
@@ -48,8 +48,8 @@ if __name__ == "__main__":
         T_pred, T_CI_upper, T_CI_lower,
         total_cases, new_cases_ts,
         anomalies, anomaly_dates
-    ) = gamma_prior(ts.delta[ts.delta > 0], CI = CI, smoothing = convolution(window = smoothing)) 
-    #= gamma_prior(ts.Hospitalized[ts.Hospitalized > 0], CI = CI, smoothing = lambda ts: box_filter(ts, smoothing, 10))
+    ) = analytical_MPVS(ts.delta[ts.delta > 0], CI = CI, smoothing = convolution(window = smoothing)) 
+    #= analytical_MPVS(ts.Hospitalized[ts.Hospitalized > 0], CI = CI, smoothing = lambda ts: box_filter(ts, smoothing, 10))
 
     np.random.seed(33)
     delhi = Model([ModelUnit("Delhi", 18_000_000, I0 = T_pred[-1], RR0 = RR_pred[-1], mobility = 0)])

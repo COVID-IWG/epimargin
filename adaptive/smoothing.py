@@ -26,6 +26,17 @@ def notched_smoothing(window: int = 7):
         return convolve(np.concatenate([notched, notched[:-window-1:-1]]), kernel, mode="same")[:-window]
     return smooth
 
+def notch_filter():
+    fs, f0, Q = 1, 1/7, 1
+    b1, a1 = iirnotch(f0, Q, fs)
+    b2, a2 = iirnotch(2*f0, 2*Q, fs)
+    # Frequency response
+    b = convolve(b1, b2)
+    a = convolve(a1, a2)
+    def filter_(data: Sequence[float]):
+        return filtfilt(b, a, data)
+    return filter_
+
 def convolution(key: str = "hamming",  window: int = 7):
     kernel = kernels[key](window)
     def smooth(data: Sequence[float]):

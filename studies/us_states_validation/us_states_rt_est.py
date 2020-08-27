@@ -4,7 +4,7 @@ from tqdm import tqdm
 from io import StringIO
 
 from adaptive.utils import cwd
-from adaptive.estimators import gamma_prior
+from adaptive.estimators import analytical_MPVS
 from adaptive.smoothing import convolution
 
 from etl import import_and_clean_cases
@@ -29,7 +29,7 @@ def run_adaptive_model(df:pd.DataFrame, CI:float,
                        smoothing:Callable, filepath:Path) -> None:
     '''
     Runs adaptive control model of Rt and smoothed case counts based on what is currently in the 
-    gamma_prior module. Takes in dataframe of cases and saves to csv a dataframe of results.
+    analytical_MPVS module. Takes in dataframe of cases and saves to csv a dataframe of results.
     '''
     # Initialize results df
     res_full = pd.DataFrame()
@@ -45,7 +45,7 @@ def run_adaptive_model(df:pd.DataFrame, CI:float,
         T_pred, T_CI_upper, T_CI_lower,
         total_cases, new_cases_ts,
         _, anomaly_dates
-        ) = gamma_prior(state_df[state_df['positive'] > 0]['positive'], 
+        ) = analytical_MPVS(state_df[state_df['positive'] > 0]['positive'], 
                         CI=CI, smoothing=smoothing)
         assert(len(dates) == len(RR_pred))
         

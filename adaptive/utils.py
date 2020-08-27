@@ -1,5 +1,8 @@
+import argparse
 import sys
 from pathlib import Path
+from typing import Optional, Tuple
+import logging
 
 import pandas as pd
 
@@ -20,4 +23,19 @@ def assume_missing_0(df: pd.DataFrame, col: str):
 
 def mkdir(p: Path, exist_ok: bool = True) -> Path:
     p.mkdir(exist_ok=exist_ok)
+<<<<<<< HEAD
     return p
+=======
+    return p
+
+def setup(**kwargs) -> Tuple[Path]:
+    root = cwd()
+    if len(sys.argv) > 2:
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--level", type=str)
+        flags = parser.parse_args()
+        kwargs["level"] = flags.level
+    logging.basicConfig(**kwargs)
+    logging.getLogger('flat_table').addFilter(lambda _: 0)
+    return (mkdir(root/"data"), mkdir(root/"figs"))
+>>>>>>> master
