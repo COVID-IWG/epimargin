@@ -21,17 +21,19 @@ class PlotDevice():
         self.figure = fig if fig else plt.gcf()
         
     def xlabel(self, xl: str, **kwargs):
-        kwargs["fontdict"] = kwargs.get("fontdict", {"size": 20, "family": "Libre Franklin", "fontweight": "500"})
+        kwargs["fontdict"] = kwargs.get("fontdict", {"size": 20, "family": "Helvetica Neue", "fontweight": "500"})
         plt.xlabel(xl, **kwargs)
+        plt.gca().xaxis.label.set_color("dimgray")
         return self 
 
     def ylabel(self, yl: str, **kwargs):
-        kwargs["fontdict"] = kwargs.get("fontdict", {"size": 20, "family": "Libre Franklin", "fontweight": "500"})
+        kwargs["fontdict"] = kwargs.get("fontdict", {"size": 20, "family": "Helvetica Neue", "fontweight": "500"})
         plt.ylabel(yl, **kwargs)
+        plt.gca().yaxis.label.set_color("dimgray")
         return self 
 
     def title(self, text: str, **kwargs):
-        kwargs["fontdict"] = kwargs.get("fontdict", {"size": 20, "family": "Libre Franklin", "fontweight": "500"})
+        kwargs["fontdict"] = kwargs.get("fontdict", {"size": 20, "family": "Helvetica Neue", "fontweight": "500"})
         kwargs["loc"]      = kwargs.get("loc", "left")
         plt.title(text, **kwargs)
         return self 
@@ -48,8 +50,7 @@ class PlotDevice():
         return self
 
     def save(self, filename: Path, **kwargs):
-        if "transparent" not in kwargs.keys():
-            kwargs["transparent"] = str(filename).endswith("svg")
+        kwargs["transparent"] = kwargs.get("transparent", str(filename).endswith("svg"))
         plt.savefig(filename, **kwargs)
         return self 
 
