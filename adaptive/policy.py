@@ -165,14 +165,16 @@ def simulate_PID_controller(
     integral   = 0
     derivative = 0
     u = 0
-    prev_error = model.RR0[0]
+    prev_error = model[0].RR[-1]
+
+    z = np.zeros((len(model), len(model)))
 
     # run forward model 
     for i in range(total_time - initial_run):
-        model.run(1)
-        model.RR[i] -= u 
+        model[0].RR0 -= u 
+        model.run(1, z)
 
-        error = model.RR[i] - Rtarget
+        error = model[0].RR[-1] - Rtarget
         integral  += error * Dt 
         derivative = (error - prev_error)/Dt
 

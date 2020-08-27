@@ -14,6 +14,12 @@ from .model import Model
 sns.set(style = "whitegrid", palette = "bright", font = "Inconsolata")
 sns.despine()
 
+title_font = {"size": 28, "family": "Helvetica Neue", "fontweight": "500"}
+label_font = {"size": 20, "family": "Helvetica Neue", "fontweight": "500"}
+note_font  = {"size": 14, "family": "Helvetica Neue", "fontweight": "500"}
+
+params = {'mathtext.default': 'regular' }          
+plt.rcParams.update(params)
 
 # simple wrapper over plt to help chain commands
 class PlotDevice():
@@ -21,28 +27,30 @@ class PlotDevice():
         self.figure = fig if fig else plt.gcf()
         
     def xlabel(self, xl: str, **kwargs):
-        kwargs["fontdict"] = kwargs.get("fontdict", {"size": 20, "family": "Helvetica Neue", "fontweight": "500"})
+        kwargs["fontdict"] = kwargs.get("fontdict", label_font)
         plt.xlabel(xl, **kwargs)
         plt.gca().xaxis.label.set_color("dimgray")
         return self 
 
     def ylabel(self, yl: str, **kwargs):
-        kwargs["fontdict"] = kwargs.get("fontdict", {"size": 20, "family": "Helvetica Neue", "fontweight": "500"})
+        kwargs["fontdict"] = kwargs.get("fontdict", label_font)
         plt.ylabel(yl, **kwargs)
         plt.gca().yaxis.label.set_color("dimgray")
         return self 
 
     def title(self, text: str, **kwargs):
-        kwargs["fontdict"] = kwargs.get("fontdict", {"size": 20, "family": "Helvetica Neue", "fontweight": "500"})
-        kwargs["loc"]      = kwargs.get("loc", "left")
-        plt.title(text, **kwargs)
+        kwargs["x"]  = kwargs.get("x", plt.gca().get_position().bounds[0])
+        kwargs["ha"] = kwargs.get("ha", "left")
+        kwargs["va"] = kwargs.get("va", "top")
+        kwargs["fontsize"] = kwargs.get("fontsize", title_font["size"])
+        kwargs["fontdict"] = kwargs.get("fontdict", title_font)
+        plt.suptitle(text, **kwargs)
         return self 
     
-    def annotate(self, note: str, **kwargs):
-        kwargs["xy"] = kwargs.get("xy", (0.05, 0.05))
-        kwargs["xycoords"] = kwargs.get("xycoords", "figure fraction")
-        kwargs["size"] = kwargs.get("size", 8)
-        plt.annotate(note, **kwargs)
+    def annotate(self, text: str, **kwargs):
+        kwargs["fontdict"] = kwargs.get("fontdict", note_font)
+        kwargs["loc"] = kwargs.get("loc", "left")
+        plt.title(text, **kwargs)
         return self
     
     def size(self, w, h):
