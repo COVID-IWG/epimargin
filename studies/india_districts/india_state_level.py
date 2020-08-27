@@ -11,8 +11,9 @@ from statsmodels.tools import add_constant
 from tqdm import tqdm
 
 from adaptive.estimators import analytical_MPVS
-from adaptive.etl.covid19india import (download_data, get_time_series,
-                                       load_statewise_data, state_name_lookup)
+from adaptive.etl.commons import download_data
+from adaptive.etl.covid19india import (get_time_series, load_statewise_data,
+                                       state_name_lookup)
 from adaptive.plots import plot_RR_est
 from adaptive.smoothing import convolution
 from adaptive.utils import cwd, days

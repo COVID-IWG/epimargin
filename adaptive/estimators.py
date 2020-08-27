@@ -45,10 +45,11 @@ def analytical_MPVS(
     # infection_ts = infection_ts.copy(deep = True)
     dates = infection_ts.iloc[1:].index
     if totals:
-        daily_cases = np.diff(infection_ts.clip(lower = 0)).clip(min = 0) # infection_ts clipped because COVID19India API does weird stuff
+        # daily_cases = np.diff(infection_ts.clip(lower = 0)).clip(min = 0) # infection_ts clipped because COVID19India API does weird stuff
+        daily_cases = infection_ts.clip(lower = 0).diff().clip(lower = 0).iloc[1:]
     else: 
         daily_cases = infection_ts 
-    total_cases = np.cumsum(smoothing(daily_cases))
+    total_cases = np.cumsum(smoothing(np.squeeze(daily_cases)))
 
     v_alpha, v_beta = [], []
 

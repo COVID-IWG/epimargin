@@ -6,15 +6,17 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from scipy.fft import fft, ifft
-from scipy.signal import blackman, periodogram, spectrogram, stft, welch, iirnotch, freqz, convolve, filtfilt
+from scipy.signal import (blackman, convolve, filtfilt, freqz, iirnotch,
+                          periodogram, spectrogram, stft, welch)
 from scipy.stats import chi2
 from tqdm import tqdm
 
 from adaptive.estimators import analytical_MPVS
-from adaptive.etl.covid19india import (download_data, get_time_series,
-                                       load_statewise_data)
+from adaptive.etl.commons import download_data
+from adaptive.etl.covid19india import get_time_series, load_statewise_data
 from adaptive.smoothing import convolution
-from adaptive.utils import cwd, weeks as week
+from adaptive.utils import cwd
+from adaptive.utils import weeks as week
 
 simplefilter("ignore")
 sns.set(palette="bright", font="Inconsolata")
