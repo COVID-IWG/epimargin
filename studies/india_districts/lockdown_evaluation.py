@@ -4,8 +4,9 @@ import pandas as pd
 from tqdm import tqdm
 
 from adaptive.estimators import analytical_MPVS
-from adaptive.etl.covid19india import (download_data, get_time_series,
-                                       load_all_data, replace_district_names)
+from adaptive.etl.commons import download_data
+from adaptive.etl.covid19india import (get_time_series, load_all_data,
+                                       replace_district_names)
 from adaptive.etl.devdatalab import district_migration_matrices
 from adaptive.model import Model, ModelUnit, gravity_matrix
 from adaptive.plots import plot_simulation_range

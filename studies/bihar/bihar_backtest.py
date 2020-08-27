@@ -11,8 +11,8 @@ from tqdm import tqdm
 
 import etl
 from adaptive.estimators import analytical_MPVS
-from adaptive.etl.covid19india import (data_path, download_data,
-                                       get_time_series, load_all_data)
+from adaptive.etl.commons import download_data
+from adaptive.etl.covid19india import data_path, get_time_series, load_all_data
 from adaptive.model import Model, ModelUnit
 from adaptive.plots import PlotDevice, plot_RR_est, plot_T_anomalies
 from adaptive.smoothing import convolution

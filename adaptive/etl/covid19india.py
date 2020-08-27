@@ -260,12 +260,6 @@ state_name_lookup = {
 def data_path(i: int):
     return f"raw_data{i}.csv"
 
-def download_data(data_path: Path, filename: str, base_url: str = 'https://api.covid19india.org/csv/latest/'):
-    url = base_url + filename
-    response = requests.get(url)
-    with (data_path/filename).open('wb') as dst:
-        dst.write(response.content)
-
 def standardize_column_headers(df: pd.DataFrame):
     df.columns = df.columns.str.lower().str.strip().str.replace(" ","_").str.replace('[^a-zA-Z0-9_]', '')
 
