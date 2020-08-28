@@ -64,12 +64,6 @@ state_name_lookup = {
     'WY': 'Wyoming'
 }
 
-colours = [
-    "darkorange", "tomato", "olivedrab", 
-    "forestgreen", "lightseagreen", "deepskyblue",
-    "mediumpurple", "darkmagenta"
-    ]
-
 google_mobility_columns = [
     "sub_region_1",
     "census_fips_code",
@@ -82,63 +76,6 @@ google_mobility_columns = [
     "residential_percent_change_from_baseline"
  ]
 
-state_interventions_info = {
- 'STATE': 'State',
- 'POSTCODE': 'State Abbreviation',
- 'STEMERG': 'State of emergency',
- 'CLSCHOOL': 'Date closed K-12 schools',
- 'CLDAYCR': 'Closed day cares',
- 'OPNCLDCR': 'Reopen day cares',
- 'CLNURSHM': 'Date banned visitors to nursing homes',
- 'STAYHOME': 'Stay at home/ shelter in place',
- 'END_STHM': 'End/relax stay at home/shelter in place',
- 'CLBSNS': 'Closed non-essential businesses',
- 'END_BSNS': 'Began to reopen businesses',
- 'RELIGEX': 'Religious Gatherings Exempt Without Clear Social Distance Mandate*',
- 'FM_ALL': 'Mandate face mask use by all individuals in public spaces',
- 'FMFINE': 'Face mask mandate enforced by fines',
- 'FMCITE': 'Face mask mandate enforced by criminal charge/citation',
- 'FMNOENF': 'No legal enforcement of face mask mandate',
- 'FM_EMP': 'Mandate face mask use by employees in public-facing businesses',
- 'ALCOPEN': 'Alcohol/Liquor Stores Open',
- 'ALCREST': 'Allow restaurants to sell takeout alcohol',
- 'ALCDELIV': 'Allow restaurants to deliver alcohol',
- 'GUNOPEN': 'Keep Firearms Sellers Open',
- 'CLREST': 'Closed restaurants except take out',
- 'ENDREST': 'Reopen restaurants',
- 'RSTOUTDR': 'Initially reopen restaurants for outdoor dining only',
- 'CLGYM': 'Closed gyms',
- 'ENDGYM': 'Reopened gyms',
- 'CLMOVIE': 'Closed movie theaters',
- 'END_MOV': 'Reopened movie theaters',
- 'CLOSEBAR': 'Closed Bars',
- 'END_BRS': 'Reopen bars',
- 'END_HAIR': 'Reopened hair salons/barber shops',
- 'END_CONST': 'Restart non-essential construction',
- 'END_RELG': 'Reopen Religious Gatherings',
- 'ENDRETL': 'Reopen non-essential retail',
- 'BCLBAR2': 'Begin to Re-Close Bars',
- 'CLBAR2': 'Re-Close Bars (statewide)',
- 'CLMV2': 'Re-Close Movie Theaters (statewide)',
- 'CLGYM2': 'Re-Close Gyms (statewide)',
- 'CLRST2': 'Re-Close Indoor Dining (Statewide)',
- 'QRSOMEST': 'Mandate quarantine for those entering the state from specific states',
- 'QR_ALLST': 'Mandate quarantine for all individuals entering the state from another state',
- 'QR_END': 'Date all mandated quarantines ended'
- }
- 
-state_meta_data = {
- 'FIPS': 'FIPS Code',
- 'POPDEN18': 'Population density per square miles',
- 'POP18': 'Population 2018 ',
- 'SQML': 'Square Miles',
- 'HMLS19': 'Number Homeless (2019)',
- 'UNEMP18': 'Percent Unemployed (2018). ',
- 'POV18': 'Percent living under the federal poverty line (2018). ',
- 'RISKCOV': 'Percent at risk for serious illness due to COVID',
- 'DEATH18': 'All-cause deaths 2018'
- }
-
 county_mask_cols = [
  'state_fips', 
  'state_name',
@@ -150,22 +87,6 @@ county_mask_cols = [
  'state_mask_policy_start', 
  'state_conditions'
  ]
-
-predictor_cols = ['intervention_>50_gatherings',
- 'intervention_>500_gatherings',
- 'intervention_Federal_guidelines',
- 'intervention_entertainment/gym',
- 'intervention_foreign_travel_ban',
- 'intervention_public_schools',
- 'intervention_restaurant_dine-in',
- 'intervention_stay_at_home',
- 'intervention_mask_all_public',
- 'retail_and_recreation_percent_change_from_baseline',
- 'grocery_and_pharmacy_percent_change_from_baseline',
- 'parks_percent_change_from_baseline',
- 'transit_stations_percent_change_from_baseline',
- 'workplaces_percent_change_from_baseline',
- 'residential_percent_change_from_baseline']
 
 google_cols = [
     "retail_and_recreation_percent_change_from_baseline", 
@@ -187,27 +108,13 @@ dummy_cols = [
     'intervention_restaurant_dine-in', 
     'intervention_stay_at_home']
 
-# Added drop_county
-drop_county = [28163, 47111, 47115, 22037, 51735, 45081, 47129, 21023, 22047, 47153, 47159, 22075, 22077, 47169,
-    47173, 22091, 22093, 21077, 21081, 18013, 48229, 22121, 17005, 22125, 21103, 20079, 17013, 51830, 18047, 17027,
-    19077, 20107, 19085, 16015, 37007, 40081, 20121, 39073, 37029, 16045, 19121, 40113, 40117, 19129, 17083, 37053,
-    18111, 18115, 21191, 16073, 39117, 37073, 39123, 39127, 21215, 20191, 12003, 13033, 13035, 18161, 35057, 36095,
-    55049, 13083, 36123, 13085, 31025, 55093, 51007, 53059, 53065, 8014, 8019, 29013, 51036, 13149, 29025, 51043,
-    8039, 13159, 51053, 8047, 51570, 13171, 29049, 13181, 28029, 49023, 51075, 49029, 13189, 13199, 48015, 51600,
-    28051, 48019, 51097, 51610, 13211, 8093, 51101, 51620, 47015, 51113, 51115, 13227, 51630, 13231, 31155,29107,
-    8119, 51127, 5053, 28093, 27079, 47047,31177, 51145, 51157, 27095, 45017, 28127, 51685, 51175, 28137, 45037, 45039,
-    1007, 5105, 28143, 51183, 22007, 29177]
-
-
-#Added columns that have max data between mar-jul
+# Added columns that have max data between mar-jul
 data_cols = [
     "retail_and_recreation_percent_change_from_baseline",
     "grocery_and_pharmacy_percent_change_from_baseline",
     "workplaces_percent_change_from_baseline",
     "residential_percent_change_from_baseline"
 ]
-
-
 
 def load_country_google_mobility(country_code: str) -> pd.DataFrame:
     full_df = pd.read_csv('https://www.gstatic.com/covid19/mobility/Global_Mobility_Report.csv', parse_dates = ["date"])
@@ -361,17 +268,13 @@ def impute_missing_mobility(county_df: pd.DataFrame) -> pd.DataFrame:
                 continue
     return county_df
 
-
 def remain_county(county_df: pd.DataFrame, pct_data: Optional[float] = 0.4, mth: Optional[list] = [3,4,5,6,7]) -> pd.DataFrame:
     county_df["month"] = county_df.date.apply(lambda x: x.month)
     month_df = county_df[county_df.month.isin(mth)].reset_index(drop=True)
     cnt_df = month_df.groupby(['countyfips', 'population'])[data_cols].count().reset_index()
-
     county_ls_total = []    
     for col in data_cols:
         county_ls = list(cnt_df[cnt_df[col] <= math.ceil(month_df.date.nunique() * pct_data)]['countyfips'])
         county_ls_total.extend(county_ls)
-    
     drop_cnt = list(set(county_ls_total)) 
-    
     return county_df[~county_df.countyfips.isin(drop_cnt)].reset_index(drop=True), drop_cnt
