@@ -275,15 +275,17 @@ def get_case_timeseries(case_df: pd.DataFrame) -> pd.DataFrame:
     return county_cases["daily_confirmed_cases"]
 
 def start_outbreak_dummy(case_df: pd.DataFrame) -> pd.DataFrame:
-    start_dates = case_df.reset_index().groupby(['state_name','countyfips']).apply(lambda x: x['date'][x['daily_confirmed_cases'] >= 10].min())
-    case_df = case_df.join(pd.DataFrame(start_dates, columns=['outbreak_start']))
+    start_dates = case_df.reset_index().groupby(['cbsa_fips']).apply(lambda x: x['date'][x['daily_confirmed_cases'] >= 10].min())
+    case_df = case_df.reset_index().merge(start_dates.reset_index(), on='cbsa_fips', how='outer').rename(columns={0:'metro_outbreak_start'}).set_index(['state_name','countyfips', 'date'])
     return case_df.groupby(['state_name', 'countyfips']).apply(fill_outbreak_dummy)
 
 def fill_outbreak_dummy(grp):
-    start_date = grp['outbreak_start'].unique()
+    start_date = grp['metro_outbreak_start'].unique()
     grp['threshold_ind'] = 0
     if not start_date.size == 0:
-        grp.loc[(grp.index.get_level_values(level='date') >= start_date[0]), 'threshold_ind'] = 1
+        # 1 week before start of outbreak to try to capture data before interventions were put in place
+        threshold_start = start_date[0] - pd.Timedelta(7, unit='d')
+        grp.loc[(grp.index.get_level_values(level='date') >= threshold_start), 'threshold_ind'] = 1
     return grp
 
 def filter_top_metros(case_df: pd.DataFrame, num: Optional[int] = 100) -> pd.DataFrame:
