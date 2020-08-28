@@ -202,8 +202,8 @@ def fill_outbreak_dummy(grp):
     start_date = grp['metro_outbreak_start'].unique()
     grp['threshold_ind'] = 0
     if not start_date.size == 0:
-        # 1 week before start of outbreak to try to capture data before interventions were put in place
-        threshold_start = start_date[0] - pd.Timedelta(7, unit='d')
+        # 14 days before start of outbreak to try to capture data before interventions were put in place
+        threshold_start = start_date[0] - pd.Timedelta(14, unit='d')
         grp.loc[(grp.index.get_level_values(level='date') >= threshold_start), 'threshold_ind'] = 1
     return grp
 
