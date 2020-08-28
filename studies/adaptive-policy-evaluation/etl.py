@@ -3,6 +3,7 @@ from typing import Dict, Optional, Sequence, Tuple
 
 import pandas as pd
 import numpy as np
+import math
 
 state_name_lookup = {
     'AK': 'Alaska',
@@ -197,6 +198,17 @@ drop_county = [28163, 47111, 47115, 22037, 51735, 45081, 47129, 21023, 22047, 47
     8119, 51127, 5053, 28093, 27079, 47047,31177, 51145, 51157, 27095, 45017, 28127, 51685, 51175, 28137, 45037, 45039,
     1007, 5105, 28143, 51183, 22007, 29177]
 
+
+#Added columns that have max data between mar-jul
+data_cols = [
+    "retail_and_recreation_percent_change_from_baseline",
+    "grocery_and_pharmacy_percent_change_from_baseline",
+    "workplaces_percent_change_from_baseline",
+    "residential_percent_change_from_baseline"
+]
+
+
+
 def load_country_google_mobility(country_code: str) -> pd.DataFrame:
     full_df = pd.read_csv('https://www.gstatic.com/covid19/mobility/Global_Mobility_Report.csv', parse_dates = ["date"])
     country_df = full_df[full_df["country_region_code"] == country_code]
@@ -340,12 +352,26 @@ def poli_aff(data_path: Path) -> pd.DataFrame:
 def impute_missing_mobility(county_df: pd.DataFrame) -> pd.DataFrame:
     county_df.reset_index(inplace=True)
     #Drop 133 counties - refer data analysis
-    county_remain = county_df[~county_df.countyfips.isin(drop_county)]
-    for county in county_remain.countyfips.unique():
+    #county_remain = county_df[~county_df.countyfips.isin(drop_county)]
+    for county in county_df.countyfips.unique():
         for col in google_cols:
             try:
-                county_remain.loc[county_remain.countyfips==county, col] = county_remain.loc[county_remain.countyfips==county, col].interpolate(method="cubic", limit_direction="both", limit_area="inside")
+                county_df.loc[county_df.countyfips==county, col] = county_df.loc[county_df.countyfips==county, col].interpolate(method="cubic", limit_direction="both", limit_area="inside")
             except:
                 continue
-    return county_remain
+    return county_df
 
+
+def remain_county(county_df: pd.DataFrame, pct_data: Optional[float] = 0.4, mth: Optional[list] = [3,4,5,6,7]) -> pd.DataFrame:
+    county_df["month"] = county_df.date.apply(lambda x: x.month)
+    month_df = county_df[county_df.month.isin(mth)].reset_index(drop=True)
+    cnt_df = month_df.groupby(['countyfips', 'population'])[data_cols].count().reset_index()
+
+    county_ls_total = []    
+    for col in data_cols:
+        county_ls = list(cnt_df[cnt_df[col] <= math.ceil(month_df.date.nunique() * pct_data)]['countyfips'])
+        county_ls_total.extend(county_ls)
+    
+    drop_cnt = list(set(county_ls_total)) 
+    
+    return county_df[~county_df.countyfips.isin(drop_cnt)].reset_index(drop=True), drop_cnt

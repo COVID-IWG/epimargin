@@ -67,7 +67,10 @@ if __name__ == "__main__":
     county_df_top_metros = county_df_top_metros.join(vote_df)
 
     # impute missing mobility data
-    county_df_top_metros_remain = impute_missing_mobility(county_df_top_metros)
+    county_df_top_metros_impute = impute_missing_mobility(county_df_top_metros)
+
+    # drop counties that have missing data
+    county_df_top_metros_remain, lst_cnt = remain_county(county_df_top_metros_impute)
 
     county_df_top_metros_remain.to_csv(data/"county_level_policy_evaluation.csv", index=False)
 
