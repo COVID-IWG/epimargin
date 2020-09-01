@@ -21,7 +21,7 @@ from adaptive.utils import days, setup
 
 simplefilter("ignore")
 
-sns.set(palette="bright", style="darkgrid", font="Libre Franklin")
+sns.set(palette="bright", style="darkgrid", font="Helvetica Neue")
 sns.despine()
 
 save_columns = [

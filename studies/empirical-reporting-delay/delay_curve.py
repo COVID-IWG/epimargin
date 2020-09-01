@@ -2,11 +2,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import tikzplotlib
 from scipy.signal import convolve, filtfilt, iirnotch
 from sklearn.linear_model import LinearRegression
 
-from adaptive.etl.covid19india import (download_data, get_time_series,
-                                       load_statewise_data, state_name_lookup)
+from adaptive.etl.commons import download_data
+from adaptive.etl.covid19india import (get_time_series, load_statewise_data,
+                                       state_name_lookup)
 from adaptive.utils import cwd, mkdir
 
 sns.set(palette="muted", font="Inconsolata")
@@ -196,3 +198,22 @@ ax.yaxis.label.set_color("dimgray")
 ax.xaxis.label.set_color("dimgray")
 plt.xlim(left = pd.Timestamp("2020-01-01"))
 plt.show()
+
+sns.set(style="whitegrid", palette="bright")
+# bihar, kerala plots
+for state in ["Bihar", "Kerala"]:
+    raw   = ts.loc[state].Hospitalized
+    raw   = raw[(raw.index >= "Mar 01, 2020") & (raw.index <= "2020-07-23")]
+    adj_notch = delay_adjust(notch_filter(raw), state_dist.loc[state])
+    adj_notch = adj_notch[adj_notch.index >= "Mar 01, 2020"]
+
+    plt.plot(adj_notch, label = "smoothed, API delay-adjusted data")
+    plt.plot(raw,       label = "raw API data", alpha = 0.5, linewidth=1)
+    plt.legend()
+
+    plt.xlabel("date")
+    plt.ylabel("new cases")
+    plt.title(f"{state} - new case time series (public data)")
+    print(list(plt.gca().get_xticklabels()))
+    tikzplotlib.save(figs/f"{state}_api_data_Jul_23.tex")
+    plt.show()
