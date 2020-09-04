@@ -5,7 +5,9 @@ import numpy as np
 import pandas as pd
 from scipy.stats import gamma as Gamma
 from scipy.stats import nbinom
+from statsmodels.regression.linear_model import OLS
 from statsmodels.regression.rolling import RollingOLS
+from statsmodels.tools import add_constant
 
 from .utils import days
 
@@ -145,3 +147,13 @@ def analytical_MPVS(
         total_cases, new_cases_ts, 
         anomalies, anomaly_dates
     )
+
+def linear_projection(dates, R_values, smoothing, period = 7*days):
+    """ return 7-day linear projection """
+    julian_dates = [_.to_julian_date() for _ in dates[-smoothing//2:None]]
+    return OLS(
+        R_values[-smoothing//2:None], 
+        add_constant(julian_dates)
+    )\
+    .fit()\
+    .predict([1, julian_dates[-1] + period])[0]

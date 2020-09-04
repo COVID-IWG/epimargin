@@ -3,10 +3,10 @@ from logging import getLogger
 from pathlib import Path
 
 import geopandas as gpd
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib as mpl
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from statsmodels.regression.linear_model import OLS
 from statsmodels.tools import add_constant
@@ -15,7 +15,7 @@ from tqdm import tqdm
 from adaptive.estimators import analytical_MPVS
 from adaptive.etl.commons import download_data
 from adaptive.model import Model, ModelUnit
-from adaptive.plots import plot_RR_est, plot_T_anomalies, label_font, note_font
+from adaptive.plots import label_font, note_font, plot_RR_est, plot_T_anomalies
 from adaptive.policy import simulate_PID_controller
 from adaptive.smoothing import notched_smoothing
 from adaptive.utils import days, setup
@@ -221,7 +221,7 @@ gdf.plot(column = "Rt",      cmap="RdYlGn_r", ax = ax1, edgecolors="black", line
 gdf.plot(column = "Rt_proj", cmap="RdYlGn_r", ax = ax2, edgecolors="black", linewidth=0.5)
 cbar_ax = fig.add_axes([0.9, 0.25, 0.01, 0.5])
 cb = fig.colorbar(
-    mappable = mlp.cm.ScalarMappable(norm = mpl.colors.Normalize(vmin = 0.8, vmax = 2.0), cmap="RdYlGn_r"), 
+    mappable = mpl.cm.ScalarMappable(norm = mpl.colors.Normalize(vmin = 0.8, vmax = 2.0), cmap="RdYlGn_r"), 
     orientation = "vertical",  
     cax = cbar_ax
 )  
