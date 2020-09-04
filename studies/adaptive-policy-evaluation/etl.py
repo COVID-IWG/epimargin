@@ -64,18 +64,6 @@ state_name_lookup = {
     'WY': 'Wyoming'
 }
 
-google_mobility_columns = [
-    "sub_region_1",
-    "census_fips_code",
-    "date",
-    "retail_and_recreation_percent_change_from_baseline",
-    "grocery_and_pharmacy_percent_change_from_baseline",
-    "parks_percent_change_from_baseline",
-    "transit_stations_percent_change_from_baseline",
-    "workplaces_percent_change_from_baseline",
-    "residential_percent_change_from_baseline"
- ]
-
 county_mask_cols = [
  'state_fips', 
  'state_name',
@@ -88,7 +76,7 @@ county_mask_cols = [
  'state_conditions'
  ]
 
-google_cols = [
+google_mobility_cols = [
     "retail_and_recreation_percent_change_from_baseline", 
     "grocery_and_pharmacy_percent_change_from_baseline",
     "parks_percent_change_from_baseline", 
@@ -116,11 +104,33 @@ data_cols = [
     "residential_percent_change_from_baseline"
 ]
 
+state_interventions_info = {
+ 'STATE': 'State',
+ 'POSTCODE': 'State Abbreviation',
+ 'STAYHOME': 'Stay at home/ shelter in place',
+ 'END_STHM': 'End/relax stay at home/shelter in place',
+ 'RELIGEX': 'Religious Gatherings Exempt Without Clear Social Distance Mandate*',
+ 'FM_ALL': 'Mandate face mask use by all individuals in public spaces'
+ }
+ 
+state_meta_data = {
+ 'FIPS': 'FIPS Code',
+ 'POPDEN18': 'Population density per square miles',
+ 'POP18': 'Population 2018 ',
+ 'SQML': 'Square Miles',
+ 'HMLS19': 'Number Homeless (2019)',
+ 'UNEMP18': 'Percent Unemployed (2018). ',
+ 'POV18': 'Percent living under the federal poverty line (2018). ',
+ 'RISKCOV': 'Percent at risk for serious illness due to COVID',
+ 'DEATH18': 'All-cause deaths 2018'
+ }
+
 def load_country_google_mobility(country_code: str) -> pd.DataFrame:
+    cols = ["sub_region_1","census_fips_code","date"] + google_mobility_cols
     full_df = pd.read_csv('https://www.gstatic.com/covid19/mobility/Global_Mobility_Report.csv', parse_dates = ["date"])
     country_df = full_df[full_df["country_region_code"] == country_code]
     country_df["sub_region_1"] = country_df["sub_region_1"].str.replace(" and ", " & ")
-    return country_df[google_mobility_columns]
+    return country_df[cols]
 
 def load_us_county_data(file: str, url: Optional[str] = "https://usafactsstatic.blob.core.windows.net/public/data/covid-19/") -> pd.DataFrame:
     df = pd.read_csv(url + file, dtype={'countyfips': str})
@@ -161,12 +171,14 @@ def load_metro_areas(data_path: Path) -> pd.DataFrame:
     metro_df.rename(columns={"county_fips": "countyfips"}, inplace=True)
     return metro_df[metro_df["area_type"] == "Metro"][["cbsa_fips", "countyfips", "county_name", "state_codes", "state_name"]]
 
-def fill_dummies(grp, cols):
-    for col in cols:
-        start_date = grp.index.values[grp[col] == 1]
-        grp[col] = grp[col].fillna(0)
-        if not start_date.size == 0:
-            grp.loc[start_date[0]:, col] = 1
+def fill_dummies(grp, intervention_col, start_date_col, g):
+    start_date = grp[start_date_col].unique()
+    end_date = grp[end_date_col].unique()
+    grp[intervention_col] = 0
+    if start_date[0]:
+        if end_date[0]:
+            grp.loc[(grp.index.get_level_values(level = 'date') >= start_date[0]) & (grp.index.get_level_values(level='date') <= end_date[0]),intervention_col] = 1
+        grp.loc[(grp.index.get_level_values(level = 'date') >= start_date[0]),intervention_col] = 1
     return grp 
 
 def add_mask_dummies(grp, mask_df):
@@ -180,8 +192,9 @@ def add_mask_dummies(grp, mask_df):
     return grp
     
 def state_level_intervention_data(data_path: Path) -> pd.DataFrame:
-    state_policy_df = pd.read_excel(data/"COVID-19 US state policy database_08_03_2020.xlsx", 1)[list(state_interventions_info.keys())]
+    state_policy_df = pd.read_excel(data_path, 1)[list(state_interventions_info.keys())]
     state_policy_df = state_policy_df.set_index("STATE").iloc[4:, :].dropna(axis=0)
+    state_policy_df.columns = ['state','start_stay_at_home','end_stay_at_home','religious_exception_stay_home','mask_mandate_all']
     return state_policy_df
 
 def get_case_timeseries(case_df: pd.DataFrame) -> pd.DataFrame:
@@ -195,8 +208,8 @@ def get_case_timeseries(case_df: pd.DataFrame) -> pd.DataFrame:
 
 def start_outbreak_dummy(case_df: pd.DataFrame) -> pd.DataFrame:
     start_dates = case_df.reset_index().groupby(['cbsa_fips']).apply(lambda x: x['date'][x['daily_confirmed_cases'] >= 10].min())
-    case_df = case_df.reset_index().merge(start_dates.reset_index(), on='cbsa_fips', how='outer').rename(columns={0:'metro_outbreak_start'}).set_index(['state_name','countyfips', 'date'])
-    return case_df.groupby(['state_name', 'countyfips']).apply(fill_outbreak_dummy)
+    case_df = case_df.reset_index().merge(start_dates.reset_index(), on='cbsa_fips', how='outer').rename(columns={0:'metro_outbreak_start'}).set_index(['cbsa_fips','state_name', 'date'])
+    return case_df.groupby(['cbsa_fips', 'state_name']).apply(fill_outbreak_dummy)
 
 def fill_outbreak_dummy(grp):
     start_date = grp['metro_outbreak_start'].unique()
@@ -233,13 +246,6 @@ def add_delta_col(grp: pd.DataFrame):
     grp["daily_confirmed_cases"] = grp["cumulative_confirmed_cases"].diff()
     return grp
 
-def add_colours(intervention_df):
-    dic = {}
-    for i, k in enumerate(list(intervention_df["intervention"].unique())):
-        dic[k] = colours[i]
-    intervention_df["colour"] = intervention_df["intervention"].map(dic)
-    return intervention_df
-
 def poli_aff(data_path: Path) -> pd.DataFrame:
     vote_df = pd.read_csv(data_path)
     vote16_df = vote_df[vote_df.year==2016]
@@ -261,7 +267,7 @@ def impute_missing_mobility(county_df: pd.DataFrame) -> pd.DataFrame:
     #Drop 133 counties - refer data analysis
     #county_remain = county_df[~county_df.countyfips.isin(drop_county)]
     for county in county_df.countyfips.unique():
-        for col in google_cols:
+        for col in google_mobility_cols:
             try:
                 county_df.loc[county_df.countyfips==county, col] = county_df.loc[county_df.countyfips==county, col].interpolate(method="cubic", limit_direction="both", limit_area="inside")
             except:

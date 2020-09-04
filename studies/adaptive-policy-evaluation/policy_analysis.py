@@ -35,7 +35,7 @@ def regression(county_policy_df: pd.DataFrame):
     predictor_cols = [x for x in county_policy_df.columns if x.startswith('time') or x.startswith('metro') or x.endswith('baseline') or x.startswith('intervention')]
     X = county_policy_df[predictor_cols].values
     X = sm.add_constant(X, has_constant='add')
-    y = county_policy_df['daily_confirmed_cases'].values
+    y = county_policy_df['daily_confirmed_cases_lag_-7'].values
     res = sm.OLS(y, X).fit()
     print(res.summary())
     return predictor_cols
@@ -65,9 +65,9 @@ if __name__ == '__main__':
         for wave_col in [x for x in county_policy_df.columns if x.startswith(intervention)]:
             county_policy_df['time_dummy*' + wave_col] = county_policy_df['time_dummy_' + intervention] * county_policy_df[wave_col]
 
-    if len(interventions) > 1:
-        for i in range(len(interventions)-1):
-            county_policy_df[interventions[i] + '*' + interventions[i+1]] = county_policy_df[interventions[i]] * county_policy_df[interventions[i+1]]
+    # if len(interventions) > 1:
+    #     for i in range(len(interventions)-1):
+    #         county_policy_df[interventions[i] + '*' + interventions[i+1]] = county_policy_df[interventions[i]] * county_policy_df[interventions[i+1]]
 
     county_policy_df.drop(columns=['metro_outbreak_start'], inplace=True)
 
