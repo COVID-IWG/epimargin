@@ -5,6 +5,34 @@ import numpy as np
 import pandas as pd
 import requests
 
+def import_clean_smooth_cases_metro(save_path: Path, smoothing: Callable) -> pd.DataFrame:
+    
+    # Import and combine CBSA/FIPS variables
+    df = pd.read_csv(save_path/"aggregated_daily_cases.csv")
+    df['cbsa_fips'] = df['cbsa_fips'].astype(int).astype(str)
+    df['cbsa_fips_state'] = df['cbsa_fips']+"_"+df['state']
+
+    # Format before smoothing
+    df = df[['date','cbsa_fips_state','daily_confirmed_cases']]
+    df.rename(columns={'daily_confirmed_cases':'positive_diff'}, inplace=True)
+    df.sort_values(['cbsa_fips_state','date'], inplace=True)
+    df.loc[:,'date'] = pd.to_datetime(df.loc[:,'date'], format='%Y-%m-%d')
+
+    # Loop over CBSA/FIPS/State combinations
+    for cbsa_fips_state in df['cbsa_fips_state'].unique():
+        
+        # Subset to just CBSA-FIPS-state
+        statedf = df.loc[df['cbsa_fips_state'] == cbsa_fips_state, :]
+
+        # Smooth
+        smoothed = np.clip(smoothing(statedf.positive_diff), a_min = 0, a_max = None)
+        df.loc[df['cbsa_fips_state'] == cbsa_fips_state, 'positive_diff_smooth'] = smoothed
+        df.loc[df['cbsa_fips_state'] == cbsa_fips_state, 'positive_smooth']      = smoothed.cumsum()
+
+    # Save out clean data frame
+    df.to_csv(save_path/"aggregated_daily_cases_clean.csv", index=False)
+    
+    return df
 
 def import_clean_smooth_cases(save_path: Path, smoothing: Callable) -> pd.DataFrame:
     '''
@@ -64,7 +92,7 @@ def import_clean_smooth_cases(save_path: Path, smoothing: Callable) -> pd.DataFr
                 
             # Get just smoothable values
             statedf = smoothingdf[smoothingdf[f'{var}_diff'].notnull()] 
-            statedf = statedf.sort_values('date')
+            statedf = statedf.sort_values('date', inplace=True)
             
             # Stop if we have too many null values
             if statedf.shape[0] > 15:
@@ -99,7 +127,6 @@ def get_new_rt_live_estimates(path: Path) -> pd.DataFrame:
     # Import and save as csv
     res = requests.get("https://d14wlfuexuxgcm.cloudfront.net/covid/rt.csv")
     df = pd.read_csv(StringIO(res.text))
-    df.to_csv(path/"rtlive_new_estimates.csv", index=False)
     
     # Filter to just necessary features
     df = df[kept_columns]
@@ -109,4 +136,6 @@ def get_new_rt_live_estimates(path: Path) -> pd.DataFrame:
                         'lower_80':'RR_lower_rtlivenew', 'upper_80':'RR_upper_rtlivenew',
                         'test_adjusted_positive':'adj_positive_rtlivenew',
                         'infections':'infections_rtlivenew'}, inplace=True)
+
+    df.to_csv(path/"rtlive_new_estimates.csv", index=False)
     return df

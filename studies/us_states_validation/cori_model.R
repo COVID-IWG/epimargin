@@ -50,7 +50,8 @@ for(statename in levels(df$state)) {
   # Other clean up
   idat <- state_df %>%
           complete(time = seq.Date(min(time), max(time), by='day')) %>%
-          mutate_at(.vars = c('positive','death','positive_diff','positive_diff_smooth', 'death_diff', 'death_diff_smooth'), 
+          mutate_at(.vars = c('positive','death','positive_diff', 'death_diff',
+                              'positive_diff_smooth', 'death_diff_smooth'), 
                     .funs = function(xx){ifelse(is.na(xx), 0, xx)}) %>%
           arrange(time) %>%
           rename(dates=time, I=positive_diff_smooth)

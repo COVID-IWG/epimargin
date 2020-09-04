@@ -149,8 +149,7 @@ def get_delay_distribution(file_path, force_update=False):
     INCUBATION_DAYS = 0
 
     try:
-        p_delay_path = os.path.join(file_path, "p_delay.csv")
-        p_delay = pd.read_csv(p_delay_path, squeeze=True)
+        p_delay = pd.read_csv("data/p_delay.csv", squeeze=True)
         if force_update==True:
             raise FileNotFoundError
     except FileNotFoundError:
