@@ -213,8 +213,8 @@ class MCMCModel(object):
         self.region = region
         
         # For the model, we'll only look at the last N
-        self.onset = onset.iloc[-window:]
-        self.cumulative_p_delay = cumulative_p_delay[-window:]
+        self.onset = onset
+        self.cumulative_p_delay = cumulative_p_delay
         
         # Where we store the results
         self.trace = None
