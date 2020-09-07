@@ -198,13 +198,13 @@ def state_level_intervention_data(data_path: Path) -> pd.DataFrame:
     return state_policy_df
 
 def get_case_timeseries(case_df: pd.DataFrame) -> pd.DataFrame:
-    county_cases = pd.DataFrame(case_df.set_index(["state_name", "countyfips"]).iloc[:,3:].stack()).rename(columns={0:"cumulative_confirmed_cases"}).reset_index()
+    county_cases = pd.DataFrame(case_df.set_index(["state_name","countyfips"]).iloc[:,3:].stack()).rename(columns={0:"cumulative_confirmed_cases"}).reset_index()
     county_cases["date"] = pd.to_datetime(county_cases["level_2"],format="%m/%d/%y")
     county_cases = county_cases.set_index(["state_name", "countyfips", "date"]).iloc[:,1:]
     county_cases["cumulative_confirmed_cases"] = pd.to_numeric(county_cases["cumulative_confirmed_cases"])
-    county_cases = county_cases.groupby(["state_name", "countyfips"]).apply(add_delta_col)
+    county_cases = county_cases.groupby(["state_name","countyfips"]).apply(add_delta_col)
     county_cases["daily_confirmed_cases"].fillna(county_cases["cumulative_confirmed_cases"], inplace=True)
-    return county_cases["daily_confirmed_cases"]
+    return pd.DataFrame(county_cases["daily_confirmed_cases"][county_cases.index.get_level_values(level=1) != 0]).reset_index()
 
 def start_outbreak_dummy(case_df: pd.DataFrame) -> pd.DataFrame:
     start_dates = case_df.reset_index().groupby(['cbsa_fips']).apply(lambda x: x['date'][x['daily_confirmed_cases'] >= 10].min())
@@ -220,12 +220,11 @@ def fill_outbreak_dummy(grp):
         grp.loc[(grp.index.get_level_values(level='date') >= threshold_start), 'threshold_ind'] = 1
     return grp
 
-def filter_top_metros(case_df: pd.DataFrame, num: Optional[int] = 100) -> pd.DataFrame:
-    metro_areas = case_df.reset_index()[['countyfips','cbsa_fips','population']].drop_duplicates()
-    metro_pops = pd.DataFrame(metro_areas.groupby('cbsa_fips')['population'].sum()).reset_index()
-    metro_pops.sort_values(by='population', ascending=False, inplace=True)
-    top_metros = list(metro_pops.iloc[:100,:]['cbsa_fips'])
-    return case_df[case_df['cbsa_fips'].isin(top_metros)]
+def get_top_metros(county_populations: pd.DataFrame, metros, n: Optional[int] = 100) -> pd.DataFrame:
+    metro_areas = metros.merge(county_populations[['countyfips','population']], on='countyfips')
+    metro_areas = pd.DataFrame(metro_areas.groupby('cbsa_fips')['population'].sum()).reset_index()
+    top_n_metros = list(metro_areas.sort_values(by='population', ascending=False).iloc[:n,:]['cbsa_fips'])
+    return metro_areas[['countyfips','state','cbsa_fips']][metro_areas['cbsa_fips'].isin(top_n_metros)]
 
 def get_metro_dummies(county_df):
     metro_dummies = pd.get_dummies(county_df['cbsa_fips'])
