@@ -22,7 +22,7 @@ if __name__ == '__main__':
 
     top_metros = county_populations.merge(top_metros[['countyfips','cbsa_fips']], on='countyfips')
     top_metros = top_metros.groupby(['cbsa_fips', 'state']).apply(pop_prop_col)
-    top_metros['metro-state'] = top_metros['cbsa_fips'].astype(str) + '_' + top_metros['state']
+    top_metros['metro-state'] = top_metros['cbsa_fips'].astype(int).astype(str) + '_' + top_metros['state']
 
     # load county level daily case data 
     case_df = load_us_county_data('covid_confirmed_usafacts.csv')
@@ -40,7 +40,9 @@ if __name__ == '__main__':
     metro_state_mobility = metro_state_mobility_agg(county_mobility_imputed.merge(top_metros, on='countyfips', how='inner'))
 
     # load rt daily data
+    rt_drop_cols = ['RR_pred_rtliveold', 'RR_CI_lower_rtliveold', 'RR_CI_upper_rtliveold']
     metro_state_rt = pd.read_csv(data/'+rt_estimates_comparison.csv', parse_dates=['date']).iloc[:,1:].rename(columns={'cbsa_fips_state':'metro-state'}).set_index(['metro-state','date'])
+    metro_state_rt.drop(columns=rt_drop_cols, inplace=True)
 
     # create metro-state aggregated df
     metro_state_df = metro_state_mobility.join(metro_state_cases.join(metro_state_rt)).join(top_metros[['metro-state','state', 'cbsa_fips']].drop_duplicates().set_index('metro-state'))
