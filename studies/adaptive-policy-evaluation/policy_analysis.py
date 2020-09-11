@@ -7,9 +7,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
-import statsmodels.discrete.discrete_model as smd
-
 from matplotlib.lines import Line2D
+
 from adaptive.utils import cwd, days
 
 def load_dataframe(data_path: pd.DataFrame) -> pd.DataFrame:
