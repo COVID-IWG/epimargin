@@ -56,9 +56,6 @@ if __name__ == '__main__':
     # add dummy to only include places once their outbreak has started - seems that 10 cases is the threshold used 
     metro_state_df = start_outbreak_dummy(metro_state_df)
 
-    # add lagged dependent variable cols 
-    metro_state_df = metro_state_df.groupby(['metro-state']).apply(add_lag_cols, ['daily_confirmed_cases'])
-
     # add dummies for metro areas
     metro_state_df = get_metro_dummies(metro_state_df)
 

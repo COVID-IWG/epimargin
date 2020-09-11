@@ -7,12 +7,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
+import statsmodels.discrete.discrete_model as smd
 
 from matplotlib.lines import Line2D
 from adaptive.utils import cwd, days
 
 def load_dataframe(data_path: pd.DataFrame) -> pd.DataFrame:
     df = pd.read_csv(data_path, parse_dates = ['date'])
+    # use commented return statement instead to only include areas once the outbreak has started there
     return df[df['date'] >= pd.to_datetime('2020-03-01')]
     # return df[df['threshold_ind'] == 1]
 
@@ -21,7 +23,7 @@ def create_policy_wave_dummies(metro_state_cpolicy_df: pd.DataFrame, policy_col:
     grouped['rank'] = grouped.groupby("cbsa_fips")[0].rank(method = 'dense', ascending = True)
     wave_dummies = pd.get_dummies(grouped['rank'])
     wave_dummies.columns = [policy_col + '_wave_' + str(x) for x in wave_dummies.columns]
-    return wave_dummies.reset_index()
+    return wave_dummies.reset_index().set_index(['metro-state']).iloc[:, 1:]
 
 def regression(metro_state_policy_df: pd.DataFrame, dependent_var: str, intervention: str):
     # drop very small number of missing
@@ -52,16 +54,23 @@ if __name__ == '__main__':
     date = dt.datetime.today() - pd.Timedelta(14, unit='d')
     metro_state_policy_df = metro_state_policy_df[metro_state_policy_df['date'] <= date]
 
-    policy_wave_dummies = create_policy_wave_dummies(metro_state_policy_df, intervention).set_index(['metro-state'])
-    metro_state_policy_df = metro_state_policy_df.set_index(['metro-state']).join(policy_wave_dummies.iloc[:, 1:]).reset_index()
+    # add policy wave dummies
+    policy_wave_dummies = create_policy_wave_dummies(metro_state_policy_df, intervention)
+    metro_state_policy_df = metro_state_policy_df.set_index(['metro-state']).join(policy_wave_dummies).reset_index()
     metro_state_policy_df[policy_wave_dummies.columns].fillna(0, inplace=True)
+
     metro_state_policy_df.rename(columns={intervention: 'time_dummy_' + intervention}, inplace=True)
 
-    for wave_col in [x for x in metro_state_policy_df.columns if x.startswith(intervention)]:
+    wave_cols = list(policy_wave_dummies.columns)
+
+    # add wave*time dummy interactions 
+    for wave_col in wave_cols:
         metro_state_policy_df['time_dummy*' + wave_col] = metro_state_policy_df['time_dummy_' + intervention] * metro_state_policy_df[wave_col]
+
+    metro_state_policy_df['binary_rt'] = np.where(metro_state_policy_df['RR_pred'] >= 1.5, 1, 0)
 
     metro_state_policy_df.drop(columns=['metro_outbreak_start'], inplace=True)
     metro_state_policy_df.set_index(['metro-state','date'], inplace=True)
 
-    regression(metro_state_policy_df, 'RR_pred_lag_-14', intervention)
+    regression(metro_state_policy_df, 'binary_rt', intervention)
 
