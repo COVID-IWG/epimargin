@@ -134,7 +134,7 @@ def plot_simulation_range(
     labels: Sequence[str], 
     historical: Optional[pd.Series] = None, 
     historical_label: str = "Empirical Case Data", 
-    curve: str = "I", 
+    curve: str = "delta_T", 
     smoothing: Optional[np.ndarray] = None) -> PlotDevice:
 
     aggregates = [tuple(model.aggregate(curve) for model in model_set) for model_set in simulation_results]
