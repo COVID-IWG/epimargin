@@ -5,13 +5,13 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+import adaptive.plots as plt
 import etl
 from adaptive.estimators import analytical_MPVS
-from adaptive.smoothing import convolution, notched_smoothing
-from adaptive.model  import Model, ModelUnit
-from adaptive.plots  import gantt_chart, plot_simulation_range
+from adaptive.model import Model, ModelUnit
 from adaptive.policy import simulate_adaptive_control, simulate_lockdown
-from adaptive.utils  import cwd, days, weeks, fmt_params
+from adaptive.smoothing import convolution, notched_smoothing
+from adaptive.utils import cwd, days, fmt_params, weeks
 
 
 def model(districts, populations, cases, seed) -> Model:
@@ -60,10 +60,6 @@ def run_policies(
 
     return model_A, model_B, model_C
 
-def project(p: pd.Series):
-    t = (p.R - p.Intercept)/p.gradient
-    return (max(0, p.R), max(0, p.Intercept + p.gradient*(t + 7)), max(0, p.Intercept + p.gradient*(t + 14)), np.sqrt(p.gradient_stderr))
-
 if __name__ == "__main__":
     root = cwd()
     data = root/"data"
@@ -97,14 +93,14 @@ if __name__ == "__main__":
     
     R_voluntary = {district: 1.2*R for (district, R) in R_mandatory.items()}
 
-    si, sf = 0, 1000
+    si, sf = 0, 10
 
     simulation_results = [ 
         run_policies(state_cases, pops, districts, migrations, gamma, R_mandatory, R_voluntary, lockdown_period = lockdown_period, total = total_time, seed = seed)
         for seed in tqdm(range(si, sf))
     ]
 
-    plot_simulation_range(
+    plt.simulations(
         simulation_results, 
         ["12 September Release", "19 September Release", "Adaptive Control Starting 12 September"], 
         historical = state_ts)\
