@@ -233,26 +233,34 @@ def simulations(
             ranges[i]["mdn"].append(curve_sorted[num_sims//2])
             ranges[i]["avg"].append(np.mean(curve_sorted))
 
+    legends = []
+    legend_labels  = []
     if historical is not None:
-        plt.semilogy(historical.index, historical, 'k-', label = historical_label, alpha = 0.8, zorder = 10)
-        t = [historical.index.max() + pd.Timedelta(days = n) for n in range(total_time)]
+        p, = plt.plot(historical.index, historical, 'k-', alpha = 0.8, zorder = 10)
+        t  = [historical.index.max() + pd.Timedelta(days = n) for n in range(total_time)]
+        legends.append(p)
+        legend_labels.append(historical_label)
     else:
         t = list(range(total_time))
 
     if smoothing is not None:
-        plt.semilogy([pd.Timestamp(t) for t in smoothing[:, 0]], smoothing[:, 1], 'k-', label = "LOESS smoothed data", linewidth = 1)
+        p = plt.plot([pd.Timestamp(t) for t in smoothing[:, 0]], smoothing[:, 1], 'k-', linewidth = 1)
+        legends.append(p)
+        legend_labels.append("smoothed_data")
         
     for (rng, label, color) in zip(ranges, labels, SIM_PALETTE):
-        plt.semilogy(t, rng["avg"], color = color, label = label, linewidth = 2)
-        plt.fill_between(t, rng["min"], rng["max"], color = color, alpha = 0.2)
+        p, = plt.plot(t, rng["avg"], color = color, linewidth = 2)
+        f  = plt.fill_between(t, rng["min"], rng["max"], color = color, alpha = 0.2)
+        legends.append((p, f))
+        legend_labels.append(label)
     
     plt.gca().xaxis.set_major_formatter(DATE_FMT)
     plt.gca().xaxis.set_minor_formatter(DATE_FMT)
-    plt.legend(prop = dict(size = 20), handlelength = 1)
+    plt.legend(legends, legend_labels, prop = dict(size = 20), handlelength = 1, framealpha = 1)
 
     plt.xlim(left = historical.index[0], right = t[-1])
     
-    return PlotDevice()
+    return plt.PlotDevice()
 
 def Rt(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin = 0.5, ymax = 3):
     try: 
