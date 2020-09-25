@@ -154,11 +154,24 @@ sm = mpl.cm.ScalarMappable(
 )
 
 gdf = gdf.merge(estimates, left_on = "NAME_3", right_on = "subdistrict")
-plt.choropleth(gdf, label_fn= lambda _: "", mappable = sm)\
+
+def labeller():
+    count = 0
+    def label(row):
+        nonlocal count
+        if row["Rt"] >= 1.3 or row["Rt_proj"] >= 1.3:
+            letter = chr(67 - count)
+            count += 1
+            print(letter, row["NAME_3"].title(), row["Rt"], row["Rt_proj"])
+            return f"({letter})\n"
+        return ""
+    return label
+
+plt.choropleth(gdf, label_fn = labeller(), mappable = sm)\
    .adjust(left = 0.06)\
    .show()
 
-# crop to right
-plt.choropleth(gdf, label_fn = None, Rt_col= "Rt_proj", Rt_proj_col= "Rt", titles = ["Projected $R_t$ (1 Week)", "Current $R_t$"], mappable = sm)\
-   .adjust(left = 0.06)\
-   .show()
+# # crop to right
+# plt.choropleth(gdf, label_fn = None, Rt_col= "Rt_proj", Rt_proj_col= "Rt", titles = ["Projected $R_t$ (1 Week)", "Current $R_t$"], mappable = sm)\
+#    .adjust(left = 0.06)\
+#    .show()

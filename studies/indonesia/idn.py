@@ -86,7 +86,7 @@ def load_province_timeseries(data_path: Path, province: str) -> pd.DataFrame:
 (data, figs) = setup(level = "INFO")
 for province in provinces:
     logger.info("downloading data for %s", province)
-    #download_data(data, filename(province), base_url = "https://data.covid19.go.id/public/api/")
+    download_data(data, filename(province), base_url = "https://data.covid19.go.id/public/api/")
 
 province_cases = {province: load_province_timeseries(data, province) for province in provinces}
 bgn = min(cases.index.min() for cases in province_cases.values())
@@ -140,7 +140,21 @@ gdf["NAME_1"] = gdf.NAME_1.str.upper().map(lambda s: replacements.get(s, s))
 gdf = gdf.merge(estimates, left_on="NAME_1", right_on="province")
 
 
-plt.choropleth.vertical(gdf, lambda row: row["NAME_1"]+"\n")\
-    .adjust(left = 0.01)\
-   .title("\nIndonesia: $R_t$ by Province")\
-   .show()
+sm = mpl.cm.ScalarMappable(
+    norm = mpl.colors.Normalize(vmin = 0.9, vmax = 1.4),
+    cmap = "viridis"
+)
+
+MYS = gpd.read_file("data/gadm36_MYS_shp/gadm36_MYS_0.shp") 
+TLS = gpd.read_file("data/gadm36_TLS_shp/gadm36_TLS_0.shp") 
+PNG = gpd.read_file("data/gadm36_PNG_shp/gadm36_PNG_0.shp") 
+
+choro = plt.choropleth.vertical(gdf, lambda _: "", mappable = sm).adjust(left = 0.01)
+ax1, ax2, _ = choro.figure.axes 
+for ax in (ax1, ax2):
+    MYS.plot(color = "gray", ax = ax)
+    PNG.plot(color = "gray", ax = ax)
+    TLS.plot(color = "gray", ax = ax)
+    ax.set_xlim(left = 94.65, right = 144.0)
+    ax.set_ylim(bottom = -11.32)
+plt.show()
