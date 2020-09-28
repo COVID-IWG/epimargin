@@ -10,15 +10,15 @@ import shapely
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from tqdm import tqdm
 
+import adaptive.plots as plt
 from adaptive.estimators import analytical_MPVS, linear_projection
 from adaptive.etl.commons import download_data
 from adaptive.model import Model, ModelUnit
-from adaptive.plots import label_font, note_font, plot_RR_est, plot_T_anomalies
 from adaptive.policy import simulate_PID_controller
 from adaptive.smoothing import notched_smoothing
 from adaptive.utils import days, setup
 
-logger = getLogger("JKRT")
+logger = getLogger("DKIJ")
 
 # model/sim details
 gamma     = 0.2
@@ -51,42 +51,31 @@ bbox = shapely.geometry.box(minx = 106.65, maxx = 107.00, miny = -6.40, maxy=-6.
 gdf = gdf[gdf.intersects(bbox)]
 
 jakarta_districts = dkij.district.str.title().unique()
+jakarta_cases = dkij.groupby("date_positiveresult")["id"].count().rename("cases")
 
 logger.info("running province-level Rt estimate")
-jakarta_cases = dkij.groupby("date_positiveresult")["id"].count().rename("cases")
-(
-    dates,
-    RR_pred, RR_CI_upper, RR_CI_lower,
-    T_pred, T_CI_upper, T_CI_lower,
-    total_cases, new_cases_ts,
-    anomalies, anomaly_dates
-) = analytical_MPVS(jakarta_cases, CI = CI, smoothing = smoothing, totals=False) 
-plot_RR_est(dates, RR_pred[1:], RR_CI_upper[1:], RR_CI_lower[1:], CI, ymin=0, ymax=4)\
-    .title("\nDKI Jakarta: Reproductive Number Estimate")\
-    .xlabel("\ndate")\
-    .ylabel("$R_t$", rotation=0, labelpad=30)\
-    .annotate(f"\n{window}-day smoothing window, gamma-prior Bayesian estimation method")
-plt.legend(prop = {'size': 18})
-plt.xlim(left=dates[0], right=dates[-1])
-plt.ylim(0.75, 2.75)
-plt.show()
+(dates, RR_pred, RR_CI_upper, RR_CI_lower, T_pred, T_CI_upper, T_CI_lower, total_cases, new_cases_ts, anomalies, anomaly_dates)\
+    = analytical_MPVS(jakarta_cases, CI = CI, smoothing = smoothing, totals=False) 
 
-logger.info("running case-forward prediction")
-np.random.seed(0)
-IDN = Model([ModelUnit("IDN", 267.7e6, I0 = T_pred[-1], RR0 = RR_pred[-1], mobility = 0)])
-IDN.run(14, np.zeros((1,1)))
-t_pred = [dates[-1] + pd.Timedelta(days = i) for i in range(len(IDN[0].delta_T))]
+# plt.Rt(dates, RR_pred[1:], RR_CI_upper[1:], RR_CI_lower[1:], CI)\
+#     .title("\nDKI Jakarta: Reproductive Number Estimate")\
+#     .xlabel("\ndate")\
+#     .ylabel("$R_t$\n", rotation=0, labelpad=30)\
+#     .annotate(f"\n{window}-day smoothing window, gamma-prior Bayesian estimation method")\
+#     .show()
 
-IDN[0].lower_CI[0] = T_CI_lower[-1]
-IDN[0].upper_CI[0] = T_CI_upper[-1]
-plot_T_anomalies(dates, T_pred[1:], T_CI_upper[1:], T_CI_lower[1:], new_cases_ts[1:], anomaly_dates, anomalies, CI)\
-    .title("\nDKI Jakarta: Daily Cases")\
-    .xlabel("\ndate")\
-    .ylabel("cases")\
-    .annotate("\nBayesian training process on empirical data, with anomalies identified")
-plt.xlim(left=dates[0], right=dates[-1])
-plt.legend(prop = {'size': 18})
-plt.show()
+
+# logger.info("running case-forward prediction")
+# prediction_period = 14*days
+# IDN = Model.single_unit(name = "IDN", population = 267.7e6, I0 = T_pred[-1], RR0 = RR_pred[-1], upper_CI = T_CI_upper[-1], lower_CI = T_CI_lower[-1], mobility = 0, random_seed = 0)\
+#            .run(prediction_period)
+ 
+# plt.daily_cases(dates, T_pred[1:], T_CI_upper[1:], T_CI_lower[1:], new_cases_ts[1:], anomaly_dates, anomalies, CI, IDN[0].delta_T[:-1], IDN[0].lower_CI[1:], IDN[0].upper_CI[1:])\
+#     .title("\nDKI Jakarta: Daily Cases")\
+#     .xlabel("\ndate")\
+#     .ylabel("cases\n")\
+#     .annotate("\nBayesian training process on empirical data, with anomalies identified")\
+#     .show()
 
 logger.info("district-level projections")
 district_cases = dkij.groupby(["district", "date_positiveresult"])["id"].count().sort_index()
@@ -107,30 +96,7 @@ print(estimates)
 
 logger.info("generating choropleths")
 gdf = gdf.merge(estimates, left_on = "NAME_2", right_on = "district")
-# gdf["pt"] = gdf['geometry'].apply(lambda _: _.representative_point().coords[0])
-
-
-sm = mpl.cm.ScalarMappable(norm = mpl.colors.Normalize(vmin = 0.6, vmax = 1.3), cmap="RdYlGn_r")
-gdf["pt"] = gdf['geometry'].centroid
-
-fig, (ax1, ax2) = plt.subplots(1, 2)
-ax1.grid(False)
-ax1.set_xticks([])
-ax1.set_yticks([])
-ax1.set_title("Current $R_t$ by District", loc="left", fontdict=label_font) 
-ax2.grid(False)
-ax2.set_xticks([])
-ax2.set_yticks([])
-ax2.set_title("1-Week Projected $R_t$ by District", loc="left", fontdict=label_font) 
-gdf.plot(column = "Rt",      color=[sm.to_rgba(_) for _ in gdf.Rt],      ax = ax1, edgecolors="black", linewidth=0.5)
-gdf.plot(column = "Rt_proj", color=[sm.to_rgba(_) for _ in gdf.Rt_proj], ax = ax2, edgecolors="black", linewidth=0.5)
-for (_, row) in gdf.iterrows():
-    initials = "".join(_[0] for _ in row["NAME_2"].split())
-    Rt_round = round(row["Rt"], 2)
-    Rt_proj_round = round(row["Rt_proj"], 2)
-    ax1.annotate(s=f"{initials}: {Rt_round}        ",      xy=list(row["pt"].coords)[0], ha = "center", fontfamily=note_font["family"], color="white")
-    ax2.annotate(s=f"{initials}: {Rt_proj_round}        ", xy=list(row["pt"].coords)[0], ha = "center", fontfamily=note_font["family"], color="white")
-cbar_ax = fig.add_axes([0.95, 0.25, 0.01, 0.5])
-cb = fig.colorbar(mappable = sm, orientation = "vertical", cax = cbar_ax)
-cbar_ax.set_title("$R_t$", fontdict = note_font)
-plt.show()
+plt.choropleth(gdf, lambda row: row["NAME_2"]+"\n")\
+   .adjust(left = 0.06)\
+   .title("\nDKI Jakarta: $R_t$ by District")\
+   .show()

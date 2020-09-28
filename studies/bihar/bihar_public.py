@@ -2,35 +2,21 @@ from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
 from warnings import simplefilter
 
-import matplotlib.pyplot as plt
-from matplotlib import rcParams
+import geopandas as gpd
 import numpy as np
 import pandas as pd
-from statsmodels.regression.linear_model import OLS
-from statsmodels.tools import add_constant
 from tqdm import tqdm
 
+import adaptive.plots as plt
 import etl
-from adaptive.estimators import analytical_MPVS
+from adaptive.estimators import analytical_MPVS, linear_projection
 from adaptive.etl.commons import download_data
 from adaptive.etl.covid19india import data_path, get_time_series, load_all_data
 from adaptive.model import Model, ModelUnit
-from adaptive.plots import PlotDevice, plot_RR_est, plot_T_anomalies
 from adaptive.smoothing import convolution, notched_smoothing
 from adaptive.utils import cwd, days
 
-rcParams["savefig.dpi"] = 300
-
 simplefilter("ignore")
-
-def project(dates, R_values, smoothing, period = 7*days):
-    julian_dates = [_.to_julian_date() for _ in dates[-smoothing//2:None]]
-    return OLS(
-        RR_pred[-smoothing//2:None], 
-        add_constant(julian_dates)
-    )\
-    .fit()\
-    .predict([1, julian_dates[-1] + period])[0]
 
 def delay_adjust(confirmed, p_delay):
     "Adjust for empirical reporting delays, and additional adjustment for right-censoring"
@@ -102,35 +88,22 @@ populations = dict(zip(district_names, population_counts))
     anomalies, anomaly_dates
 ) = analytical_MPVS(state_ts, CI = CI, smoothing = notched_smoothing(window = smoothing), totals=False) 
 
-plot_RR_est(dates, RR_pred[1:], RR_CI_upper[1:], RR_CI_lower[1:], CI, ymin=0, ymax=4)\
-    .title("\nBihar: Reproductive Number Estimate (Covid19India Data)")\
-    .annotate(f"public data from {str(dates[0]).split()[0]} to {str(dates[-1]).split()[0]}")\
-    .xlabel("date")\
-    .ylabel("$R_t$", rotation=0, labelpad=20)
-plt.hlines(1, xmin=dates[0], xmax=dates[-1], color="dimgray")
-plt.xlim(left=dates[0], right=dates[-1])
-plt.ylim(0, 4)
-plt.show()
+# plt.Rt(dates, RR_pred[1:], RR_CI_upper[1:], RR_CI_lower[1:], CI, ymin=0, ymax=3)\
+#     .title("\nBihar: Reproductive Number Estimate (Covid19India Data)")\
+#     .annotate(f"public data from {str(dates[0]).split()[0]} to {str(dates[-1]).split()[0]}")\
+#     .xlabel("\ndate")\
+#     .ylabel("$R_t$", rotation=0, labelpad=20)\
+#     .show()
 
-np.random.seed(9)
-Bihar = Model([ModelUnit("Bihar", 99_000_000, I0 = T_pred[-1], RR0 = RR_pred[-1], mobility = 0)])
-Bihar.run(12, np.zeros((1,1)))
+# Bihar = Model.single_unit("Bihar", 99_000_000, I0 = T_pred[-1], RR0 = RR_pred[-1], mobility = 0, random_seed = 0)\
+#              .run(14)
 
-t_pred = [dates[-1] + pd.Timedelta(days = i) for i in range(len(Bihar[0].delta_T))]
-
-Bihar[0].lower_CI[0] = T_CI_lower[-1]
-Bihar[0].upper_CI[0] = T_CI_upper[-1]
-plot_T_anomalies(dates, T_pred[1:], T_CI_upper[1:], T_CI_lower[1:], new_cases_ts[1:], anomaly_dates, anomalies, CI)
-plt.scatter(t_pred, Bihar[0].delta_T, color = "tomato", s = 4, label = "Predicted New Cases")
-plt.fill_between(t_pred, Bihar[0].lower_CI, Bihar[0].upper_CI, color = "tomato", alpha = 0.3, label="95% CI (forecast)")
-plt.legend()
-PlotDevice().title("\nBihar: New Daily Cases (Covid19India Data)")\
-    .annotate(f"public data from {str(dates[0]).split()[0]} to {str(dates[-1]).split()[0]}; predictions until {str(t_pred[-1]).split()[0]}")\
-    .xlabel("date").ylabel("cases")
-plt.xlim(left = dates[0], right = t_pred[-1])
-# plt.semilogy()
-plt.ylim(0, 3500)
-plt.show()
+# plt.daily_cases(dates, T_pred[1:], T_CI_upper[1:], T_CI_lower[1:], new_cases_ts[1:], anomaly_dates, anomalies, CI, Bihar[0].delta_T[:-1], Bihar[0].lower_CI[1:], Bihar[0].upper_CI[1:])\
+#     .title("\nBihar: Daily Cases")\
+#     .xlabel("\ndate")\
+#     .ylabel("cases\n")\
+#     .annotate("\nBayesian training process on empirical data, with anomalies identified")\
+#     .show()
 
 # now, do district-level estimation 
 smoothing = 10
@@ -143,7 +116,7 @@ with tqdm(district_time_series.index.get_level_values(0).unique()) as districts:
         districts.set_description(f"{district :<{max_len}}")
         try: 
             (dates, RR_pred, RR_CI_upper, RR_CI_lower, *_) = analytical_MPVS(district_time_series.loc[district], CI = CI, smoothing = convolution(window = smoothing), totals=False)
-            estimates.append((district, RR_pred[-1], RR_CI_lower[-1], RR_CI_upper[-1], project(dates, RR_pred, smoothing))) 
+            estimates.append((district, RR_pred[-1], RR_CI_lower[-1], RR_CI_upper[-1], linear_projection(dates, RR_pred, smoothing))) 
         except (IndexError, ValueError): 
             estimates.append((district, np.nan, np.nan, np.nan, np.nan))
 estimates = pd.DataFrame(estimates).dropna()
@@ -151,3 +124,9 @@ estimates.columns = ["district", "Rt", "Rt_CI_lower", "Rt_CI_upper", "Rt_proj"]
 estimates.set_index("district", inplace=True)
 estimates.clip(0).to_csv(data/"Rt_estimates_public_data.csv")
 print(estimates)
+
+gdf = gpd.read_file(data/"bihar.json").merge(estimates, left_on = "district", right_on = "district")
+plt.choropleth(gdf)\
+   .title("\nBihar: $R_t$ by District")\
+    .adjust(left = 0.04, bottom = 0, top = 1)\
+   .show()
