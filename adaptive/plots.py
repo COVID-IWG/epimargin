@@ -214,7 +214,8 @@ def simulations(
     historical: Optional[pd.Series] = None, 
     historical_label: str = "Empirical Case Data", 
     curve: str = "delta_T", 
-    smoothing: Optional[np.ndarray] = None) -> PlotDevice:
+    smoothing: Optional[np.ndarray] = None, 
+    semilog: bool = True) -> PlotDevice:
 
     aggregates = [tuple(model.aggregate(curve) for model in model_set) for model_set in simulation_results]
 
@@ -259,8 +260,9 @@ def simulations(
     plt.legend(legends, legend_labels, prop = dict(size = 20), handlelength = 1, framealpha = 1)
 
     plt.xlim(left = historical.index[0], right = t[-1])
-    
-    return plt.PlotDevice()
+    if semilog:
+        plt.semilogy()
+    return PlotDevice()
 
 def Rt(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin = 0.5, ymax = 3):
     try: 

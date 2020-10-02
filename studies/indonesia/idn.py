@@ -55,6 +55,30 @@ provinces =[
     'SUMATERA UTARA'
 ]
 
+# provinces = [
+#     'SUMATERA BARAT',
+#     'SUMATERA UTARA',
+#     'RIAU',
+#     'JAMBI',
+#     'SUMATERA SELATAN',
+#     'LAMPUNG',
+#     'KEPULAUAN BANGKA BELITUNG',
+#     'KEPULAUAN RIAU',
+#     'DKI JAKARTA',
+#     'JAWA BARAT',
+#     'JAWA TENGAH',
+#     'DAERAH ISTIMEWA YOGYAKARTA',
+#     'JAWA TIMUR',
+#     'BANTEN',
+#     'BALI',
+#     'NUSA TENGGARA BARAT',
+#     'KALIMANTAN TENGAH',
+#     'KALIMANTAN SELATAN',
+#     'KALIMANTAN TIMUR',
+#     'SULAWESI SELATAN',
+#     'SULAWESI BARAT'
+# ]
+
 replacements = { 
     'YOGYAKARTA'     : "DAERAH ISTIMEWA YOGYAKARTA",
     'BANGKA BELITUNG': "KEPULAUAN BANGKA BELITUNG",
@@ -110,7 +134,7 @@ plt.Rt(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin=0, ymax=4)\
 logger.info("running case-forward prediction")
 IDN = Model.single_unit("IDN", 267.7e6, I0 = T_pred[-1], RR0 = RR_pred[-1], mobility = 0, random_seed = 0)\
            .run(14)
-plt.daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI)\
+plt.daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI, IDN[0].delta_T[:-1], IDN[0].lower_CI[1:], IDN[0].upper_CI[1:])\
     .title("\nIndonesia: Net Daily Cases")\
     .xlabel("\ndate")\
     .ylabel("cases")\
@@ -126,11 +150,16 @@ with tqdm(provinces) as progress:
     for (province, cases) in province_cases.items():
         progress.set_description(f"{province :<{max_len}}")
         (dates, RR_pred, RR_CI_upper, RR_CI_lower, *_) = analytical_MPVS(cases, CI = CI, smoothing = smoothing)
-        estimates.append((province, RR_pred[-1], RR_CI_lower[-1], RR_CI_upper[-1], linear_projection(dates, RR_pred, window)))
+        apr_idx = np.argmax(dates >  "31 Mar, 2020")
+        may_idx = np.argmax(dates >= "01 May, 2020")
+        max_idx = np.argmax(RR_pred[apr_idx:may_idx])
+        apr_max_idx = apr_idx + max_idx
+        estimates.append((province, RR_pred[-1], RR_CI_lower[-1], RR_CI_upper[-1], max(0, linear_projection(dates, RR_pred, window)), RR_pred[apr_max_idx], RR_CI_lower[apr_max_idx], RR_CI_upper[apr_max_idx], dates[apr_max_idx], cases.iloc[-1][0]))
+        progress.update()
 estimates = pd.DataFrame(estimates)
-estimates.columns = ["province", "Rt", "Rt_CI_lower", "Rt_CI_upper", "Rt_proj"]
+estimates.columns = ["province", "Rt", "Rt_CI_lower", "Rt_CI_upper", "Rt_proj", "Rt_max", "Rt_CI_lower_at_max", "RR_CI_upper_at_max", "date_at_max_Rt", "total_cases"]
 estimates.set_index("province", inplace=True)
-estimates.to_csv(data/"IDN_Rt_projections.csv")
+estimates.to_csv(data/"IDN_only_apr_Rt_max_filtered.csv")
 print(estimates)
 
 # choropleths
