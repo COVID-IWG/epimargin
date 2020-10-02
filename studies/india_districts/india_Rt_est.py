@@ -4,7 +4,7 @@ import pandas as pd
 from adaptive.estimators import analytical_MPVS
 from adaptive.etl.commons import download_data
 from adaptive.etl.covid19india import data_path, get_time_series, load_all_data
-from adaptive.plots import plot_RR_est, plot_T_anomalies
+import adaptive.plots as plt
 from adaptive.smoothing import notched_smoothing
 from adaptive.utils import cwd
 
@@ -62,7 +62,7 @@ for state in states:
     })
     print("  + Rt today:", RR_pred[-1])
 
-    # plot_RR_est(dates, RR_pred, RR_CI_lower, RR_CI_upper, CI)\
+    # plt.Rt(dates, RR_pred, RR_CI_lower, RR_CI_upper, CI)\
     #     .ylabel("Estimated $R_t$")\
     #     .xlabel("Date")\
     #     .title(state)\
@@ -70,7 +70,7 @@ for state in states:
     #     .save(figs/f"Rt_est_{state}.png", dpi=600, bbox_inches="tight")\
     #     .show()
 
-    # plot_T_anomalies(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI)\
+    # plt.daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI)\
     #     .ylabel("Predicted/Observed Cases")\
     #     .xlabel("Date")\
     #     .title(state)\

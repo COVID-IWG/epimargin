@@ -116,7 +116,7 @@ delay_dist = delay_hist/delay_hist.sum()
 # plot empirical delays at state and national levels
 slopes = {}
 slopes["TT"] = plot_delay_dist("all", delay_hist, show = True, filename = figs/"empirical_distribution_TT.png")
-for state in :
+for state in []:
     plt.figure()
     state_code = state_name_lookup.get(state, state)
     slope = plot_delay_dist(state_code, state_hist.loc[state], show = False, filename = figs/f"empirical_distribution_{state_code}.png")

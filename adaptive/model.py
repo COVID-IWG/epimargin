@@ -19,7 +19,9 @@ class ModelUnit():
         introduction_rate: float = 5.0,     # parameter for new community transmissions (lambda) 
         mortality:         float = 0.02,    # I -> D transition probability 
         mobility:          float = 0.0001,  # percentage of total population migrating out at each timestep 
-        RR0:               float = 1.9,     # initial reproductive rate 
+        RR0:               float = 1.9,     # initial reproductive rate,
+        upper_CI:          float = 0.0,     # initial upper confidence interval 
+        lower_CI:          float = 0.0,     # initial lower confidence interval 
         CI:                float = 0.95     # confidence interval
         ):
         
@@ -46,8 +48,8 @@ class ModelUnit():
         self.beta = [RR0 * self.gamma] # initial contact rate 
         self.delta_T     = [I0] # case change rate, initialized with the first introduction, if any
         self.total_cases = [I0] # total cases 
-        self.upper_CI = [0]
-        self.lower_CI = [0]
+        self.upper_CI = [upper_CI]
+        self.lower_CI = [lower_CI]
 
     # period 1: inter-state migratory transmission
     def migration_step(self) -> int:
@@ -113,11 +115,19 @@ class Model():
         self.units      = units
         self.migrations = default_migrations
         self.names      = {unit.name: unit for unit in units}
-        if random_seed:
+        if random_seed is not None:
             np.random.seed(random_seed)
 
     def __len__(self) -> int:
         return len(self.units)
+
+    @staticmethod
+    def single_unit(*args, **kwargs):
+        if "random_seed" in kwargs:
+            random_seed = kwargs.pop("random_seed")
+        else:
+            random_seed = None
+        return Model([ModelUnit(*args, **kwargs)], default_migrations = np.zeros((1, 1)), random_seed = random_seed)
 
     def tick(self, migrations: np.matrix):
         # run migration step 
