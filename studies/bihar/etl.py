@@ -25,11 +25,20 @@ replacements = {
     "PURBA CHAMPARAN"   : "EAST CHAMPARAN", 
     "KAIMUR (BHABUA)"   : "KAIMUR", 
     "SHIEKHPURA"        : "SHEIKHPURA",
-    "SHEIKHPURA"        : "SHEIKPURA",
-    "SHIEKHPURA"        : "SHEIKPURA",
-    "MUZAFFARPUR"       : "MUZZAFARPUR", 
-    "PURNIA"            : "PURNEA"
+    "SHEIKHPURA"        : "SHEIKHPURA",
+    "SHIEKHPURA"        : "SHEIKHPURA",
+    # "MUZAFFARPUR"       : "MUZZAFARPUR", 
+    # "PURNIA"            : "PURNEA"
 }
+
+new_districts = ["ARWAL"]
+
+def normalize(district_names: Sequence[str]) -> Sequence[str]:
+    return sorted(
+        [replacements.get(_, _) for _ in 
+            (district_names + [nd for nd in new_districts if nd not in district_names])
+        ])
+
 
 def load_cases(path: Path) -> pd.DataFrame:
     raw = pd.read_csv(path, parse_dates=[collect, confirm, release], dayfirst=True)

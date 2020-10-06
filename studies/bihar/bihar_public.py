@@ -60,7 +60,7 @@ CI        = 0.95
 
 paths = { 
     "v3": [data_path(_) for _ in (1, 2)],
-    "v4": [data_path(_) for _ in range(3, 16)]
+    "v4": [data_path(_) for _ in range(3, 17)]
 }
 
 for target in paths['v3'] + paths['v4']:
@@ -88,22 +88,22 @@ populations = dict(zip(district_names, population_counts))
     anomalies, anomaly_dates
 ) = analytical_MPVS(state_ts, CI = CI, smoothing = notched_smoothing(window = smoothing), totals=False) 
 
-# plt.Rt(dates, RR_pred[1:], RR_CI_upper[1:], RR_CI_lower[1:], CI, ymin=0, ymax=3)\
-#     .title("\nBihar: Reproductive Number Estimate (Covid19India Data)")\
-#     .annotate(f"public data from {str(dates[0]).split()[0]} to {str(dates[-1]).split()[0]}")\
-#     .xlabel("\ndate")\
-#     .ylabel("$R_t$", rotation=0, labelpad=20)\
-#     .show()
+plt.Rt(dates, RR_pred[1:], RR_CI_upper[1:], RR_CI_lower[1:], CI, ymin=0, ymax=3)\
+    .title("\nBihar: Reproductive Number Estimate (Covid19India Data)")\
+    .annotate(f"public data from {str(dates[0]).split()[0]} to {str(dates[-1]).split()[0]}")\
+    .xlabel("\ndate")\
+    .ylabel("$R_t$", rotation=0, labelpad=20)\
+    .show()
 
-# Bihar = Model.single_unit("Bihar", 99_000_000, I0 = T_pred[-1], RR0 = RR_pred[-1], mobility = 0, random_seed = 0)\
-#              .run(14)
+Bihar = Model.single_unit("Bihar", 99_000_000, I0 = T_pred[-1], RR0 = RR_pred[-1], mobility = 0, random_seed = 0)\
+             .run(14)
 
-# plt.daily_cases(dates, T_pred[1:], T_CI_upper[1:], T_CI_lower[1:], new_cases_ts[1:], anomaly_dates, anomalies, CI, Bihar[0].delta_T[:-1], Bihar[0].lower_CI[1:], Bihar[0].upper_CI[1:])\
-#     .title("\nBihar: Daily Cases")\
-#     .xlabel("\ndate")\
-#     .ylabel("cases\n")\
-#     .annotate("\nBayesian training process on empirical data, with anomalies identified")\
-#     .show()
+plt.daily_cases(dates, T_pred[1:], T_CI_upper[1:], T_CI_lower[1:], new_cases_ts[1:], anomaly_dates, anomalies, CI, Bihar[0].delta_T[:-1], Bihar[0].lower_CI[1:], Bihar[0].upper_CI[1:])\
+    .title("\nBihar: Daily Cases")\
+    .xlabel("\ndate")\
+    .ylabel("cases\n")\
+    .annotate("\nBayesian training process on empirical data, with anomalies identified")\
+    .show()
 
 # now, do district-level estimation 
 smoothing = 10
@@ -125,8 +125,8 @@ estimates.set_index("district", inplace=True)
 estimates.clip(0).to_csv(data/"Rt_estimates_public_data.csv")
 print(estimates)
 
-gdf = gpd.read_file(data/"bihar.json").merge(estimates, left_on = "district", right_on = "district")
-plt.choropleth(gdf)\
-   .title("\nBihar: $R_t$ by District")\
-   .adjust(left = 0.04, bottom = 0, top = 1)\
-   .show()
+# gdf = gpd.read_file(data/"bihar.json").merge(estimates, left_on = "district", right_on = "district")
+# plt.choropleth(gdf, mappable = plt.get_cmap())\
+#    .title("\nBihar: $R_t$ by District")\
+#    .adjust(left = 0.04, bottom = 0, top = 1)\
+#    .show()
