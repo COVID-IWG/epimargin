@@ -13,6 +13,40 @@ from matplotlib.pyplot import *
 
 from .model import Model
 
+_ = plt 
+sns.despine()
+mpl.rcParams["savefig.dpi"] = 300
+
+# palettes
+
+## Rt
+### core plot
+BLK    = "#292f36"
+BLK_CI = "#aeb7c2"
+
+### stoplight 
+RED = "#D63231"
+YLW = "#FD8B5A"
+GRN = "#38AE66"
+
+## new cases
+OBS_BLK     = BLK
+CASE_BLU    = "#335970"
+ANOMALY_BLU = "#4092A0"
+PRED_PURPLE = "#554B68"
+
+## policy simulations 
+SIM_PALETTE = ["#437034", "#7D4343", "#43587D", "#7D4370"]
+
+# typography
+title_font = {"size": 28, "family": "Helvetica Neue", "fontweight": "500"}
+label_font = {"size": 20, "family": "Helvetica Neue", "fontweight": "500"}
+note_font  = {"size": 14, "family": "Helvetica Neue", "fontweight": "500"}
+ticks_font = {"family": "Inconsolata"}
+sns.set(style = "whitegrid", palette = "bright", font = "Helvetica Neue")
+
+plt.rcParams['mathtext.default'] = 'regular'
+DATE_FMT = mdates.DateFormatter('%d %b')
 
 # from https://towardsdatascience.com/beautiful-custom-colormaps-with-matplotlib-5bab3d1f0e72
 def hex_to_rgb(value):
@@ -56,45 +90,14 @@ def get_continuous_cmap(hex_list, float_list=None):
     mpl.cm.register_cmap("ACRt", cmp)
     return cmp
 
-_ = plt 
-sns.despine()
-mpl.rcParams["savefig.dpi"] = 300
+# DEFAULT COLOR MAPPING
+def get_cmap(vmin = 0, vmax = 3):
+    return mpl.cm.ScalarMappable(
+        norm = mpl.colors.Normalize(vmin, vmax), 
+        cmap = get_continuous_cmap([GRN, YLW, RED, RED], [0, 0.8, 0.9, 1])
+    )
 
-# palettes
-
-## Rt
-### core plot
-BLK    = "#292f36"
-BLK_CI = "#aeb7c2"
-
-### stoplight 
-RED = "#D63231"
-YLW = "#FD8B5A"
-GRN = "#38AE66"
-sm = mpl.cm.ScalarMappable(
-    norm = mpl.colors.Normalize(vmin = 0, vmax = 3), 
-    cmap = get_continuous_cmap([GRN, YLW, RED, RED], [0, 0.8, 0.9, 1])
-)
-
-## new cases
-OBS_BLK     = BLK
-CASE_BLU    = "#335970"
-ANOMALY_BLU = "#4092A0"
-PRED_PURPLE = "#554B68"
-
-## policy simulations 
-SIM_PALETTE = ["#437034", "#7D4343", "#43587D", "#7D4370"]
-
-
-# typography
-title_font = {"size": 28, "family": "Helvetica Neue", "fontweight": "500"}
-label_font = {"size": 20, "family": "Helvetica Neue", "fontweight": "500"}
-note_font  = {"size": 14, "family": "Helvetica Neue", "fontweight": "500"}
-ticks_font = {"family": "Inconsolata"}
-sns.set(style = "whitegrid", palette = "bright", font = "Helvetica Neue")
-
-plt.rcParams['mathtext.default'] = 'regular'
-DATE_FMT = mdates.DateFormatter('%d %b')
+sm = get_cmap()
 
 
 # simple wrapper over plt to help chain commands

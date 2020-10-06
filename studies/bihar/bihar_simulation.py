@@ -48,11 +48,11 @@ def run_policies(
 
     # lockdown 1
     model_B = model(districts, populations, district_cases, seed)
-    simulate_lockdown(model_B, lockdown_period + 7, total, Rmw, Rvw, lockdown_matrix, migrations)
+    simulate_lockdown(model_B, lockdown_period + 6, total, Rmw, Rvw, lockdown_matrix, migrations)
 
     # lockdown + adaptive controls
     model_C = model(districts, populations, district_cases, seed)
-    simulate_adaptive_control(model_C, lockdown_period, total, lockdown_matrix, migrations, Rmw,
+    simulate_adaptive_control(model_C, lockdown_period + 6, total, lockdown_matrix, migrations, Rmw,
         {district: beta_scaling * Rv * gamma for (district, Rv) in Rvw.items()},
         {district: beta_scaling * Rm * gamma for (district, Rm) in Rmw.items()},
         evaluation_period=eval_period
@@ -66,15 +66,13 @@ if __name__ == "__main__":
     figs = root/"figs"
 
     total_time = 90 * days 
-    release_date = pd.to_datetime("12 September, 2020")
-    # lockdown_period = (release_date - pd.to_datetime("today")).days
-    lockdown_period = 2 
+    lockdown_period = 7
     
     gamma  = 0.2
     window = 10
     CI = 0.95
 
-    state_cases = pd.read_csv(data/"Bihar_cases_data_Sep10.csv", parse_dates=["date_reported", "date_status_change"], dayfirst=True)
+    state_cases = pd.read_csv(data/"Bihar_cases_data_Oct03.csv", parse_dates=["date_reported", "date_status_change"], dayfirst=True)
     state_cases["geo_reported"] = state_cases.geo_reported.str.strip()
     state_cases = state_cases[state_cases.date_reported <= "2020-09-08"]
     state_ts = state_cases["date_reported"].value_counts().sort_index()
@@ -93,7 +91,7 @@ if __name__ == "__main__":
     
     R_voluntary = {district: 1.2*R for (district, R) in R_mandatory.items()}
 
-    si, sf = 0, 10
+    si, sf = 0, 500
 
     simulation_results = [ 
         run_policies(state_cases, pops, districts, migrations, gamma, R_mandatory, R_voluntary, lockdown_period = lockdown_period, total = total_time, seed = seed)
@@ -102,7 +100,7 @@ if __name__ == "__main__":
 
     plt.simulations(
         simulation_results, 
-        ["12 September Release", "19 September Release", "Adaptive Control Starting 12 September"], 
+        ["10 Oct: full release", "16 Oct: full release", "16 Oct: adaptive control begins"], 
         historical = state_ts)\
         .title("\nBihar Policy Scenarios: Projected Cases over Time")\
         .xlabel("date")\
