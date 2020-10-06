@@ -2,20 +2,20 @@ from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
 from warnings import simplefilter
 
+import adaptive.plots as plt
 import matplotlib.pyplot as plt
-from matplotlib import rcParams
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
-from statsmodels.regression.linear_model import OLS 
-from statsmodels.tools import add_constant
-
-import etl
 from adaptive.estimators import analytical_MPVS
 from adaptive.model import Model, ModelUnit
-from adaptive.plots import PlotDevice, plot_RR_est, plot_T_anomalies
 from adaptive.smoothing import convolution, notched_smoothing
 from adaptive.utils import cwd, days
+from matplotlib import rcParams
+from statsmodels.regression.linear_model import OLS
+from statsmodels.tools import add_constant
+from tqdm import tqdm
+
+import etl
 
 rcParams["savefig.dpi"] = 300
 
@@ -38,7 +38,7 @@ gamma     = 0.2
 smoothing = 10
 CI        = 0.95
 
-state_cases = pd.read_csv(data/"Bihar_cases_data_Sep10.csv", parse_dates=["date_reported"], dayfirst=True)
+state_cases = pd.read_csv(data/"Bihar_cases_data_Oct03.csv", parse_dates=["date_reported"], dayfirst=True)
 state_ts = state_cases["date_reported"].value_counts().sort_index()
 # state_ts = state_ts[state_ts.index <= "2020-09-01"]
 district_names, population_counts, _ = etl.district_migration_matrix(data/"Migration Matrix - District.csv")
@@ -53,7 +53,7 @@ populations = dict(zip(district_names, population_counts))
     anomalies, anomaly_dates
 ) = analytical_MPVS(state_ts, CI = CI, smoothing = notched_smoothing(window = smoothing), totals=False) 
 
-plot_RR_est(dates, RR_pred[1:], RR_CI_upper[1:], RR_CI_lower[1:], CI, ymin=0, ymax=4)\
+plt.Rt(dates, RR_pred[1:], RR_CI_upper[1:], RR_CI_lower[1:], CI, ymin=0, ymax=4)\
     .title("\nBihar: Reproductive Number Estimate")\
     .annotate(f"data from {str(dates[0]).split()[0]} to {str(dates[-1]).split()[0]}")\
     .xlabel("date")\
@@ -71,17 +71,15 @@ t_pred = [dates[-1] + pd.Timedelta(days = i) for i in range(len(Bihar[0].delta_T
 
 Bihar[0].lower_CI[0] = T_CI_lower[-1]
 Bihar[0].upper_CI[0] = T_CI_upper[-1]
-plot_T_anomalies(dates, T_pred[1:], T_CI_upper[1:], T_CI_lower[1:], new_cases_ts[1:], anomaly_dates, anomalies, CI)
-plt.scatter(t_pred, Bihar[0].delta_T, color = "tomato", s = 4, label = "Predicted New Cases")
-plt.fill_between(t_pred, Bihar[0].lower_CI, Bihar[0].upper_CI, color = "tomato", alpha = 0.3, label="95% CI (forecast)")
-plt.legend()
+plt.daily_cases(dates, T_pred[1:], T_CI_upper[1:], T_CI_lower[1:], new_cases_ts[1:], anomaly_dates, anomalies, CI, 
+    prediction_ts = [
+        
+    ]
+)
 PlotDevice().title("\nBihar: New Daily Cases")\
     .annotate(f"data from {str(dates[0]).split()[0]} to {str(dates[-1]).split()[0]}; predictions until {str(t_pred[-1]).split()[0]}")\
-    .xlabel("date").ylabel("cases")
-# plt.semilogy()
-plt.xlim(left = dates[0], right = t_pred[-1])
-# plt.ylim(0, 1600)
-plt.show()
+    .xlabel("date").ylabel("cases")\
+    .show()
 
 # now, do district-level estimation 
 smoothing = 10
@@ -102,5 +100,5 @@ with tqdm([etl.replacements.get(dn, dn) for dn in district_names]) as districts:
 estimates = pd.DataFrame(estimates)
 estimates.columns = ["district", "Rt", "Rt_CI_lower", "Rt_CI_upper", "Rt_proj"]
 estimates.set_index("district", inplace=True)
-estimates.to_csv(data/"Rt_estimates.csv")
+estimates.to_csv(data/"Rt_estimates_private_data.csv")
 print(estimates)

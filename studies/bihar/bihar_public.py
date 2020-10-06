@@ -128,5 +128,5 @@ print(estimates)
 gdf = gpd.read_file(data/"bihar.json").merge(estimates, left_on = "district", right_on = "district")
 plt.choropleth(gdf)\
    .title("\nBihar: $R_t$ by District")\
-    .adjust(left = 0.04, bottom = 0, top = 1)\
+   .adjust(left = 0.04, bottom = 0, top = 1)\
    .show()
