@@ -180,3 +180,4 @@ def simulate_PID_controller(
 
         u = kP * error + kI * integral + kD * derivative
         prev_error = error
+    return model 
