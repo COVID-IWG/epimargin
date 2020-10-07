@@ -15,13 +15,9 @@ from .model import Model
 
 _ = plt 
 sns.despine()
-<<<<<<< HEAD
-mpl.rcParams["savefig.dpi"] = 300
-=======
 mpl.rcParams["savefig.dpi"]     = 300
 mpl.rcParams["xtick.labelsize"] = "large"
 mpl.rcParams["ytick.labelsize"] = "large"
->>>>>>> master
 
 # palettes
 
@@ -96,13 +92,10 @@ def get_continuous_cmap(hex_list, float_list=None):
     mpl.cm.register_cmap("ACRt", cmp)
     return cmp
 
-<<<<<<< HEAD
-=======
 def set_tick_size(size: int):
     plt.xticks(fontsize=size)
     plt.yticks(fontsize=size)
 
->>>>>>> master
 # DEFAULT COLOR MAPPING
 def get_cmap(vmin = 0, vmax = 3):
     return mpl.cm.ScalarMappable(
