@@ -15,7 +15,13 @@ from .model import Model
 
 _ = plt 
 sns.despine()
+<<<<<<< HEAD
 mpl.rcParams["savefig.dpi"] = 300
+=======
+mpl.rcParams["savefig.dpi"]     = 300
+mpl.rcParams["xtick.labelsize"] = "large"
+mpl.rcParams["ytick.labelsize"] = "large"
+>>>>>>> master
 
 # palettes
 
@@ -90,6 +96,13 @@ def get_continuous_cmap(hex_list, float_list=None):
     mpl.cm.register_cmap("ACRt", cmp)
     return cmp
 
+<<<<<<< HEAD
+=======
+def set_tick_size(size: int):
+    plt.xticks(fontsize=size)
+    plt.yticks(fontsize=size)
+
+>>>>>>> master
 # DEFAULT COLOR MAPPING
 def get_cmap(vmin = 0, vmax = 3):
     return mpl.cm.ScalarMappable(
@@ -265,6 +278,7 @@ def simulations(
     plt.xlim(left = historical.index[0], right = t[-1])
     if semilog:
         plt.semilogy()
+    set_tick_size(16)
     return PlotDevice()
 
 def Rt(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin = 0.5, ymax = 3):
@@ -284,6 +298,7 @@ def Rt(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin = 0.5, ymax = 3):
     plt.legend([(CI_marker, Rt_marker)], [f"Estimated $R_t$ ({100*CI}% CI)"], prop = {'size': 16}, framealpha = 1, handlelength = 1)
     plt.gca().xaxis.set_major_formatter(DATE_FMT)
     plt.gca().xaxis.set_minor_formatter(DATE_FMT)
+    set_tick_size(16)
     return PlotDevice()
 
 def daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI, predictions = None, pred_CI_upper = None, pred_CI_lower = None):
@@ -313,6 +328,7 @@ def daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dat
     plt.legend(legends, labels, prop = {'size': 16}, framealpha = 1, handlelength = 1, loc = "upper left")
     plt.gca().xaxis.set_major_formatter(DATE_FMT)
     plt.gca().xaxis.set_minor_formatter(DATE_FMT)
+    set_tick_size(16)
     return PlotDevice()
 
 def choropleth(gdf, label_fn = lambda _: "", Rt_col = "Rt", Rt_proj_col = "Rt_proj", titles = ["Current $R_t$", "Projected $R_t$ (1 Week)"], arrangement = (1, 2), label_kwargs = {}, mappable = sm):

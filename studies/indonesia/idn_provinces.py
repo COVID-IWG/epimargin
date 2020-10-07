@@ -33,7 +33,7 @@ provinces = [
     "SULAWESI UTARA",
     "SULAWESI SELATAN",
     "PAPUA"
-]
+][:1]
 
 replacements = { 
     'YOGYAKARTA'     : "DAERAH ISTIMEWA YOGYAKARTA",
@@ -54,15 +54,15 @@ timeseries  = "list_perkembangan"
 total_cases = "AKUMULASI_KASUS"
 
 priority_pops = { 
-"DKI JAKARTA"       : 10_154_134,
-"JAWA BARAT"        : 46_668_214, 
-"JAWA TENGAH"       : 33_753_023, 
-"JAWA TIMUR"        : 38_828_061, 
-"BALI"              : 4_148_588, 
-"KALIMANTAN SELATAN": 3_984_315, 
-"SULAWESI UTARA"    : 639_639, 
-"SULAWESI SELATAN"  : 8_512_608, 
-"PAPUA"             : 3_143_088
+    "DKI JAKARTA"       : 10_154_134,
+    "JAWA BARAT"        : 46_668_214, 
+    "JAWA TENGAH"       : 33_753_023, 
+    "JAWA TIMUR"        : 38_828_061, 
+    "BALI"              : 4_148_588, 
+    "KALIMANTAN SELATAN": 3_984_315, 
+    "SULAWESI UTARA"    : 639_639, 
+    "SULAWESI SELATAN"  : 8_512_608, 
+    "PAPUA"             : 3_143_088
 }
 
 filename = lambda province: "prov_detail_{}.json".format(province.replace(" ", "_"))
@@ -100,13 +100,13 @@ for province in provinces:
             .run(prediction_period)
 
     plt.Rt(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin=0.2, ymax=4.5)\
-        .title(f"\n{title}")\
+        .title(f"{title}")\
         .xlabel("\ndate")\
         .ylabel("$R_t$", rotation=0, labelpad=30)\
         .show()
 
-    plt.daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI, IDN[0].delta_T[:-1], IDN[0].lower_CI[1:], IDN[0].upper_CI[1:])\
-        .title(f"\n{title}")\
-        .xlabel("\ndate")\
-        .ylabel("cases")\
-        .show()
+    # plt.daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI, IDN[0].delta_T[:-1], IDN[0].lower_CI[1:], IDN[0].upper_CI[1:])\
+    #     .title(f"\n{title}")\
+    #     .xlabel("\ndate")\
+    #     .ylabel("cases")\
+    #     .show()
