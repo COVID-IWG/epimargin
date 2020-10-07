@@ -52,7 +52,7 @@ def run_policies(
 
     # lockdown + adaptive controls
     model_C = model(districts, populations, district_cases, seed)
-    simulate_adaptive_control(model_C, lockdown_period + 6, total, lockdown_matrix, migrations, Rmw,
+    simulate_adaptive_control(model_C, lockdown_period, total, lockdown_matrix, migrations, Rmw,
         {district: beta_scaling * Rv * gamma for (district, Rv) in Rvw.items()},
         {district: beta_scaling * Rm * gamma for (district, Rm) in Rmw.items()},
         evaluation_period=eval_period
@@ -74,7 +74,7 @@ if __name__ == "__main__":
 
     state_cases = pd.read_csv(data/"Bihar_cases_data_Oct03.csv", parse_dates=["date_reported", "date_status_change"], dayfirst=True)
     state_cases["geo_reported"] = state_cases.geo_reported.str.strip()
-    state_cases = state_cases[state_cases.date_reported <= "2020-09-08"]
+    state_cases = state_cases[state_cases.date_reported <= "2020-09-30"]
     state_ts = state_cases["date_reported"].value_counts().sort_index()
     district_ts = state_cases.groupby(["geo_reported", "date_reported"])["date_reported"].count().sort_index()
     districts, pops, migrations = etl.district_migration_matrix(data/"Migration Matrix - District.csv")
@@ -100,7 +100,7 @@ if __name__ == "__main__":
 
     plt.simulations(
         simulation_results, 
-        ["10 Oct: full release", "16 Oct: full release", "16 Oct: adaptive control begins"], 
+        ["10 Oct: full release", "16 Oct: full release", "10 Oct: adaptive control begins"], 
         historical = state_ts)\
         .title("\nBihar Policy Scenarios: Projected Cases over Time")\
         .xlabel("date")\
