@@ -20,6 +20,42 @@ def normalize_dates(dates):
         return [_.to_pydatetime().date() for _ in dates]
     except AttributeError:
         return dates
+_ = plt 
+sns.despine()
+mpl.rcParams["savefig.dpi"]     = 300
+mpl.rcParams["xtick.labelsize"] = "large"
+mpl.rcParams["ytick.labelsize"] = "large"
+
+# palettes
+
+## Rt
+### core plot
+BLK    = "#292f36"
+BLK_CI = "#aeb7c2"
+
+### stoplight 
+RED = "#D63231"
+YLW = "#FD8B5A"
+GRN = "#38AE66"
+
+## new cases
+OBS_BLK     = BLK
+CASE_BLU    = "#335970"
+ANOMALY_BLU = "#4092A0"
+PRED_PURPLE = "#554B68"
+
+## policy simulations 
+SIM_PALETTE = ["#437034", "#7D4343", "#43587D", "#7D4370"]
+
+# typography
+title_font = {"size": 28, "family": "Helvetica Neue", "fontweight": "500"}
+label_font = {"size": 20, "family": "Helvetica Neue", "fontweight": "500"}
+note_font  = {"size": 14, "family": "Helvetica Neue", "fontweight": "500"}
+ticks_font = {"family": "Inconsolata"}
+sns.set(style = "whitegrid", palette = "bright", font = "Helvetica Neue")
+
+plt.rcParams['mathtext.default'] = 'regular'
+DATE_FMT = mdates.DateFormatter('%d %b')
 
 # from https://towardsdatascience.com/beautiful-custom-colormaps-with-matplotlib-5bab3d1f0e72
 def hex_to_rgb(value):
@@ -63,46 +99,19 @@ def get_continuous_cmap(hex_list, float_list=None):
     mpl.cm.register_cmap("ACRt", cmp)
     return cmp
 
-_ = plt 
-sns.despine()
-mpl.rcParams["savefig.dpi"] = 300
 
-# palettes
+# DEFAULT COLOR MAPPING
+def get_cmap(vmin = 0, vmax = 3):
+    return mpl.cm.ScalarMappable(
+        norm = mpl.colors.Normalize(vmin, vmax), 
+        cmap = get_continuous_cmap([GRN, YLW, RED, RED], [0, 0.8, 0.9, 1])
+    )
 
-## Rt
-### core plot
-BLK    = "#292f36"
-BLK_CI = "#aeb7c2"
+sm = get_cmap()
 
-### stoplight 
-RED = "#D63231"
-YLW = "#FD8B5A"
-GRN = "#38AE66"
-sm = mpl.cm.ScalarMappable(
-    norm = mpl.colors.Normalize(vmin = 0, vmax = 3), 
-    cmap = get_continuous_cmap([GRN, YLW, RED, RED], [0, 0.8, 0.9, 1])
-)
-
-## new cases
-OBS_BLK     = BLK
-CASE_BLU    = "#335970"
-ANOMALY_RED = "#D63231"
-PRED_PURPLE = "#554B68"
-
-## policy simulations 
-SIM_PALETTE = ["#437034", "#7D4343", "#43587D", "#7D4370"]
-
-
-# typography
-title_font = {"size": 28, "family": "Helvetica Neue", "fontweight": "500"}
-label_font = {"size": 20, "family": "Helvetica Neue", "fontweight": "500"}
-note_font  = {"size": 14, "family": "Helvetica Neue", "fontweight": "500"}
-ticks_font = {"family": "Inconsolata"}
-sns.set(style = "whitegrid", palette = "bright", font = "Helvetica Neue")
-
-plt.rcParams['mathtext.default'] = 'regular'
-DATE_FMT = mdates.DateFormatter('%d %b')
-
+def set_tick_size(size: int):
+    plt.xticks(fontsize=size)
+    plt.yticks(fontsize=size)
 
 # simple wrapper over plt to help chain commands
 class PlotDevice():
@@ -224,7 +233,8 @@ def simulations(
     historical: Optional[pd.Series] = None, 
     historical_label: str = "Empirical Case Data", 
     curve: str = "delta_T", 
-    smoothing: Optional[np.ndarray] = None) -> PlotDevice:
+    smoothing: Optional[np.ndarray] = None, 
+    semilog: bool = True) -> PlotDevice:
 
     aggregates = [tuple(model.aggregate(curve) for model in model_set) for model_set in simulation_results]
 
@@ -269,8 +279,10 @@ def simulations(
     plt.legend(legends, legend_labels, prop = dict(size = 20), handlelength = 1, framealpha = 1)
 
     plt.xlim(left = historical.index[0], right = t[-1])
-    
-    return plt.PlotDevice()
+    if semilog:
+        plt.semilogy()
+    set_tick_size(16)
+    return PlotDevice()
 
 def Rt(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin = 0.5, ymax = 3, yaxis_colors = True):
     # dates = normalize_dates(dates)
@@ -289,6 +301,7 @@ def Rt(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin = 0.5, ymax = 3, yaxis
     plt.legend([(CI_marker, Rt_marker)], [f"Estimated $R_t$ ({100*CI}% CI)"], prop = {'size': 12}, framealpha = 1, handlelength = 1)
     plt.gca().xaxis.set_major_formatter(DATE_FMT)
     plt.gca().xaxis.set_minor_formatter(DATE_FMT)
+    set_tick_size(16)
     return PlotDevice()
 
 def daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI, prediction_ts = None): 
@@ -325,6 +338,7 @@ def daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dat
     plt.legend(legends, labels, prop = {'size': 12}, framealpha = 1, handlelength = 1, loc = "upper left")
     plt.gca().xaxis.set_major_formatter(DATE_FMT)
     plt.gca().xaxis.set_minor_formatter(DATE_FMT)
+    set_tick_size(16)
     return PlotDevice()
 
 def choropleth(gdf, label_fn = lambda _: "", Rt_col = "Rt", Rt_proj_col = "Rt_proj", titles = ["Current $R_t$", "Projected $R_t$ (1 Week)"], arrangement = (1, 2), label_kwargs = {}, mappable = sm):

@@ -14,6 +14,7 @@ from adaptive.model import Model, ModelUnit, gravity_matrix
 from adaptive.policy import simulate_adaptive_control, simulate_lockdown
 from adaptive.smoothing import convolution, notched_smoothing
 from adaptive.utils import days, setup, weeks
+from jakarta_granular import replacements
 
 logger = getLogger("DKIJ.AC")
 
@@ -51,7 +52,7 @@ def run_policies(
         Rvw:             Dict[str, float],        # voluntary regime R
         lockdown_period: int,                     # how long to run lockdown 
         total:           int   = 90*days,         # how long to run simulation
-        eval_period:     int   = 2*weeks,         # adaptive evaluation perion
+        eval_period:     int   = 2*weeks,         # adaptive evaluation period
         beta_scaling:    float = 1.0,             # robustness scaling: how much to shift empirical beta by 
         seed:            int   = 0                # random seed for simulation
     ):
@@ -77,19 +78,23 @@ def run_policies(
 
 (data, figs) = setup(level = "INFO")
 
-total_time = 90 * days 
-lockdown_period = 0
+total_time = 45 * days 
+lockdown_period = 7
 
 gamma  = 0.2
 window = 10
 CI = 0.95
 
 logger.info("district-level projections")
-
-dkij = pd.read_stata(data/"dkijakarta_180820.dta")\
+dkij = pd.read_stata(data/"coviddkijakarta_290920.dta")\
          .query("province == 'DKI JAKARTA'")\
-         .drop(columns=dkij_drop_cols + ["province"])
-dkij["district"] = dkij.district.str.title()
+         .drop(columns = dkij_drop_cols + ["province"])
+dkij = dkij\
+    .set_axis(dkij.columns.str.lower(), 1)\
+    .assign(
+        district    = dkij.district.str.title(),
+        subdistrict = dkij.subdistrict.apply(lambda name: next((k for (k, v) in replacements.items() if name in v), name)), 
+    )
 
 district_cases = dkij.groupby(["district", "date_positiveresult"])["id"].count().sort_index()
 districts = sorted(dkij.district.unique())
@@ -134,8 +139,8 @@ historical = dkij.groupby("date_positiveresult")["id"].count().rename("cases")
 
 
 plt.simulations(simulation_results, 
-    ["08 August Release", "22 August Release", "Adaptive Control Starting 22 August"], 
-    historical = historical[historical.index >= "01 May, 2020"] )\
+    ["04 October: Release From Lockdown", "11 October: Release From Lockdown", "11 October: Start Adaptive Control"], 
+    historical = historical[historical.index >= "01 May, 2020"])\
     .title("\nJakarta Policy Scenarios: Projected Cases over Time")\
     .xlabel("date")\
     .ylabel("cases")\
