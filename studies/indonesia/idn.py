@@ -14,7 +14,7 @@ from adaptive.estimators import analytical_MPVS, linear_projection
 from adaptive.etl.commons import download_data
 from adaptive.model import Model
 from adaptive.smoothing import notched_smoothing
-from adaptive.utils import days, setup
+from adaptive.utils import days, weeks, setup
 
 logger = getLogger("IDN")
 
@@ -154,7 +154,7 @@ with tqdm(provinces) as progress:
         may_idx = np.argmax(dates >= "01 May, 2020")
         max_idx = np.argmax(RR_pred[apr_idx:may_idx])
         apr_max_idx = apr_idx + max_idx
-        estimates.append((province, RR_pred[-1], RR_CI_lower[-1], RR_CI_upper[-1], max(0, linear_projection(dates, RR_pred, window)), RR_pred[apr_max_idx], RR_CI_lower[apr_max_idx], RR_CI_upper[apr_max_idx], dates[apr_max_idx], cases.iloc[-1][0]))
+        estimates.append((province, RR_pred[-1], RR_CI_lower[-1], RR_CI_upper[-1], max(0, linear_projection(dates, RR_pred, window, period = 2*weeks)), RR_pred[apr_max_idx], RR_CI_lower[apr_max_idx], RR_CI_upper[apr_max_idx], dates[apr_max_idx], cases.iloc[-1][0]))
         progress.update()
 estimates = pd.DataFrame(estimates)
 estimates.columns = ["province", "Rt", "Rt_CI_lower", "Rt_CI_upper", "Rt_proj", "Rt_max", "Rt_CI_lower_at_max", "RR_CI_upper_at_max", "date_at_max_Rt", "total_cases"]
