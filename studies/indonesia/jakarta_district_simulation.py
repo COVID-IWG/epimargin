@@ -52,7 +52,7 @@ def run_policies(
         Rvw:             Dict[str, float],        # voluntary regime R
         lockdown_period: int,                     # how long to run lockdown 
         total:           int   = 90*days,         # how long to run simulation
-        eval_period:     int   = 2*weeks,         # adaptive evaluation perion
+        eval_period:     int   = 2*weeks,         # adaptive evaluation period
         beta_scaling:    float = 1.0,             # robustness scaling: how much to shift empirical beta by 
         seed:            int   = 0                # random seed for simulation
     ):
@@ -78,7 +78,7 @@ def run_policies(
 
 (data, figs) = setup(level = "INFO")
 
-total_time = 90 * days 
+total_time = 45 * days 
 lockdown_period = 7
 
 gamma  = 0.2
@@ -140,7 +140,7 @@ historical = dkij.groupby("date_positiveresult")["id"].count().rename("cases")
 
 plt.simulations(simulation_results, 
     ["04 October: Release From Lockdown", "11 October: Release From Lockdown", "11 October: Start Adaptive Control"], 
-    historical = historical[historical.index >= "01 May, 2020"] )\
+    historical = historical[historical.index >= "01 May, 2020"])\
     .title("\nJakarta Policy Scenarios: Projected Cases over Time")\
     .xlabel("date")\
     .ylabel("cases")\
