@@ -1,8 +1,8 @@
+import arviz as az
 import matplotlib.pyplot as plt
 import pymc3 as pm
 import seaborn as sns
 import theano.tensor as tt
-
 from adaptive.etl.covid19india import *
 from adaptive.smoothing import convolution
 from adaptive.utils import cwd
@@ -62,3 +62,23 @@ print("running estimator")
 pm.summary(trace)
 pm.traceplot(trace)
 plt.show()
+
+def deconv(sigmal, filter):
+    pass 
+
+subtraction = pm.Model()
+with subtraction:  
+    delay = pm.Gamma("delay", mu = 200, sigma = 1)
+    obs   = np.linspace(0, 100)
+    orig  = pm.Deterministic("orig", obs - delay)
+    trace = pm.sample(500)
+    s = pm.summary(trace, hdi_prob = 0.95).drop("delay")
+    s_mean = s["mean"].values
+    s_CI_l = s["hdi_2.5%"].values
+    s_CI_u = s["hdi_97.5%"].values
+    
+    plt.plot(obs, label = "original")
+    plt.plot(s_mean, label = "subtracted mean")
+    plt.fill_between(range(len(obs)), s_CI_l, s_CI_u, alpha = 0.4, label = "95% CI")
+    plt.legend()
+    plt.show()
