@@ -3,9 +3,10 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from adaptive.estimators import gamma_prior
-from adaptive.etl.covid19india import (download_data, get_time_series,
-                                       load_all_data, replace_district_names)
+from adaptive.estimators import analytical_MPVS
+from adaptive.etl.commons import download_data
+from adaptive.etl.covid19india import (get_time_series, load_all_data,
+                                       replace_district_names)
 from adaptive.etl.devdatalab import district_migration_matrices
 from adaptive.model import Model, ModelUnit, gravity_matrix
 from adaptive.plots import plot_simulation_range
@@ -15,7 +16,7 @@ from adaptive.utils import cwd, days, weeks
 
 
 def estimate(ts, smoothing):
-    (state_dates, R, *_) = gamma_prior(ts.Hospitalized, smoothing = smoothing)
+    (state_dates, R, *_) = analytical_MPVS(ts.Hospitalized, smoothing = smoothing)
     dates = [sd[1] if isinstance(sd, tuple) else sd for sd in state_dates]
     return pd.DataFrame({"date": dates, "R": R}).set_index("date")
 

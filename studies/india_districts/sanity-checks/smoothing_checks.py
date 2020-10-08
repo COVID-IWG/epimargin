@@ -3,7 +3,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from adaptive.estimators import gamma_prior
+from adaptive.estimators import analytical_MPVS
 from adaptive.plots import plot_RR_est, plot_T_anomalies
 from adaptive.smoothing import convolution, kernels
 from etl import data_path, download_data, get_time_series, load_all_data
@@ -52,7 +52,7 @@ def state_checks():
             T_pred, T_CI_upper, T_CI_lower,
             total_cases, new_cases_ts,
             anomalies, anomaly_date
-        ) = gamma_prior(ts.Hospitalized, CI = CI)
+        ) = analytical_MPVS(ts.Hospitalized, CI = CI)
         plot_RR_est(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI)
         plt.title(f"{state}: Estimated $R_t$", loc="left", fontsize=20)
         plt.figure()
@@ -75,7 +75,7 @@ def state_checks():
             T_pred, T_CI_upper, T_CI_lower, 
             total_cases, new_cases_ts, 
             anomalies, anomaly_dates
-        ) = gamma_prior(ts.Hospitalized, CI = CI, smoothing = lambda ts: box_filter(ts, n, None))
+        ) = analytical_MPVS(ts.Hospitalized, CI = CI, smoothing = lambda ts: box_filter(ts, n, None))
         
         plt.sca(RRax[i])
         plot_RR_est(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI)
@@ -105,7 +105,7 @@ def state_checks():
             T_pred, T_CI_upper, T_CI_lower, 
             total_cases, new_cases_ts, 
             anomalies, anomaly_dates
-        ) = gamma_prior(ts.Hospitalized, CI = CI, smoothing = lambda ts: box_filter(ts, n, s))
+        ) = analytical_MPVS(ts.Hospitalized, CI = CI, smoothing = lambda ts: box_filter(ts, n, s))
         
         plt.sca(RRax[i])
         plot_RR_est(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI)

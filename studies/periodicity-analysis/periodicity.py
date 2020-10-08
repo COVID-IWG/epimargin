@@ -6,15 +6,17 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from scipy.fft import fft, ifft
-from scipy.signal import blackman, periodogram, spectrogram, stft, welch, iirnotch, freqz, convolve, filtfilt
+from scipy.signal import (blackman, convolve, filtfilt, freqz, iirnotch,
+                          periodogram, spectrogram, stft, welch)
 from scipy.stats import chi2
 from tqdm import tqdm
 
-from adaptive.estimators import gamma_prior
-from adaptive.etl.covid19india import (download_data, get_time_series,
-                                       load_statewise_data)
+from adaptive.estimators import analytical_MPVS
+from adaptive.etl.commons import download_data
+from adaptive.etl.covid19india import get_time_series, load_statewise_data
 from adaptive.smoothing import convolution
-from adaptive.utils import cwd, weeks as week
+from adaptive.utils import cwd
+from adaptive.utils import weeks as week
 
 simplefilter("ignore")
 sns.set(palette="bright", font="Inconsolata")
@@ -94,10 +96,10 @@ for state in tqdm(time_series.index.get_level_values(0).unique()):
 # are anomalies falling on certain days?
 print("checking anomalies...")
 smoothing = 5 
-(*_, anomaly_dates) = gamma_prior(natl_time_series["Hospitalized"].iloc[:-1], CI = 0.95, smoothing = convolution(window = smoothing)) 
+(*_, anomaly_dates) = analytical_MPVS(natl_time_series["Hospitalized"].iloc[:-1], CI = 0.95, smoothing = convolution(window = smoothing)) 
 anomaly_histogram(anomaly_dates, "(All India)", filename=figs/"anomaly_DoW_hist_India.png")
 for state in tqdm(time_series.index.get_level_values(0).unique()):
-    (*_, anomaly_dates) = gamma_prior(time_series.loc[state]["Hospitalized"].iloc[:-1], CI = 0.95, smoothing = convolution(window = smoothing)) 
+    (*_, anomaly_dates) = analytical_MPVS(time_series.loc[state]["Hospitalized"].iloc[:-1], CI = 0.95, smoothing = convolution(window = smoothing)) 
     anomaly_histogram(anomaly_dates, f"({state})", filename=figs/f"anomaly_DoW_hist_{state}.png")
 
 print("estimating spectral densities...")

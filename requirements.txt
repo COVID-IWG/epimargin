@@ -13,20 +13,28 @@ colorama==0.4.3
 commonmark==0.9.1
 cycler==0.10.0
 decorator==4.4.2
+descartes==1.1.0
 fastprogress==0.2.3
-Fiona==1.8.13.post1
+Fiona==1.8.17
 flake8==3.8.3
-geopandas==0.7.0
+Flask==1.1.2
+flat-table==1.1.0
+geopandas==0.8.1
+geos==0.2.2
 h5py==2.10.0
 idna==2.9
 importlib-metadata==1.6.1
 ipython==7.13.0
 ipython-genutils==0.2.0
 isort==4.3.21
+itsdangerous==1.1.0
 jedi==0.17.0
+Jinja2==2.11.2
 joblib==0.14.1
 kiwisolver==1.2.0
 lazy-object-proxy==1.4.3
+lxml==4.5.2
+MarkupSafe==1.1.1
 matplotlib==3.2.1
 mccabe==0.6.1
 munch==2.5.0
@@ -53,6 +61,10 @@ python-dateutil==2.8.1
 pytz==2019.3
 requests==2.23.0
 rich==2.3.0
+<<<<<<< HEAD
+=======
+rope==0.17.0
+>>>>>>> master
 scikit-learn==0.22.2.post1
 scipy==1.4.1
 seaborn==0.10.0
@@ -61,7 +73,11 @@ six==1.14.0
 sklearn==0.0
 statsmodels==0.11.1
 Theano==1.0.4
+<<<<<<< HEAD
 tikzplotlib==0.9.1
+=======
+tikzplotlib==0.9.4
+>>>>>>> master
 toml==0.10.1
 tqdm==4.45.0
 traitlets==4.3.3
@@ -70,6 +86,7 @@ typing-extensions==3.7.4.2
 urllib3==1.25.9
 urlpath==1.1.7
 wcwidth==0.1.9
+Werkzeug==1.0.1
 wrapt==1.12.1
 xarray==0.15.1
 zipp==3.1.0
