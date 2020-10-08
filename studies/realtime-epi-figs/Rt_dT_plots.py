@@ -50,7 +50,7 @@ if __name__ == "__main__":
     cases = cases[cases.index.get_level_values(1) < end_date]
 
     # run estimation for metro areas
-    cities = ["Atlanta", "New York", "Los Angeles", "Miami-"][:1]
+    cities = ["Atlanta", "New York", "Los Angeles", "Miami-"]
     cbsa_mapping = metros[["cbsa", "CBSA Title"]].drop_duplicates().set_index("CBSA Title").to_dict()["cbsa"] 
     for city in cities: 
         # find CBSA code from metro name 
@@ -73,12 +73,14 @@ if __name__ == "__main__":
         dates         = [pd.Timestamp(_).to_pydatetime().date() for _ in dates]
         anomaly_dates = [pd.Timestamp(_).to_pydatetime().date() for _ in anomaly_dates]
 
-        plt.Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, CI, ymin = 0, ymax = 5, yaxis_colors = False)\
-            .save(f"{filename}_Rt.{extension}")\
-            .show()
+        # plt.Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, CI, ymin = 0, ymax = 5, yaxis_colors = False)\
+        #     .adjust(left = 0.10, right = 0.95, bottom = 0.15, top = 0.95)\
+        #     .xlabel("date")\
+        #     .ylabel("$R_t$")\
+        #     .show()
         
         model = lambda: Model.single_unit(name = name, RR0 = Rt_pred[-1], population = pop, infectious_period = infectious_period, 
-            I0 = T_pred[-1], lower_CI = T_CI_lower[-1], upper_CI = T_CI_upper[-1], random_seed = 0)
+            I0 = T_pred[-1], lower_CI = T_CI_lower[-1], upper_CI = T_CI_upper[-1], random_seed = 33)
 
         forward_pred_period = 9
         t_pred = [dates[-1] + pd.Timedelta(days = i) for i in range(forward_pred_period +1)]
@@ -88,9 +90,17 @@ if __name__ == "__main__":
         plt.daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI, 
             prediction_ts = [
                 (current[0].delta_T[1:], current[0].lower_CI[1:], current[0].upper_CI[1:], "orange", r"projection with current $R_t$"),
-                (target[0].delta_T[1:],  target[0].lower_CI[1:],  target[0].upper_CI[1:],    "green",  r"projection with $R_t \rightarrow 0.9$")
+                (target[0].delta_T[1:],  target[0].lower_CI[1:],  target[0].upper_CI[1:],  "green",  r"projection with $R_t \rightarrow 0.9$")
             ])\
-            .save(f"{filename}_dT.{extension}")\
+            .adjust(left = 0.10, right = 0.95, bottom = 0.15, top = 0.95)\
+            .xlabel("date")\
+            .ylabel("cases")\
             .show()
 
-    # run estimation for IL counties
+    # run estimation for IL counties - Kankakee, Winnebago, Rock Island, indexed by their CBSA title
+    for county in ["Kankakee", "Rockford", "Davenport-Moline-Rock Island"]:
+        print(county)
+        print([(k, v) for (k, v) in cbsa_mapping.items() if county in k])
+        print()
+        # name, cbsa = next()
+        # print(name, cbsa)

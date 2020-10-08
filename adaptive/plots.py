@@ -42,6 +42,7 @@ GRN = "#38AE66"
 OBS_BLK     = BLK
 CASE_BLU    = "#335970"
 ANOMALY_BLU = "#4092A0"
+ANOMALY_RED = "#D63231"
 PRED_PURPLE = "#554B68"
 
 ## policy simulations 
@@ -276,12 +277,12 @@ def simulations(
     
     plt.gca().xaxis.set_major_formatter(DATE_FMT)
     plt.gca().xaxis.set_minor_formatter(DATE_FMT)
-    plt.legend(legends, legend_labels, prop = dict(size = 20), handlelength = 1, framealpha = 1)
+    plt.legend(legends, legend_labels, prop = dict(size = 20), handlelength = 1, framealpha = 1, loc = "best")
 
     plt.xlim(left = historical.index[0], right = t[-1])
     if semilog:
         plt.semilogy()
-    set_tick_size(16)
+    set_tick_size(14)
     return PlotDevice()
 
 def Rt(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin = 0.5, ymax = 3, yaxis_colors = True):
@@ -298,10 +299,10 @@ def Rt(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin = 0.5, ymax = 3, yaxis
     plt.hlines(1, xmin=dates[0], xmax=dates[-1], zorder = 11, color = "black", linestyles = "dotted")
     plt.ylim(ymin, ymax)
     plt.xlim(left=dates[0], right=dates[-1])
-    plt.legend([(CI_marker, Rt_marker)], [f"Estimated $R_t$ ({100*CI}% CI)"], prop = {'size': 12}, framealpha = 1, handlelength = 1)
+    plt.legend([(CI_marker, Rt_marker)], [f"Estimated $R_t$ ({100*CI}% CI)"], prop = {'size': 12}, framealpha = 1, handlelength = 1, loc = "best")
     plt.gca().xaxis.set_major_formatter(DATE_FMT)
     plt.gca().xaxis.set_minor_formatter(DATE_FMT)
-    set_tick_size(16)
+    set_tick_size(14)
     return PlotDevice()
 
 def daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI, prediction_ts = None): 
@@ -335,10 +336,10 @@ def daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dat
     legends += [anomalies_marker]
     labels  += ["anomalies"]
     xlim(left = dates[0], right = end)
-    plt.legend(legends, labels, prop = {'size': 12}, framealpha = 1, handlelength = 1, loc = "upper left")
+    plt.legend(legends, labels, prop = {'size': 12}, framealpha = 1, handlelength = 1, loc = "best")
     plt.gca().xaxis.set_major_formatter(DATE_FMT)
     plt.gca().xaxis.set_minor_formatter(DATE_FMT)
-    set_tick_size(16)
+    set_tick_size(14)
     return PlotDevice()
 
 def choropleth(gdf, label_fn = lambda _: "", Rt_col = "Rt", Rt_proj_col = "Rt_proj", titles = ["Current $R_t$", "Projected $R_t$ (1 Week)"], arrangement = (1, 2), label_kwargs = {}, mappable = sm):
