@@ -187,3 +187,25 @@ for ax in (ax1, ax2):
     ax.set_xlim(left = 94.65, right = 144.0)
     ax.set_ylim(bottom = -11.32)
 plt.show()
+
+
+max_cmap = plt.get_cmap(vmin = 0.5, vmax = 5)
+fig, ax = plt.subplots()
+gdf.plot(
+    color = [max_cmap.to_rgba(_) for _ in gdf.Rt_max],
+    ax = ax, legend = True
+)
+plt.PlotDevice(fig)\
+    .adjust(left = 0.1, bottom = 0.11, right = 0.9, top = 0.9)\
+    .title("\n\nIndonesia: maximum $R_t$ by province for April, 2020", x = 0.1)
+ax.grid(False)
+ax.set_xticks([])
+ax.set_yticks([])
+for (_, row) in gdf.iterrows():
+    Rtm = round(row["Rt_max"], 2)
+    ax.annotate(s=f"{Rtm}", xy=list(row["pt"].coords)[0], ha = "center", fontfamily = plt.note_font["family"], color="white")\
+      .set_path_effects([plt.Stroke(linewidth = 2, foreground = "black"), plt.Normal()])
+cbar_ax = fig.add_axes([0.95, 0.25, 0.01, 0.5])
+cb = fig.colorbar(mappable = max_cmap, orientation = "vertical", cax = cbar_ax)
+cbar_ax.set_title("$R_t$", fontdict = plt.note_font)
+plt.show()
