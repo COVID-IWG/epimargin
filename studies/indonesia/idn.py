@@ -134,12 +134,7 @@ plt.Rt(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin=0, ymax=4)\
 logger.info("running case-forward prediction")
 IDN = Model.single_unit("IDN", 267.7e6, I0 = T_pred[-1], RR0 = RR_pred[-1], mobility = 0, random_seed = 0)\
            .run(14)
-plt.daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI, IDN[0].delta_T[:-1], IDN[0].lower_CI[1:], IDN[0].upper_CI[1:])\
-    .title("\nIndonesia: Net Daily Cases")\
-    .xlabel("\ndate")\
-    .ylabel("cases")\
-    .annotate("\nBayesian training process on empirical data, with anomalies identified")\
-    .show()
+# 
 
 
 logger.info("province-level projections")
@@ -189,7 +184,7 @@ for ax in (ax1, ax2):
 plt.show()
 
 
-max_cmap = plt.get_cmap(vmin = 0.5, vmax = 5)
+max_cmap = plt.get_cmap(vmin = 1, vmax = 4)
 fig, ax = plt.subplots()
 gdf.plot(
     color = [max_cmap.to_rgba(_) for _ in gdf.Rt_max],
@@ -201,10 +196,16 @@ plt.PlotDevice(fig)\
 ax.grid(False)
 ax.set_xticks([])
 ax.set_yticks([])
+MYS.plot(color = "gray", ax = ax, alpha = 0.5)
+PNG.plot(color = "gray", ax = ax, alpha = 0.5)
+TLS.plot(color = "gray", ax = ax, alpha = 0.5)
+ax.set_xlim(left = 94.65, right = 141.379)
+ax.set_ylim(bottom = -11.32, top = 5.93)
 for (_, row) in gdf.iterrows():
     Rtm = round(row["Rt_max"], 2)
-    ax.annotate(s=f"{Rtm}", xy=list(row["pt"].coords)[0], ha = "center", fontfamily = plt.note_font["family"], color="white")\
-      .set_path_effects([plt.Stroke(linewidth = 2, foreground = "black"), plt.Normal()])
+    Rtlabel = str(Rtm) if Rtm < 4 else ">4"
+    ax.annotate(s=f"{Rtlabel}", xy=list(row["pt"].coords)[0], ha = "center", fontfamily = plt.note_font["family"], color="white")\
+      .set_path_effects([plt.Stroke(linewidth = 3, foreground = "black"), plt.Normal()])
 cbar_ax = fig.add_axes([0.95, 0.25, 0.01, 0.5])
 cb = fig.colorbar(mappable = max_cmap, orientation = "vertical", cax = cbar_ax)
 cbar_ax.set_title("$R_t$", fontdict = plt.note_font)

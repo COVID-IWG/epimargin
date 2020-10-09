@@ -1,18 +1,25 @@
+import datetime
 from itertools import cycle
 from pathlib import Path
 from typing import Optional, Sequence, Tuple
 
 import matplotlib as mpl
 import matplotlib.dates as mdates
-from matplotlib.patheffects import Stroke, Normal
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import tikzplotlib
+from matplotlib.patheffects import Normal, Stroke
 from matplotlib.pyplot import *
 
 from .model import Model
 
+def normalize_dates(dates):
+    try: 
+        return [_.to_pydatetime().date() for _ in dates]
+    except AttributeError:
+        return dates
 _ = plt 
 sns.despine()
 mpl.rcParams["savefig.dpi"]     = 300
@@ -35,6 +42,7 @@ GRN = "#38AE66"
 OBS_BLK     = BLK
 CASE_BLU    = "#335970"
 ANOMALY_BLU = "#4092A0"
+ANOMALY_RED = "#D63231"
 PRED_PURPLE = "#554B68"
 
 ## policy simulations 
@@ -92,9 +100,6 @@ def get_continuous_cmap(hex_list, float_list=None):
     mpl.cm.register_cmap("ACRt", cmp)
     return cmp
 
-def set_tick_size(size: int):
-    plt.xticks(fontsize=size)
-    plt.yticks(fontsize=size)
 
 # DEFAULT COLOR MAPPING
 def get_cmap(vmin = 0, vmax = 3):
@@ -105,6 +110,9 @@ def get_cmap(vmin = 0, vmax = 3):
 
 sm = get_cmap()
 
+def set_tick_size(size: int):
+    plt.xticks(fontsize=size)
+    plt.yticks(fontsize=size)
 
 # simple wrapper over plt to help chain commands
 class PlotDevice():
@@ -146,6 +154,9 @@ class PlotDevice():
         return self
 
     def save(self, filename: Path, **kwargs):
+        if str(filename).endswith("tex"):
+            tikzplotlib.save(filename, **kwargs)
+            return self 
         kwargs["transparent"] = kwargs.get("transparent", str(filename).endswith("svg"))
         plt.savefig(filename, **kwargs)
         return self 
@@ -186,7 +197,7 @@ def gantt_chart(gantt_data, start_date: Optional[str] = None, show_cbar = True):
     gantt_pv = gantt_df.pivot("district", "day", values = ["beta", "R"])
     if start_date:
         start_timestamp = pd.to_datetime(start_date)
-        dates = [start_timestamp + pd.Timedelta(days = n) for n in gantt_df.day.unique()]
+        dates = [start_timestamp + datetime.timedelta(days = n) for n in gantt_df.day.unique()]
         xticklabels = [str(xl.day) + " " + xl.month_name()[:3] for xl in dates]
         xlabel = "Date"
     else:
@@ -247,7 +258,7 @@ def simulations(
     legend_labels  = []
     if historical is not None:
         p, = plt.plot(historical.index, historical, 'k-', alpha = 0.8, zorder = 10)
-        t  = [historical.index.max() + pd.Timedelta(days = n) for n in range(total_time)]
+        t  = [historical.index.max() + datetime.timedelta(days = n) for n in range(total_time)]
         legends.append(p)
         legend_labels.append(historical_label)
     else:
@@ -266,62 +277,69 @@ def simulations(
     
     plt.gca().xaxis.set_major_formatter(DATE_FMT)
     plt.gca().xaxis.set_minor_formatter(DATE_FMT)
-    plt.legend(legends, legend_labels, prop = dict(size = 20), handlelength = 1, framealpha = 1)
+    plt.legend(legends, legend_labels, prop = dict(size = 20), handlelength = 1, framealpha = 1, loc = "best")
 
     plt.xlim(left = historical.index[0], right = t[-1])
     if semilog:
         plt.semilogy()
-    set_tick_size(16)
+    set_tick_size(14)
     return PlotDevice()
 
-def Rt(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin = 0.5, ymax = 3):
-    try: 
-        dates = [_.to_pydatetime() for _ in dates]
-    except AttributeError:
-        pass 
+def Rt(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin = 0.5, ymax = 3, yaxis_colors = True):
+    # dates = normalize_dates(dates)
     CI_marker  = plt.fill_between(dates, RR_CI_lower, RR_CI_upper, color = BLK_CI, alpha = 0.5)
     Rt_marker, = plt.plot(dates, RR_pred, color = BLK, linewidth = 2, zorder = 5, solid_capstyle = "butt")
-    plt.plot([dates[0], dates[0]], [2.5, ymax], color = RED, linewidth = 6, alpha = 0.9, solid_capstyle="butt", zorder = 10)
-    plt.plot([dates[0], dates[0]], [1,    2.5], color = YLW, linewidth = 6, alpha = 0.9, solid_capstyle="butt", zorder = 10)
-    plt.plot([dates[0], dates[0]], [ymin,   1], color = GRN, linewidth = 6, alpha = 0.9, solid_capstyle="butt", zorder = 10)
-    plt.plot([dates[0], dates[0]], [ymin, ymax], color = "white", linewidth = 10, alpha = 1, solid_capstyle="butt", zorder = 9)
+    plt.plot(dates, RR_CI_lower, color = BLK, linewidth = 0.5, zorder = 5, solid_capstyle = "butt")
+    plt.plot(dates, RR_CI_upper, color = BLK, linewidth = 0.5, zorder = 5, solid_capstyle = "butt")
+    if yaxis_colors: 
+        plt.plot([dates[0], dates[0]], [2.5, ymax], color = RED, linewidth = 6, alpha = 0.9, solid_capstyle="butt", zorder = 10)
+        plt.plot([dates[0], dates[0]], [1,    2.5], color = YLW, linewidth = 6, alpha = 0.9, solid_capstyle="butt", zorder = 10)
+        plt.plot([dates[0], dates[0]], [ymin,   1], color = GRN, linewidth = 6, alpha = 0.9, solid_capstyle="butt", zorder = 10)
+        plt.plot([dates[0], dates[0]], [ymin, ymax], color = "white", linewidth = 10, alpha = 1, solid_capstyle="butt", zorder = 9)
     plt.hlines(1, xmin=dates[0], xmax=dates[-1], zorder = 11, color = "black", linestyles = "dotted")
     plt.ylim(ymin, ymax)
     plt.xlim(left=dates[0], right=dates[-1])
-    plt.legend([(CI_marker, Rt_marker)], [f"Estimated $R_t$ ({100*CI}% CI)"], prop = {'size': 16}, framealpha = 1, handlelength = 1)
+    plt.legend([(CI_marker, Rt_marker)], [f"Estimated $R_t$ ({100*CI}% CI)"], prop = {'size': 12}, framealpha = 1, handlelength = 1, loc = "best")
     plt.gca().xaxis.set_major_formatter(DATE_FMT)
     plt.gca().xaxis.set_minor_formatter(DATE_FMT)
-    set_tick_size(16)
+    set_tick_size(14)
     return PlotDevice()
 
-def daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI, predictions = None, pred_CI_upper = None, pred_CI_lower = None):
-    observed_marker,   = plt.plot(dates[-len(new_cases_ts):], new_cases_ts, color = OBS_BLK, linewidth = 2, zorder = 8)
-    anomalies_marker,  = plt.plot(anomaly_dates, anomalies, marker="o", mfc = "none", mec=ANOMALY_BLU, lw = 0)
+def daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI, prediction_ts = None): 
+    # dates         = normalize_dates(dates)
+    # anomaly_dates = normalize_dates(anomaly_dates)
+    new_cases_dates = dates[-len(new_cases_ts):]
+    exp_cases_dates = dates[-len(T_pred):]
+    valid_idx   = [i for i in range(len(dates)) if dates[i] not in anomaly_dates] 
+    T_CI_lower_rect = [min(l, u) for (l, u) in zip(T_CI_lower, T_CI_upper)]
+    T_CI_upper_rect = [max(l, u) for (l, u) in zip(T_CI_lower, T_CI_upper)]
+    observed_marker,   = plt.plot([d for d in new_cases_dates if d not in anomaly_dates], [new_cases_ts[i] for i in range(len(new_cases_ts)) if new_cases_dates[i] not in anomaly_dates], color = OBS_BLK, linewidth = 2, zorder = 8)
+    anomalies_marker,  = plt.plot(anomaly_dates, anomalies, marker="o", mfc = "none", mec=ANOMALY_RED, lw = 0, zorder = 15)
     expected_marker,   = plt.plot(dates[-len(T_pred):], T_pred, color = CASE_BLU, marker=".", zorder = 10, lw = 0)
-    expected_CI_marker = plt.fill_between(dates, T_CI_lower, T_CI_upper, label = f"", facecolor = CASE_BLU, alpha = 0.4)
+    expected_CI_marker = plt.fill_between(dates, T_CI_lower_rect, T_CI_upper_rect, label = f"", facecolor = CASE_BLU, alpha = 0.35)
     legends = [observed_marker, (expected_CI_marker, expected_marker)]
     labels  = ["observed cases (smoothed)", f"expected cases ({100*CI}% CI)"]
     (_, top) = plt.ylim()
-    if predictions:
-        t_pred = [dates[-1] + pd.Timedelta(days = i) for i in range(len(predictions))]
+    if prediction_ts:
+        t_pred = [(dates[-1] + datetime.timedelta(days = i)) for i in range(len(prediction_ts[0][0]))]
         end = t_pred[-1]
-        predicted_marker,   = plt.plot(t_pred, predictions, color = PRED_PURPLE, marker = ".", zorder = 9, lw = 0)
-        predicted_CI_marker = plt.fill_between(t_pred, pred_CI_lower, pred_CI_upper, facecolor = PRED_PURPLE, alpha = 0.4)
-        (_, top) = plt.ylim()
-        plt.vlines(dates[-1], ymin = 0, ymax = 2*top, color = "black", linestyles = "dotted")
-        legends += [(predicted_CI_marker, predicted_marker)]
-
-        labels  += [f"predicted cases ({100*CI}% CI)"]
+        for (predictions, pred_CI_lower, pred_CI_upper, color, label) in prediction_ts:
+            predicted_marker,   = plt.plot(t_pred, predictions, color = color, marker = ".", zorder = 9, lw = 0)
+            predicted_CI_marker = plt.fill_between(t_pred, pred_CI_lower, pred_CI_upper, facecolor = color, alpha = 0.35)
+            (_, top) = plt.ylim()
+            plt.vlines(dates[-1], ymin = 0, ymax = top, color = "black", linestyles = "dotted")
+            legends += [(predicted_CI_marker, predicted_marker)]
+            labels  += [label]
     else: 
         end = dates[-1]
     plt.ylim(bottom = 0, top = top)
     legends += [anomalies_marker]
     labels  += ["anomalies"]
     xlim(left = dates[0], right = end)
-    plt.legend(legends, labels, prop = {'size': 16}, framealpha = 1, handlelength = 1, loc = "upper left")
+    plt.legend(legends, labels, prop = {'size': 12}, framealpha = 1, handlelength = 1, loc = "best")
     plt.gca().xaxis.set_major_formatter(DATE_FMT)
     plt.gca().xaxis.set_minor_formatter(DATE_FMT)
-    set_tick_size(16)
+    set_tick_size(14)
     return PlotDevice()
 
 def choropleth(gdf, label_fn = lambda _: "", Rt_col = "Rt", Rt_proj_col = "Rt_proj", titles = ["Current $R_t$", "Projected $R_t$ (1 Week)"], arrangement = (1, 2), label_kwargs = {}, mappable = sm):
