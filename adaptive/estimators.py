@@ -1,8 +1,10 @@
 import logging
 from typing import Callable, Optional, Sequence
 
+import arviz as az
 import numpy as np
 import pandas as pd
+import pymc3 as pm
 from scipy.stats import gamma as Gamma
 from scipy.stats import nbinom
 from statsmodels.regression.linear_model import OLS
@@ -14,6 +16,7 @@ from .utils import days
 logger = logging.getLogger(__name__)
 
 def rollingOLS(totals: pd.DataFrame, window: int = 3, infectious_period: float = 4.5) -> pd.DataFrame:
+    """ legacy rolling regression-based implementation of Bettencourt/Ribeiro method """
     # run rolling regressions and get parameters
     model   = RollingOLS.from_formula(formula = "logdelta ~ time", window = window, data = totals)
     rolling = model.fit(method = "lstsq")
@@ -147,6 +150,29 @@ def analytical_MPVS(
         total_cases, new_cases_ts, 
         anomalies, anomaly_dates
     )
+
+def parametric_scheme_mcmc(daily_cases, CI = 0.95, gamma = 0.2, chains = 4, tune = 1000, draws = 1000, **kwargs):
+    case_values = daily_cases.values
+    mcmc_model = pm.model
+    with mcmc_model as model:
+        # lag new case counts
+        dT_lag0 = case_values[2:]
+        dT_lag1 = case_values[1:-1]
+        n = len(dT_lag0)
+
+        # set up distributions 
+        alpha   = 3 + dT_lag0.cumsum()
+        beta_L  = 2 + np.array(range(len(dT_lag0)))
+        beta_b  = 2 + dT_lag1.cumsum()
+
+        Lt = pm.Gamma("lamt", alpha = alpha, beta = beta_L, shape = (n,))
+        bt = pm.Gamma("bt",   alpha = alpha, beta = beta_b, shape = (n,))
+        dT = pm.Poisson("dT", mu = Lt, shape = (n,))
+        Rt = pm.Deterministic("Rt", 1 + gamma * np.log(bt))
+    
+    trace = pm.sample(model = mcmc_model, chains = chains, tune = tune, draws = draws, **kwargs)
+    return pm.summary(trace, hdi_prob = CI)
+
 
 def linear_projection(dates, R_values, smoothing, period = 7*days):
     """ return 7-day linear projection """
