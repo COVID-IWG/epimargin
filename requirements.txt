@@ -61,10 +61,7 @@ python-dateutil==2.8.1
 pytz==2019.3
 requests==2.23.0
 rich==2.3.0
-<<<<<<< HEAD
-=======
 rope==0.17.0
->>>>>>> master
 scikit-learn==0.22.2.post1
 scipy==1.4.1
 seaborn==0.10.0
@@ -73,11 +70,7 @@ six==1.14.0
 sklearn==0.0
 statsmodels==0.11.1
 Theano==1.0.4
-<<<<<<< HEAD
-tikzplotlib==0.9.1
-=======
 tikzplotlib==0.9.4
->>>>>>> master
 toml==0.10.1
 tqdm==4.45.0
 traitlets==4.3.3
