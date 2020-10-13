@@ -2,18 +2,18 @@ from logging import getLogger
 from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
 
+import adaptive.plots as plt
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from scipy.spatial import distance_matrix
-from tqdm import tqdm
-
-import adaptive.plots as plt
 from adaptive.estimators import analytical_MPVS
-from adaptive.model import Model, ModelUnit, gravity_matrix
+from adaptive.models import SIR, NetworkedSIR
 from adaptive.policy import simulate_adaptive_control, simulate_lockdown
 from adaptive.smoothing import convolution, notched_smoothing
 from adaptive.utils import days, setup, weeks
+from scipy.spatial import distance_matrix
+from tqdm import tqdm
+
 from jakarta_granular import replacements
 
 logger = getLogger("DKIJ.AC")
@@ -31,16 +31,16 @@ dkij_drop_cols = [
 shp_drop_cols = ['GID_0', 'NAME_0', 'GID_1', 'NAME_1', 'NL_NAME_1', 'GID_2', 'VARNAME_2', 'NL_NAME_2', 'TYPE_2', 'ENGTYPE_2', 'CC_2', 'HASC_2']
 
 
-def model(districts, populations, cases, seed) -> Model:
+def model(districts, populations, cases, seed) -> NetworkedSIR:
     units = [
-        ModelUnit(district, populations[i], 
-        I0 = cases[i], 
+        SIR(district, populations[i], 
+        dT0 = cases[i], 
         R0 = 0, 
         D0 = 0, 
         mobility = 0.000001)
         for (i, district) in enumerate(districts)
     ]
-    return Model(units, random_seed=seed)
+    return NetworkedSIR(units, random_seed=seed)
 
 def run_policies(
         district_cases:  Dict[str, pd.DataFrame], # timeseries for each district 
@@ -128,7 +128,7 @@ P[P != 0] = P[P != 0] ** -1.0
 P *= np.array(pops)[:, None]
 P /= P.sum(axis = 0)
 
-si, sf = 0, 1000
+si, sf = 0, 10
 
 simulation_results = [ 
     run_policies([district_cases[district][-1] for district in districts], pops, districts, P, gamma, R_mandatory, R_voluntary, lockdown_period = lockdown_period, total = total_time, seed = seed)
@@ -136,7 +136,6 @@ simulation_results = [
 ]
 
 historical = dkij.groupby("date_positiveresult")["id"].count().rename("cases")
-
 
 plt.simulations(simulation_results, 
     ["04 October: Release From Lockdown", "11 October: Release From Lockdown", "11 October: Start Adaptive Control"], 

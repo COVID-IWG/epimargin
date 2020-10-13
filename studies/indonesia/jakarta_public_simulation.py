@@ -3,18 +3,17 @@ from logging import getLogger
 from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
 
+import adaptive.plots as plt
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from scipy.spatial import distance_matrix
-from tqdm import tqdm
-
-import adaptive.plots as plt
 from adaptive.estimators import analytical_MPVS
-from adaptive.model import Model, ModelUnit, gravity_matrix
+from adaptive.models import SIR, NetworkedSIR
 from adaptive.policy import simulate_adaptive_control, simulate_lockdown
 from adaptive.smoothing import convolution, notched_smoothing
 from adaptive.utils import days, setup, weeks
+from scipy.spatial import distance_matrix
+from tqdm import tqdm
 
 logger = getLogger("DKIJ.AC")
 
@@ -31,16 +30,12 @@ dkij_drop_cols = [
 shp_drop_cols = ['GID_0', 'NAME_0', 'GID_1', 'NAME_1', 'NL_NAME_1', 'GID_2', 'VARNAME_2', 'NL_NAME_2', 'TYPE_2', 'ENGTYPE_2', 'CC_2', 'HASC_2']
 
 
-def model(districts, populations, cases, seed) -> Model:
+def model(districts, populations, cases, seed) -> NetworkedSIR:
     units = [
-        ModelUnit(district, populations[i], 
-        I0 = cases[i], 
-        R0 = 0, 
-        D0 = 0, 
-        mobility = 0.000001)
+        SIR(district, populations[i],  dT0 = cases[i], mobility = 0.000001)
         for (i, district) in enumerate(districts)
     ]
-    return Model(units, random_seed=seed)
+    return NetworkedSIR(units, random_seed=seed)
 
 def run_policies(
         district_cases:  Dict[str, pd.DataFrame], # timeseries for each district 
@@ -109,21 +104,21 @@ dkij = load_province_timeseries(data, district)
 R_mandatory = dict()
 R_voluntary = dict() 
 
-(dates, RR_pred, *_) = analytical_MPVS(dkij, CI = CI, smoothing = notched_smoothing(window = window), totals=False)
-Rt = pd.DataFrame(data = {"Rt": RR_pred[1:]}, index = dates)
+(dates, Rt_pred, *_) = analytical_MPVS(dkij, CI = CI, smoothing = notched_smoothing(window = window), totals = True)
+Rt = pd.DataFrame(data = {"Rt": Rt_pred}, index = dates)
 R_mandatory[district] = np.mean(Rt[(Rt.index >= "Sept 21, 2020")])[0]
 R_voluntary[district] = np.mean(Rt[(Rt.index <  "April 1, 2020")])[0]
 
-si, sf = 0, 500
+si, sf = 0, 10
 
 simulation_results = [ 
-    run_policies([dkij.iloc[-1][0]], pops, districts, np.zeros((1, 1)), gamma, R_mandatory, R_voluntary, lockdown_period = lockdown_period, total = total_time, seed = seed)
+    run_policies([dkij.iloc[-1][0] - dkij.iloc[-2][0]], pops, districts, np.zeros((1, 1)), gamma, R_mandatory, R_voluntary, lockdown_period = lockdown_period, total = total_time, seed = seed)
     for seed in tqdm(range(si, sf))
 ]
 
 plt.simulations(simulation_results, 
     ["28 September Release", "12 October Release", "28 September Adaptive Control"], 
-    historical = dkij[dkij.index >= "01 Aug, 2020"] )\
+    historical = dkij[dkij.index >= "01 Aug, 2020"].diff() )\
     .title("\nJakarta Policy Scenarios: Projected Cases over Time")\
     .xlabel("date")\
     .ylabel("cases")\

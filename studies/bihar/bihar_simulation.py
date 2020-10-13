@@ -1,30 +1,28 @@
 from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
 
+import adaptive.plots as plt
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
-
-import adaptive.plots as plt
-import etl
 from adaptive.estimators import analytical_MPVS
-from adaptive.model import Model, ModelUnit
+from adaptive.models import SIR, NetworkedSIR
 from adaptive.policy import simulate_adaptive_control, simulate_lockdown
 from adaptive.smoothing import convolution, notched_smoothing
 from adaptive.utils import cwd, days, fmt_params, weeks
+from tqdm import tqdm
+
+import etl
 
 
-def model(districts, populations, cases, seed) -> Model:
+def model(districts, populations, cases, seed) -> NetworkedSIR:
     max_ts = cases["date_reported"].max()
     units = [
-        ModelUnit(district, populations[i], 
-        I0 = len(cases[(cases.geo_reported == district) & (cases.date_reported == max_ts)]), 
-        R0 = 0, 
-        D0 = 0, 
+        SIR(district, populations[i], 
+        dT0 = len(cases[(cases.geo_reported == district) & (cases.date_reported == max_ts)]), 
         mobility = 0.000001)
         for (i, district) in enumerate(districts)
     ]
-    return Model(units, random_seed=seed)
+    return NetworkedSIR(units, random_seed=seed)
 
 def run_policies(
         district_cases:  Dict[str, pd.DataFrame], # timeseries for each district 
@@ -91,7 +89,7 @@ if __name__ == "__main__":
     
     R_voluntary = {district: 1.2*R for (district, R) in R_mandatory.items()}
 
-    si, sf = 0, 500
+    si, sf = 0, 10
 
     simulation_results = [ 
         run_policies(state_cases, pops, districts, migrations, gamma, R_mandatory, R_voluntary, lockdown_period = lockdown_period, total = total_time, seed = seed)

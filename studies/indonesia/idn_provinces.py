@@ -13,7 +13,6 @@ from tqdm import tqdm
 import adaptive.plots as plt
 from adaptive.estimators import analytical_MPVS, linear_projection
 from adaptive.etl.commons import download_data
-from adaptive.model import Model
 from adaptive.smoothing import notched_smoothing
 from adaptive.utils import days, setup
 

@@ -2,19 +2,19 @@ from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
 from warnings import simplefilter
 
+import adaptive.plots as plt
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
-
-import adaptive.plots as plt
-import etl
 from adaptive.estimators import analytical_MPVS, linear_projection
 from adaptive.etl.commons import download_data
 from adaptive.etl.covid19india import data_path, get_time_series, load_all_data
-from adaptive.model import Model, ModelUnit
+from adaptive.models import SIR
 from adaptive.smoothing import convolution, notched_smoothing
 from adaptive.utils import cwd, days
+from tqdm import tqdm
+
+import etl
 
 simplefilter("ignore")
 
@@ -82,23 +82,24 @@ populations = dict(zip(district_names, population_counts))
 # first, look at state level predictions
 (
     dates,
-    RR_pred, RR_CI_upper, RR_CI_lower,
+    Rt_pred, Rt_CI_upper, Rt_CI_lower,
     T_pred, T_CI_upper, T_CI_lower,
     total_cases, new_cases_ts,
     anomalies, anomaly_dates
 ) = analytical_MPVS(state_ts, CI = CI, smoothing = notched_smoothing(window = smoothing), totals=False) 
 
-plt.Rt(dates, RR_pred[1:], RR_CI_upper[1:], RR_CI_lower[1:], CI, ymin=0, ymax=3)\
+plt.Rt(dates, Rt_pred[1:], Rt_CI_upper[1:], Rt_CI_lower[1:], CI, ymin=0, ymax=3)\
     .title("\nBihar: Reproductive Number Estimate (Covid19India Data)")\
     .annotate(f"public data from {str(dates[0]).split()[0]} to {str(dates[-1]).split()[0]}")\
     .xlabel("\ndate")\
     .ylabel("$R_t$", rotation=0, labelpad=20)\
     .show()
 
-Bihar = Model.single_unit("Bihar", 99_000_000, I0 = T_pred[-1], RR0 = RR_pred[-1], mobility = 0, random_seed = 0)\
-             .run(14)
+Bihar = SIR(name = "Bihar", population = 99_000_000, dT0 = T_pred[-1], Rt0 = Rt_pred[-1], mobility = 0, random_seed = 0)
+Bihar.run(14)
 
-plt.daily_cases(dates, T_pred[1:], T_CI_upper[1:], T_CI_lower[1:], new_cases_ts[1:], anomaly_dates, anomalies, CI, Bihar[0].delta_T[:-1], Bihar[0].lower_CI[1:], Bihar[0].upper_CI[1:])\
+plt.daily_cases(dates, T_pred[1:], T_CI_upper[1:], T_CI_lower[1:], new_cases_ts[1:], anomaly_dates, anomalies, CI, 
+    prediction_ts = [(Bihar.dT[:-1], Bihar.lower_CI[1:], Bihar.upper_CI[1:], None, "predicted cases")])\
     .title("\nBihar: Daily Cases")\
     .xlabel("\ndate")\
     .ylabel("cases\n")\
@@ -115,8 +116,8 @@ with tqdm(district_time_series.index.get_level_values(0).unique()) as districts:
     for district in districts:
         districts.set_description(f"{district :<{max_len}}")
         try: 
-            (dates, RR_pred, RR_CI_upper, RR_CI_lower, *_) = analytical_MPVS(district_time_series.loc[district], CI = CI, smoothing = convolution(window = smoothing), totals=False)
-            estimates.append((district, RR_pred[-1], RR_CI_lower[-1], RR_CI_upper[-1], linear_projection(dates, RR_pred, smoothing))) 
+            (dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, *_) = analytical_MPVS(district_time_series.loc[district], CI = CI, smoothing = convolution(window = smoothing), totals=False)
+            estimates.append((district, Rt_pred[-1], Rt_CI_lower[-1], Rt_CI_upper[-1], linear_projection(dates, Rt_pred, smoothing))) 
         except (IndexError, ValueError): 
             estimates.append((district, np.nan, np.nan, np.nan, np.nan))
 estimates = pd.DataFrame(estimates).dropna()

@@ -8,21 +8,24 @@ from scipy.spatial import distance_matrix
 from scipy.stats import poisson
 
 
-class ModelUnit():
+class SIR():
+    """ stochastic SIR model with external introductions """
     def __init__(self, 
-        name:              str,             # name of unit
-        population:        int,             # unit population
-        I0:       Optional[int]  = None,    # initial infected, None -> Poisson random intro 
-        R0:                int   = 0,       # initial recovered
-        D0:                int   = 0,       # initial dead
-        infectious_period: int   = 5,       # how long disease is communicable in days 
-        introduction_rate: float = 5.0,     # parameter for new community transmissions (lambda) 
-        mortality:         float = 0.02,    # I -> D transition probability 
-        mobility:          float = 0.0001,  # percentage of total population migrating out at each timestep 
-        RR0:               float = 1.9,     # initial reproductive rate,
-        upper_CI:          float = 0.0,     # initial upper confidence interval 
-        lower_CI:          float = 0.0,     # initial lower confidence interval 
-        CI:                float = 0.95     # confidence interval
+        name:                str,           # name of unit
+        population:          int,           # unit population
+        dT0:        Optional[int]  = None,  # last change in cases 
+        Rt0:                 float = 1.9,   # initial reproductive rate,
+        I0:                  int   = 0,     # initial infected, None -> Poisson random intro 
+        R0:                  int   = 0,     # initial recovered
+        D0:                  int   = 0,     # initial dead
+        infectious_period:   int   = 5,     # how long disease is communicable in days 
+        introduction_rate:   float = 5.0,   # parameter for new community transmissions (lambda) 
+        mortality:           float = 0.02,  # I -> D transition probability 
+        mobility:            float = 0,     # percentage of total population migrating out at each timestep 
+        upper_CI:            float = 0.0,   # initial upper confidence interval 
+        lower_CI:            float = 0.0,   # initial lower confidence interval 
+        CI:                  float = 0.95,  # confidence interval
+        random_seed: Optional[int] = None   # random seed 
         ):
         
         # save params 
@@ -32,24 +35,27 @@ class ModelUnit():
         self.ll    = introduction_rate
         self.m     = mortality
         self.mu    = mobility
-        self.RR0   = RR0
+        self.Rt0   = Rt0
         self.CI    = CI 
 
         # state and delta vectors 
-        if I0 is None:
-            I0 = np.random.poisson(self.ll) # initial number of cases 
-        self.RR = [RR0]
-        self.b  = [np.exp(self.gamma * (RR0 - 1.0))]
+        if dT0 is None:
+            dT0 = np.random.poisson(self.ll) # initial number of new cases 
+        self.dT = [dT0] # case change rate, initialized with the first introduction, if any
+        self.Rt = [Rt0]
+        self.b  = [np.exp(self.gamma * (Rt0 - 1.0))]
         self.S  = [population - I0 - R0 - D0]
         self.I  = [I0] 
         self.R  = [R0]
         self.D  = [D0]
-        self.P  = [population - I0 - R0 - D0] # total population = S + I + R 
-        self.beta = [RR0 * self.gamma] # initial contact rate 
-        self.delta_T     = [I0] # case change rate, initialized with the first introduction, if any
+        self.N  = [population - D0] # total population = S + I + R 
+        self.beta = [Rt0 * self.gamma] # initial contact rate 
         self.total_cases = [I0] # total cases 
         self.upper_CI = [upper_CI]
         self.lower_CI = [lower_CI]
+
+        if not random_seed: random_seed = 0
+        np.random.seed(random_seed)
 
     # period 1: inter-state migratory transmission
     def migration_step(self) -> int:
@@ -58,19 +64,19 @@ class ModelUnit():
         new_I = self.I[-1] - outflux
         if new_I < 0: new_I = 0
         self.I[-1]  = new_I
-        self.P[-1] -= outflux
+        self.N[-1] -= outflux
         return outflux
 
     # period 2: intra-state community transmission
-    def forward_epi_step(self, delta_B: int): 
+    def forward_epi_step(self, dB: int = 0): 
         # get previous state 
-        S, I, R, D, P = (vector[-1] for vector in (self.S, self.I, self.R, self.D, self.P))
+        S, I, R, D, N = (vector[-1] for vector in (self.S, self.I, self.R, self.D, self.N))
 
         # update state 
-        RR = self.RR0 * float(S)/float(P)
-        b  = np.exp(self.gamma * (RR - 1))
+        Rt = self.Rt0 * float(S)/float(N)
+        b  = np.exp(self.gamma * (Rt - 1))
 
-        rate_T    = max(0, self.b[-1] * self.delta_T[-1] + (1 - self.b[-1] + self.gamma * self.b[-1] * self.RR[-1])*delta_B)
+        rate_T    = max(0, self.b[-1] * self.dT[-1] + (1 - self.b[-1] + self.gamma * self.b[-1] * self.Rt[-1])*dB)
         num_cases = poisson.rvs(rate_T)
         self.upper_CI.append(poisson.ppf(self.CI,     rate_T))
         self.lower_CI.append(poisson.ppf(1 - self.CI, rate_T))
@@ -92,26 +98,32 @@ class ModelUnit():
         if I < 0: I = 0
         if D < 0: D = 0
 
-        P = S + I + R
-        beta = (num_cases * P)/(b * S * I)
+        N = S + I + R
+        beta = (num_cases * N)/(b * S * I)
 
         # update state vectors 
-        self.RR.append(RR)
+        self.Rt.append(Rt)
         self.b.append(b)
         self.S.append(S)
         self.I.append(I)
         self.R.append(R)
         self.D.append(D)
-        self.P.append(P)
+        self.N.append(N)
         self.beta.append(beta)
-        self.delta_T.append(num_cases)
+        self.dT.append(num_cases)
         self.total_cases.append(I + R + D)
 
-    def __repr__(self) -> str:
-        return f"ModelUnit[{self.name}]"
+    def run(self, days: int):
+        for _ in range(days):
+            self.forward_epi_step()
+        return self
 
-class Model():
-    def __init__(self, units: Sequence[ModelUnit], default_migrations: Optional[np.matrix] = None, random_seed : Optional[int] = None):
+    def __repr__(self) -> str:
+        return f"[{self.name}]"
+
+class NetworkedSIR():
+    """ implements cross-geography interactions between a set of SIR models """
+    def __init__(self, units: Sequence[SIR], default_migrations: Optional[np.matrix] = None, random_seed : Optional[int] = None):
         self.units      = units
         self.migrations = default_migrations
         self.names      = {unit.name: unit for unit in units}
@@ -120,14 +132,6 @@ class Model():
 
     def __len__(self) -> int:
         return len(self.units)
-
-    @staticmethod
-    def single_unit(*args, **kwargs):
-        if "random_seed" in kwargs:
-            random_seed = kwargs.pop("random_seed")
-        else:
-            random_seed = None
-        return Model([ModelUnit(*args, **kwargs)], default_migrations = np.zeros((1, 1)), random_seed = random_seed)
 
     def tick(self, migrations: np.matrix):
         # run migration step 
@@ -145,11 +149,11 @@ class Model():
             self.tick(migrations)
         return self 
 
-    def __iter__(self) -> Iterator[ModelUnit]:
+    def __iter__(self) -> Iterator[SIR]:
         return iter(self.units)
 
     # index units
-    def __getitem__(self, idx: Union[str, int]) -> ModelUnit:
+    def __getitem__(self, idx: Union[str, int]) -> SIR:
         if isinstance(idx, int):
             return self.units[idx]
         return self.names[idx]
@@ -171,7 +175,7 @@ class Model():
                     unit.__setattr__(attr, val)
         return self 
 
-    def aggregate(self, curves: Union[Sequence[str], str] = ["RR", "b", "S", "I", "R", "D", "P", "beta"]) -> Union[Dict[str, Sequence[float]], Sequence[float]]:
+    def aggregate(self, curves: Union[Sequence[str], str] = ["Rt", "b", "S", "I", "R", "D", "P", "beta"]) -> Union[Dict[str, Sequence[float]], Sequence[float]]:
         if isinstance(curves, str):
             single_curve = curves
             curves = [curves]
@@ -186,8 +190,14 @@ class Model():
             return aggs[single_curve]
         return aggs
 
-class MigrationSpikeModel(Model):
-    def __init__(self, units: Sequence[ModelUnit], introduction_time: Sequence[int], migratory_influx: Dict[str, int], default_migrations: Optional[np.matrix] = None, random_seed: Optional[int] = None):
+class SEIR():
+    """ stochastic SEIR model with external introductions """
+
+class AR1():
+    """ first-order autoregressive model with white noise """
+
+class MigrationSpikeModel(NetworkedSIR):
+    def __init__(self, units: Sequence[SIR], introduction_time: Sequence[int], migratory_influx: Dict[str, int], default_migrations: Optional[np.matrix] = None, random_seed: Optional[int] = None):
         self.counter = 0
         self.migratory_influx  = migratory_influx 
         self.introduction_time = introduction_time

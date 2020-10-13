@@ -44,14 +44,14 @@ for state in states:
     print("  + running estimation...")
     (
         dates,
-        RR_pred, RR_CI_upper, RR_CI_lower,
+        Rt_pred, RR_CI_upper, RR_CI_lower,
         T_pred, T_CI_upper, T_CI_lower,
         total_cases, new_cases_ts,
         anomalies, anomaly_dates
     ) = analytical_MPVS(ts.loc[state].Hospitalized, CI = CI, smoothing = notched_smoothing(window = smoothing))
     estimates = pd.DataFrame(data = {
         "dates": dates,
-        "RR_pred": RR_pred,
+        "Rt_pred": Rt_pred,
         "RR_CI_upper": RR_CI_upper,
         "RR_CI_lower": RR_CI_lower,
         "T_pred": T_pred,
@@ -60,9 +60,9 @@ for state in states:
         "total_cases": total_cases[2:],
         "new_cases_ts": new_cases_ts,
     })
-    print("  + Rt today:", RR_pred[-1])
+    print("  + Rt today:", Rt_pred[-1])
 
-    # plt.Rt(dates, RR_pred, RR_CI_lower, RR_CI_upper, CI)\
+    # plt.Rt(dates, Rt_pred, RR_CI_lower, RR_CI_upper, CI)\
     #     .ylabel("Estimated $R_t$")\
     #     .xlabel("Date")\
     #     .title(state)\
