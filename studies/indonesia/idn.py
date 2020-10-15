@@ -2,19 +2,17 @@ import json
 from logging import getLogger
 from pathlib import Path
 
+import adaptive.plots as plt
 import geopandas as gpd
 import matplotlib as mpl
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
-
-import adaptive.plots as plt
 from adaptive.estimators import analytical_MPVS, linear_projection
 from adaptive.etl.commons import download_data
-from adaptive.model import Model
+from adaptive.models import SIR
 from adaptive.smoothing import notched_smoothing
-from adaptive.utils import days, weeks, setup
+from adaptive.utils import days, setup, weeks
+from tqdm import tqdm
 
 logger = getLogger("IDN")
 
@@ -108,9 +106,9 @@ def load_province_timeseries(data_path: Path, province: str) -> pd.DataFrame:
 
 
 (data, figs) = setup(level = "INFO")
-for province in provinces:
-    logger.info("downloading data for %s", province)
-    download_data(data, filename(province), base_url = "https://data.covid19.go.id/public/api/")
+# for province in provinces:
+#     logger.info("downloading data for %s", province)
+#     download_data(data, filename(province), base_url = "https://data.covid19.go.id/public/api/")
 
 province_cases = {province: load_province_timeseries(data, province) for province in provinces}
 bgn = min(cases.index.min() for cases in province_cases.values())
@@ -121,10 +119,10 @@ natl_cases = sum(province_cases.values())
 
 
 logger.info("running national-level Rt estimate")
-(dates, RR_pred, RR_CI_upper, RR_CI_lower, T_pred, T_CI_upper, T_CI_lower, total_cases, new_cases_ts, anomalies, anomaly_dates)\
+(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, T_pred, T_CI_upper, T_CI_lower, total_cases, new_cases_ts, anomalies, anomaly_dates)\
      = analytical_MPVS(natl_cases, CI = CI, smoothing = smoothing) 
 
-plt.Rt(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin=0, ymax=4)\
+plt.Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, CI, ymin=0, ymax=4)\
     .title("\nIndonesia: Reproductive Number Estimate")\
     .xlabel("\ndate")\
     .ylabel("$R_t$", rotation=0, labelpad=30)\
@@ -132,9 +130,7 @@ plt.Rt(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin=0, ymax=4)\
     .show()
 
 logger.info("running case-forward prediction")
-IDN = Model.single_unit("IDN", 267.7e6, I0 = T_pred[-1], RR0 = RR_pred[-1], mobility = 0, random_seed = 0)\
-           .run(14)
-# 
+IDN = SIR("IDN", 267.7e6, dT0 = T_pred[-1], Rt0 = Rt_pred[-1], mobility = 0, random_seed = 0).run(14)
 
 
 logger.info("province-level projections")
@@ -144,15 +140,15 @@ max_len = 1 + max(map(len, provinces))
 with tqdm(provinces) as progress:
     for (province, cases) in province_cases.items():
         progress.set_description(f"{province :<{max_len}}")
-        (dates, RR_pred, RR_CI_upper, RR_CI_lower, *_) = analytical_MPVS(cases, CI = CI, smoothing = smoothing)
+        (dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, *_) = analytical_MPVS(cases, CI = CI, smoothing = smoothing)
         apr_idx = np.argmax(dates >  "31 Mar, 2020")
         may_idx = np.argmax(dates >= "01 May, 2020")
-        max_idx = np.argmax(RR_pred[apr_idx:may_idx])
+        max_idx = np.argmax(Rt_pred[apr_idx:may_idx])
         apr_max_idx = apr_idx + max_idx
-        estimates.append((province, RR_pred[-1], RR_CI_lower[-1], RR_CI_upper[-1], max(0, linear_projection(dates, RR_pred, window, period = 2*weeks)), RR_pred[apr_max_idx], RR_CI_lower[apr_max_idx], RR_CI_upper[apr_max_idx], dates[apr_max_idx], cases.iloc[-1][0]))
+        estimates.append((province, Rt_pred[-1], Rt_CI_lower[-1], Rt_CI_upper[-1], max(0, linear_projection(dates, Rt_pred, window, period = 2*weeks)), Rt_pred[apr_max_idx], Rt_CI_lower[apr_max_idx], Rt_CI_upper[apr_max_idx], dates[apr_max_idx], cases.iloc[-1][0]))
         progress.update()
 estimates = pd.DataFrame(estimates)
-estimates.columns = ["province", "Rt", "Rt_CI_lower", "Rt_CI_upper", "Rt_proj", "Rt_max", "Rt_CI_lower_at_max", "RR_CI_upper_at_max", "date_at_max_Rt", "total_cases"]
+estimates.columns = ["province", "Rt", "Rt_CI_lower", "Rt_CI_upper", "Rt_proj", "Rt_max", "Rt_CI_lower_at_max", "Rt_CI_upper_at_max", "date_at_max_Rt", "total_cases"]
 estimates.set_index("province", inplace=True)
 estimates.to_csv(data/"IDN_only_apr_Rt_max_filtered.csv")
 print(estimates)
@@ -162,7 +158,6 @@ logger.info("generating choropleths")
 gdf = gpd.read_file("data/gadm36_IDN_shp/gadm36_IDN_1.shp").drop(["GID_0", "NAME_0", "GID_1", "VARNAME_1", "NL_NAME_1", "TYPE_1", "ENGTYPE_1", "CC_1", "HASC_1"], axis = 1)
 gdf["NAME_1"] = gdf.NAME_1.str.upper().map(lambda s: replacements.get(s, s))
 gdf = gdf.merge(estimates, left_on="NAME_1", right_on="province")
-
 
 sm = mpl.cm.ScalarMappable(
     norm = mpl.colors.Normalize(vmin = 0.9, vmax = 1.4),

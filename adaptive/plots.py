@@ -13,7 +13,7 @@ import tikzplotlib
 from matplotlib.patheffects import Normal, Stroke
 from matplotlib.pyplot import *
 
-from .model import Model
+from .models import SIR
 
 def normalize_dates(dates):
     try: 
@@ -170,7 +170,7 @@ class PlotDevice():
         return self 
 
 # plot all 4 curves
-def plot_SIRD(model: Model) -> PlotDevice:
+def plot_SIRD(model: SIR) -> PlotDevice:
     fig, axes = plt.subplots(1, 4, sharex = True, sharey = True)
     t = list(range(len(model[0].RR)))
     for (ax, model) in zip(axes.flat, model.units):
@@ -184,7 +184,7 @@ def plot_SIRD(model: Model) -> PlotDevice:
     return PlotDevice(fig)
 
 # plot a single curve 
-def plot_curve(models: Sequence[Model], labels: Sequence[str], curve: str = "I"):
+def plot_curve(models: Sequence[SIR], labels: Sequence[str], curve: str = "I"):
     fig = plt.figure()
     for (model, label) in zip(models, labels):
         plt.semilogy(model.aggregate(curve), label = label, figure = fig)
@@ -229,11 +229,11 @@ def gantt_chart(gantt_data, start_date: Optional[str] = None, show_cbar = True):
     return PlotDevice()
 
 def simulations(
-    simulation_results: Sequence[Tuple[Model]], 
+    simulation_results: Sequence[Tuple[SIR]], 
     labels: Sequence[str], 
     historical: Optional[pd.Series] = None, 
     historical_label: str = "Empirical Case Data", 
-    curve: str = "delta_T", 
+    curve: str = "dT", 
     smoothing: Optional[np.ndarray] = None, 
     semilog: bool = True) -> PlotDevice:
 
@@ -285,12 +285,12 @@ def simulations(
     set_tick_size(14)
     return PlotDevice()
 
-def Rt(dates, RR_pred, RR_CI_upper, RR_CI_lower, CI, ymin = 0.5, ymax = 3, yaxis_colors = True):
+def Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, CI, ymin = 0.5, ymax = 3, yaxis_colors = True):
     # dates = normalize_dates(dates)
-    CI_marker  = plt.fill_between(dates, RR_CI_lower, RR_CI_upper, color = BLK_CI, alpha = 0.5)
-    Rt_marker, = plt.plot(dates, RR_pred, color = BLK, linewidth = 2, zorder = 5, solid_capstyle = "butt")
-    plt.plot(dates, RR_CI_lower, color = BLK, linewidth = 0.5, zorder = 5, solid_capstyle = "butt")
-    plt.plot(dates, RR_CI_upper, color = BLK, linewidth = 0.5, zorder = 5, solid_capstyle = "butt")
+    CI_marker  = plt.fill_between(dates, Rt_CI_lower, Rt_CI_upper, color = BLK_CI, alpha = 0.5)
+    Rt_marker, = plt.plot(dates, Rt_pred, color = BLK, linewidth = 2, zorder = 5, solid_capstyle = "butt")
+    plt.plot(dates, Rt_CI_lower, color = BLK, linewidth = 0.5, zorder = 5, solid_capstyle = "butt")
+    plt.plot(dates, Rt_CI_upper, color = BLK, linewidth = 0.5, zorder = 5, solid_capstyle = "butt")
     if yaxis_colors: 
         plt.plot([dates[0], dates[0]], [2.5, ymax], color = RED, linewidth = 6, alpha = 0.9, solid_capstyle="butt", zorder = 10)
         plt.plot([dates[0], dates[0]], [1,    2.5], color = YLW, linewidth = 6, alpha = 0.9, solid_capstyle="butt", zorder = 10)

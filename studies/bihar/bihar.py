@@ -6,7 +6,7 @@ import adaptive.plots as plt
 import numpy as np
 import pandas as pd
 from adaptive.estimators import analytical_MPVS, linear_projection
-from adaptive.model import Model, ModelUnit
+from adaptive.models import SIR, NetworkedSIR
 from adaptive.smoothing import convolution, notched_smoothing
 from adaptive.utils import cwd, days, setup
 from matplotlib import rcParams
@@ -46,14 +46,15 @@ plt.Rt(dates, Rt_pred[1:], Rt_CI_upper[1:], Rt_CI_lower[1:], CI, ymin=0, ymax=4)
     .show()
 
 np.random.seed(33)
-Bihar = Model([ModelUnit("Bihar", 99_000_000, I0 = T_pred[-1], RR0 = Rt_pred[-1], mobility = 0)])
-Bihar.run(14, np.zeros((1,1)))
+Bihar = SIR("Bihar", 99_000_000, dT0 = T_pred[-1], Rt0 = Rt_pred[-1], lower_CI =T_CI_lower[-1], upper_CI =  T_CI_upper[-1], mobility = 0)
+Bihar.run(14)
 
-t_pred = [dates[-1] + pd.Timedelta(days = i) for i in range(len(Bihar[0].delta_T))]
+t_pred = [dates[-1] + pd.Timedelta(days = i) for i in range(len(Bihar.dT))]
 
-Bihar[0].lower_CI[0] = T_CI_lower[-1]
-Bihar[0].upper_CI[0] = T_CI_upper[-1]
-plt.daily_cases(dates, T_pred[1:], T_CI_upper[1:], T_CI_lower[1:], new_cases_ts[1:], anomaly_dates, anomalies, CI,  Bihar[0].delta_T, Bihar[0].lower_CI, Bihar[0].upper_CI)\
+plt.daily_cases(dates, T_pred[1:], T_CI_upper[1:], T_CI_lower[1:], new_cases_ts[1:], anomaly_dates, anomalies, CI,  
+    prediction_ts = [
+        (Bihar.dT, Bihar.lower_CI, Bihar.upper_CI, None, "predicted cases")
+    ])\
     .title("\nBihar: New Daily Cases")\
     .annotate(f"data from {str(dates[0]).split()[0]} to {str(dates[-1]).split()[0]}; predictions until {str(t_pred[-1]).split()[0]}")\
     .xlabel("date").ylabel("cases")\

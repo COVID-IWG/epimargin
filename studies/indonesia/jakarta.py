@@ -1,22 +1,20 @@
 from logging import getLogger
 from pathlib import Path
 
+import adaptive.plots as plt
 import geopandas as gpd
 import matplotlib as mpl
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import shapely
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from tqdm import tqdm
-
-import adaptive.plots as plt
 from adaptive.estimators import analytical_MPVS, linear_projection
 from adaptive.etl.commons import download_data
-from adaptive.model import Model, ModelUnit
+from adaptive.models import SIR, NetworkedSIR
 from adaptive.policy import simulate_PID_controller
 from adaptive.smoothing import notched_smoothing
 from adaptive.utils import days, setup
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from tqdm import tqdm
 
 logger = getLogger("DKIJ")
 
@@ -57,25 +55,28 @@ logger.info("running province-level Rt estimate")
 (dates, RR_pred, RR_CI_upper, RR_CI_lower, T_pred, T_CI_upper, T_CI_lower, total_cases, new_cases_ts, anomalies, anomaly_dates)\
     = analytical_MPVS(jakarta_cases, CI = CI, smoothing = smoothing, totals=False) 
 
-# plt.Rt(dates, RR_pred[1:], RR_CI_upper[1:], RR_CI_lower[1:], CI)\
-#     .title("\nDKI Jakarta: Reproductive Number Estimate")\
-#     .xlabel("\ndate")\
-#     .ylabel("$R_t$\n", rotation=0, labelpad=30)\
-#     .annotate(f"\n{window}-day smoothing window, gamma-prior Bayesian estimation method")\
-#     .show()
+plt.Rt(dates, RR_pred[1:], RR_CI_upper[1:], RR_CI_lower[1:], CI)\
+    .title("\nDKI Jakarta: Reproductive Number Estimate")\
+    .xlabel("\ndate")\
+    .ylabel("$R_t$\n", rotation=0, labelpad=30)\
+    .annotate(f"\n{window}-day smoothing window, gamma-prior Bayesian estimation method")\
+    .show()
 
 
-# logger.info("running case-forward prediction")
-# prediction_period = 14*days
-# IDN = Model.single_unit(name = "IDN", population = 267.7e6, I0 = T_pred[-1], RR0 = RR_pred[-1], upper_CI = T_CI_upper[-1], lower_CI = T_CI_lower[-1], mobility = 0, random_seed = 0)\
-#            .run(prediction_period)
+logger.info("running case-forward prediction")
+prediction_period = 14*days
+IDN = SIR(name = "IDN", population = 267.7e6, dT0 = T_pred[-1], Rt0 = RR_pred[-1], upper_CI = T_CI_upper[-1], lower_CI = T_CI_lower[-1], mobility = 0, random_seed = 0)\
+           .run(prediction_period)
  
-# plt.daily_cases(dates, T_pred[1:], T_CI_upper[1:], T_CI_lower[1:], new_cases_ts[1:], anomaly_dates, anomalies, CI, IDN[0].delta_T[:-1], IDN[0].lower_CI[1:], IDN[0].upper_CI[1:])\
-#     .title("\nDKI Jakarta: Daily Cases")\
-#     .xlabel("\ndate")\
-#     .ylabel("cases\n")\
-#     .annotate("\nBayesian training process on empirical data, with anomalies identified")\
-#     .show()
+plt.daily_cases(dates, T_pred[1:], T_CI_upper[1:], T_CI_lower[1:], new_cases_ts[1:], anomaly_dates, anomalies, CI, 
+    prediction_ts = [
+        (IDN.dT[:-1], IDN.lower_CI[1:], IDN.upper_CI[1:], None, "predicted cases")
+    ])\
+    .title("\nDKI Jakarta: Daily Cases")\
+    .xlabel("\ndate")\
+    .ylabel("cases\n")\
+    .annotate("\nBayesian training process on empirical data, with anomalies identified")\
+    .show()
 
 logger.info("district-level projections")
 district_cases = dkij.groupby(["district", "date_positiveresult"])["id"].count().sort_index()

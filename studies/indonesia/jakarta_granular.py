@@ -1,22 +1,21 @@
 from logging import getLogger
 from pathlib import Path
 
+import adaptive.plots as plt
 import geopandas as gpd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import shapely
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from tqdm import tqdm
-
-import adaptive.plots as plt
 from adaptive.estimators import analytical_MPVS, linear_projection
 from adaptive.etl.commons import download_data
-from adaptive.model import Model, ModelUnit
+from adaptive.models import SIR, NetworkedSIR
 from adaptive.policy import simulate_PID_controller
 from adaptive.smoothing import notched_smoothing
 from adaptive.utils import days, setup
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from tqdm import tqdm
 
 logger = getLogger("DKIJ")
 
@@ -121,7 +120,7 @@ if __name__ == "__main__":
 
     logger.info("running case-forward prediction")
     prediction_period = 14*days
-    IDN = Model.single_unit(name = "IDN", population = 267.7e6, I0 = T_pred[-1], RR0 = RR_pred[-1], upper_CI = T_CI_upper[-1], lower_CI = T_CI_lower[-1], mobility = 0, random_seed = 0)\
+    IDN = SIR(name = "IDN", population = 267.7e6, dT0 = T_pred[-1], Rt0 = RR_pred[-1], upper_CI = T_CI_upper[-1], lower_CI = T_CI_lower[-1], mobility = 0, random_seed = 0)\
             .run(prediction_period)
     
     plt.daily_cases(dates, T_pred[1:], T_CI_upper[1:], T_CI_lower[1:], new_cases_ts[1:], anomaly_dates, anomalies, CI, IDN[0].delta_T[:-1], IDN[0].lower_CI[1:], IDN[0].upper_CI[1:])\
