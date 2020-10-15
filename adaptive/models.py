@@ -191,7 +191,7 @@ class NetworkedSIR():
 
 class SEIR():
     """ stochastic SEIR model without external introductions """
-        def __init__(self, 
+    def __init__(self, 
         name:                str,           # name of unit
         population:          int,           # unit population
         dT0:        Optional[int]  = None,  # last change in cases, None -> Poisson random intro 
