@@ -13,19 +13,19 @@ class SIR():
     def __init__(self, 
         name:                str,           # name of unit
         population:          int,           # unit population
-        dT0:        Optional[int]  = None,  # last change in cases 
+        dT0:        Optional[int]  = None,  # last change in cases, None -> Poisson random intro 
         Rt0:                 float = 1.9,   # initial reproductive rate,
-        I0:                  int   = 0,     # initial infected, None -> Poisson random intro 
+        I0:                  int   = 0,     # initial infected
         R0:                  int   = 0,     # initial recovered
         D0:                  int   = 0,     # initial dead
         infectious_period:   int   = 5,     # how long disease is communicable in days 
         introduction_rate:   float = 5.0,   # parameter for new community transmissions (lambda) 
         mortality:           float = 0.02,  # I -> D transition probability 
         mobility:            float = 0,     # percentage of total population migrating out at each timestep 
-        upper_CI:            float = 0.0,   # initial upper confidence interval 
-        lower_CI:            float = 0.0,   # initial lower confidence interval 
+        upper_CI:            float = 0.0,   # initial upper confidence interval for new case counts
+        lower_CI:            float = 0.0,   # initial lower confidence interval for new case counts
         CI:                  float = 0.95,  # confidence interval
-        random_seed: Optional[int] = None   # random seed 
+        random_seed:         int   = 0      # random seed 
         ):
         
         # save params 
@@ -54,7 +54,6 @@ class SIR():
         self.upper_CI = [upper_CI]
         self.lower_CI = [lower_CI]
 
-        if not random_seed: random_seed = 0
         np.random.seed(random_seed)
 
     # period 1: inter-state migratory transmission
@@ -191,10 +190,128 @@ class NetworkedSIR():
         return aggs
 
 class SEIR():
-    """ stochastic SEIR model with external introductions """
+    """ stochastic SEIR model without external introductions """
+        def __init__(self, 
+        name:                str,           # name of unit
+        population:          int,           # unit population
+        dT0:        Optional[int]  = None,  # last change in cases, None -> Poisson random intro 
+        Rt0:                 float = 1.9,   # initial reproductive rate,
+        E0:                  int   = 0,     # initial exposed
+        I0:                  int   = 0,     # initial infected
+        R0:                  int   = 0,     # initial recovered
+        D0:                  int   = 0,     # initial dead
+        infectious_period:   int   = 5,     # how long disease is communicable in days 
+        incubation_period:   int   = 5,     # how long the diseas takes to incubate
+        introduction_rate:   float = 5.0,   # parameter for new community transmissions (lambda) 
+        mortality:           float = 0.02,  # I -> D transition probability 
+        mobility:            float = 0,     # percentage of total population migrating out at each timestep 
+        upper_CI:            float = 0.0,   # initial upper confidence interval for new case counts
+        lower_CI:            float = 0.0,   # initial lower confidence interval for new case counts
+        CI:                  float = 0.95,  # confidence interval
+        random_seed:         int   = 0      # random seed 
+        ):
+        
+        # save params 
+        self.name  = name 
+        self.pop0  = population
+        self.gamma = 1.0/infectious_period
+        self.sigma = 1.0/incubation_period
+        self.ll    = introduction_rate
+        self.m     = mortality
+        self.mu    = mobility
+        self.Rt0   = Rt0
+        self.CI    = CI 
+
+        # state and delta vectors 
+        if dT0 is None:
+            dT0 = np.random.poisson(self.ll) # initial number of new cases 
+        self.dT = [dT0] # case change rate, initialized with the first introduction, if any
+        self.Rt = [Rt0]
+        self.b  = [np.exp(self.gamma * (Rt0 - 1.0))]
+        self.S  = [population - E0 - I0 - R0 - D0]
+        self.E  = [E0]
+        self.I  = [I0] 
+        self.R  = [R0]
+        self.D  = [D0]
+        self.N  = [population - D0] # total population = S + I + R 
+        self.beta = [Rt0 * self.gamma] # initial contact rate 
+        self.total_cases = [I0] # total cases 
+        self.upper_CI = [upper_CI]
+        self.lower_CI = [lower_CI]
+
+        np.random.seed(random_seed)
+    
+    def forward_epi_step(self, dB: int = 0): 
+        # get previous state 
+        S, E, I, R, D, N = (vector[-1] for vector in (self.S, self.E, self.I, self.R, self.D, self.N))
+
+        # update state 
+        Rt = self.Rt0 * float(S)/float(N)
+        b  = np.exp(self.gamma * (Rt - 1))
+
+        rate_T    = max(0, self.b[-1] * self.dT[-1])
+        num_cases = poisson.rvs(rate_T)
+        self.upper_CI.append(poisson.ppf(self.CI,     rate_T))
+        self.lower_CI.append(poisson.ppf(1 - self.CI, rate_T))
+
+        E += num_cases
+        S -= num_cases
+
+        rate_I    = self.sigma * E
+        num_inf   = poisson.rvs(rate_I)
+
+        E -= num_inf 
+        I += num_inf
+
+        rate_D    = self.m * self.gamma * I
+        num_dead  = poisson.rvs(rate_D)
+        D        += num_dead
+
+        rate_R    = (1 - self.m) * self.gamma * I 
+        num_recov = poisson.rvs(rate_R)
+        R        += num_recov
+
+        I -= (num_dead + num_recov)
+        
+        if S < 0: S = 0
+        if E < 0: E = 0
+        if I < 0: I = 0
+        if R < 0: R = 0
+        if D < 0: D = 0
+
+        N = S + E + I + R
+        beta = (num_cases * N)/(b * S * I)
+
+        # update state vectors 
+        self.Rt.append(Rt)
+        self.b.append(b)
+        self.S.append(S)
+        self.E.append(E)
+        self.I.append(I)
+        self.R.append(R)
+        self.D.append(D)
+        self.N.append(N)
+        self.beta.append(beta)
+        self.dT.append(num_cases)
+        self.total_cases.append(E + I + R + D)
 
 class AR1():
     """ first-order autoregressive model with white noise """
+    def __init__(self, phi: float = 1.01, sigma: float = 1, I0: int = 10, random_seed: int = 0):
+        self.phi = phi 
+        self.sigma = sigma
+        self.I = [I0]
+        np.random.seed(random_seed)
+    
+    def set_parameters(**kwargs):
+        if "phi"   in kwargs: self.phi   = kwargs["phi"]
+        if "sigma" in kwargs: self.sigma = kwargs["sigma"]
+        return self 
+
+    def run(self, days: int):
+        for _ in range(days):
+            self.I.append(self.phi * self.I[-1] + np.random.normal(scale = self.sigma))
+        return self 
 
 class MigrationSpikeModel(NetworkedSIR):
     def __init__(self, units: Sequence[SIR], introduction_time: Sequence[int], migratory_influx: Dict[str, int], default_migrations: Optional[np.matrix] = None, random_seed: Optional[int] = None):
