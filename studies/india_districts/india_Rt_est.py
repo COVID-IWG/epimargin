@@ -51,7 +51,7 @@ for state in states:
         T_pred, T_CI_upper, T_CI_lower,
         total_cases, new_cases_ts,
         anomalies, anomaly_dates
-    ) = analytical_MPVS(ts.loc[state].Hospitalized, CI = CI, smoothing = notched_smoothing(window = smoothing))
+    ) = analytical_MPVS(ts.loc[state].Hospitalized, CI = CI, smoothing = notched_smoothing(window = smoothing), totals = False)
     estimates = pd.DataFrame(data = {
         "dates": dates,
         "Rt_pred": Rt_pred,
