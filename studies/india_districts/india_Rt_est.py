@@ -22,7 +22,7 @@ figs.mkdir(exist_ok=True)
 # define data versions for api files
 paths = {
     "v3": [data_path(i) for i in (1, 2)],
-    "v4": [data_path(i) for i in range(3, 22)]
+    "v4": [data_path(i) for i in range(3, 18)]
 }
 
 for target in paths['v3'] + paths['v4']:
