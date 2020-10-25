@@ -266,6 +266,7 @@ state_name_lookup = {
     'West Bengal'                : 'WB'
 }
 
+
 def data_path(i: int):
     return f"raw_data{i}.csv"
 
