@@ -48,7 +48,7 @@ def analytical_MPVS(
     ):
     """Estimates Rt ~ Gamma(alpha, 1/beta), and implements an analytical expression for a mean-preserving variance increase whenever case counts fall outside the CI defined by a negative binomial distribution"""
     # infection_ts = infection_ts.copy(deep = True)
-    dates = infection_ts.iloc[1:].index
+    dates = infection_ts.index
     if totals:
         # daily_cases = np.diff(infection_ts.clip(lower = 0)).clip(min = 0) # infection_ts clipped because COVID19India API does weird stuff
         daily_cases = infection_ts.clip(lower = 0).diff().clip(lower = 0).iloc[1:]

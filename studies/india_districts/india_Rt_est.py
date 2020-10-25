@@ -22,11 +22,14 @@ figs.mkdir(exist_ok=True)
 # define data versions for api files
 paths = {
     "v3": [data_path(i) for i in (1, 2)],
-    "v4": [data_path(i) for i in (3, 4, 5, 6, 7)]
+    "v4": [data_path(i) for i in range(3, 22)]
 }
 
 for target in paths['v3'] + paths['v4']:
-    download_data(data, target)
+    try: 
+        download_data(data, target)
+    except:
+        pass 
 
 df = load_all_data(
     v3_paths = [data/filepath for filepath in paths['v3']], 
