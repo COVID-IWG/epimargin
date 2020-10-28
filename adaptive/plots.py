@@ -172,7 +172,7 @@ class PlotDevice():
 # plot all 4 curves
 def plot_SIRD(model: SIR) -> PlotDevice:
     fig, axes = plt.subplots(1, 4, sharex = True, sharey = True)
-    t = list(range(len(model[0].RR)))
+    t = list(range(len(model.Rt)))
     for (ax, model) in zip(axes.flat, model.units):
         s = ax.semilogy(t, model.S, alpha=0.75, label="Susceptibles")
         i = ax.semilogy(t, model.I, alpha=0.75, label="Infectious", )

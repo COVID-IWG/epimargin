@@ -5,6 +5,7 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import pymc3 as pm
+import theano.tensor as tt
 from scipy.stats import gamma as Gamma
 from scipy.stats import nbinom
 from statsmodels.regression.linear_model import OLS
@@ -152,27 +153,56 @@ def analytical_MPVS(
     )
 
 def parametric_scheme_mcmc(daily_cases, CI = 0.95, gamma = 0.2, chains = 4, tune = 1000, draws = 1000, **kwargs):
-    case_values = daily_cases.values
-    mcmc_model = pm.model
-    with mcmc_model as model:
+    if isinstance(daily_cases, (pd.DataFrame, pd.Series)):
+        case_values = daily_cases.values
+    else: 
+        case_values = np.array(daily_cases)
+    with pm.Model() as mcmc_model:
         # lag new case counts
-        dT_lag0 = case_values[2:]
-        dT_lag1 = case_values[1:-1]
+        dT_lag0 = case_values[1:]
+        dT_lag1 = case_values[:-1]
         n = len(dT_lag0)
 
         # set up distributions 
-        alpha   = 3 + dT_lag0.cumsum()
-        beta_L  = 2 + np.array(range(len(dT_lag0)))
-        beta_b  = 2 + dT_lag1.cumsum()
+        # alpha   = 3 + dT_lag0.cumsum()
+        # beta_L  = 2 + np.array(range(len(dT_lag0)))
+        # beta_b  = 2 + dT_lag1.cumsum()
 
-        Lt = pm.Gamma("lamt", alpha = alpha, beta = beta_L, shape = (n,))
-        bt = pm.Gamma("bt",   alpha = alpha, beta = beta_b, shape = (n,))
-        dT = pm.Poisson("dT", mu = Lt, shape = (n,))
-        Rt = pm.Deterministic("Rt", 1 + gamma * np.log(bt))
+        dT = pm.Poisson("dT", mu = dT_lag0, shape = (n,))
+        bt = pm.Gamma("bt", alpha = dT_lag0.cumsum(), beta = 0.0001 + dT_lag1.cumsum(), shape = (n,))
+        Rt = pm.Deterministic("Rt", 1 + pm.math.log(bt)/gamma)
     
-    trace = pm.sample(model = mcmc_model, chains = chains, tune = tune, draws = draws, **kwargs)
-    return pm.summary(trace, hdi_prob = CI)
+        trace = pm.sample(model = mcmc_model, chains = chains, tune = tune, draws = draws, cores = 1, **kwargs)
+        return (mcmc_model, trace, pm.summary(trace, hdi_prob = CI))
 
+def branching_random_walk(daily_cases, CI = 0.95, gamma = 0.2, chains = 4, tune = 1000, draws = 1000, **kwargs):
+    """ estimate Rt using a random walk for branch parameter, adapted from old Rt.live code """
+    if isinstance(daily_cases, (pd.DataFrame, pd.Series)):
+        case_values = daily_cases.values
+    else: 
+        case_values = np.array(daily_cases)
+    with pm.Model() as mcmc_model:
+        # lag new case counts
+        dT_lag0 = case_values[1:]
+        dT_lag1 = case_values[:-1]
+        n = len(dT_lag0)
+        
+        # Random walk magnitude
+        step_size = pm.HalfNormal('step_size', sigma = 0.03)
+        theta_raw_init = pm.Normal('theta_raw_init', 0.1, 0.1)
+        theta_raw_steps = pm.Normal('theta_raw_steps', shape = n - 1) * step_size
+        theta_raw = tt.concatenate([[theta_raw_init], theta_raw_steps])
+        theta = pm.Deterministic('theta', theta_raw.cumsum())
+
+        Rt = pm.Deterministic("Rt", 1 + theta/gamma)
+        expected_cases = pm.Poisson('dT', mu = dT_lag1 * pm.math.exp(theta), observed = dT_lag0)
+    
+        trace = pm.sample(model = mcmc_model, chains = chains, tune = tune, draws = draws, cores = 1, **kwargs)
+        return (mcmc_model, trace, pm.summary(trace, hdi_prob = CI))
+
+def branching_GP(daily_cases, CI = 0.95, gamma = 0.2, chains = 4, tune = 1000, draws = 1000, **kwargs):
+    """ estimate Rt using a Gaussian process prior for the branch parameter """
+    pass 
 
 def linear_projection(dates, R_values, smoothing, period = 7*days):
     """ return 7-day linear projection """

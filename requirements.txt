@@ -82,4 +82,5 @@ wcwidth==0.1.9
 Werkzeug==1.0.1
 wrapt==1.12.1
 xarray==0.15.1
+xlrd==1.2.0
 zipp==3.1.0
