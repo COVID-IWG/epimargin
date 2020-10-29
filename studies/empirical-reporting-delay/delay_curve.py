@@ -94,9 +94,9 @@ figs = mkdir(root/"figs")
 
 ###########################################################
 # download latest case data
-download_data(data, 'state_wise_daily.csv')
-df = load_statewise_data(data/"state_wise_daily.csv")
-ts = get_time_series(df, "state")
+# download_data(data, 'state_wise_daily.csv')
+# df = load_statewise_data(data/"state_wise_daily.csv")
+# ts = get_time_series(df, "state")
 
 ###########################################################
 # load delay data
@@ -116,7 +116,7 @@ delay_dist = delay_hist/delay_hist.sum()
 # plot empirical delays at state and national levels
 slopes = {}
 slopes["TT"] = plot_delay_dist("all", delay_hist, show = True, filename = figs/"empirical_distribution_TT.png")
-for state in []:
+for state in ["Maharashtra"]:
     plt.figure()
     state_code = state_name_lookup.get(state, state)
     slope = plot_delay_dist(state_code, state_hist.loc[state], show = False, filename = figs/f"empirical_distribution_{state_code}.png")
@@ -201,7 +201,7 @@ plt.show()
 
 sns.set(style="whitegrid", palette="bright")
 # bihar, kerala plots
-for state in ["Bihar", "Kerala"]:
+for state in ["Maharashtra"]:
     raw   = ts.loc[state].Hospitalized
     raw   = raw[(raw.index >= "Mar 01, 2020") & (raw.index <= "2020-07-23")]
     adj_notch = delay_adjust(notch_filter(raw), state_dist.loc[state])

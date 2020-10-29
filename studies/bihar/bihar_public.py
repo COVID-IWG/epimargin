@@ -60,7 +60,7 @@ CI        = 0.95
 
 paths = { 
     "v3": [data_path(_) for _ in (1, 2)],
-    "v4": [data_path(_) for _ in range(3, 17)]
+    "v4": [data_path(_) for _ in range(3, 18)]
 }
 
 for target in paths['v3'] + paths['v4']:
@@ -74,7 +74,7 @@ dfn = load_all_data(
 delay = pd.read_csv(data/"bihar_delay.csv").set_index("delay") 
  
 state_ts = get_time_series(dfn, "detected_state").loc["Bihar"].Hospitalized
-state_ts = delay_adjust(state_ts, np.squeeze(delay.values))
+# state_ts = delay_adjust(state_ts, np.squeeze(delay.values))
 state_ts = state_ts[state_ts.index >= "2020-03-26"]
 district_names, population_counts, _ = etl.district_migration_matrix(data/"Migration Matrix - District.csv")
 populations = dict(zip(district_names, population_counts))
