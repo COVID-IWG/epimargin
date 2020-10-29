@@ -45,8 +45,8 @@ def plot_mobility(series, label, stringency = None, until = None, annotation = "
 
     plt.xlim(left = series.date.iloc[0], right = right)
 
-# for state in ["Bihar", "Maharashtra", "Tamil Nadu", "Punjab", "Delhi"][1:]:
-#     plot_mobility(mobility[(mobility.sub_region_1 == state) & (mobility.sub_region_2.isna())], state)
+for state in ["Bihar", "Maharashtra", "Tamil Nadu", "Punjab", "Delhi"][1:]:
+    plot_mobility(mobility[(mobility.sub_region_1 == state) & (mobility.sub_region_2.isna())], state)
 
 # for city in ["Mumbai", "Bangalore Urban", "Hyderabad"]:
 #     plot_mobility(mobility[mobility.sub_region_2 == city], city)
