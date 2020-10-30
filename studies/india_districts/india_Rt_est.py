@@ -22,11 +22,14 @@ figs.mkdir(exist_ok=True)
 # define data versions for api files
 paths = {
     "v3": [data_path(i) for i in (1, 2)],
-    "v4": [data_path(i) for i in (3, 4, 5, 6, 7)]
+    "v4": [data_path(i) for i in range(3, 18)]
 }
 
 for target in paths['v3'] + paths['v4']:
-    download_data(data, target)
+    try: 
+        download_data(data, target)
+    except:
+        pass 
 
 df = load_all_data(
     v3_paths = [data/filepath for filepath in paths['v3']], 
@@ -48,7 +51,7 @@ for state in states:
         T_pred, T_CI_upper, T_CI_lower,
         total_cases, new_cases_ts,
         anomalies, anomaly_dates
-    ) = analytical_MPVS(ts.loc[state].Hospitalized, CI = CI, smoothing = notched_smoothing(window = smoothing))
+    ) = analytical_MPVS(ts.loc[state].Hospitalized, CI = CI, smoothing = notched_smoothing(window = smoothing), totals = False)
     estimates = pd.DataFrame(data = {
         "dates": dates,
         "Rt_pred": Rt_pred,

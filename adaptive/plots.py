@@ -102,10 +102,11 @@ def get_continuous_cmap(hex_list, float_list=None):
 
 
 # DEFAULT COLOR MAPPING
-def get_cmap(vmin = 0, vmax = 3):
+default_cmap = get_continuous_cmap([GRN, YLW, RED, RED], [0, 0.8, 0.9, 1])
+def get_cmap(vmin = 0, vmax = 3, cmap = default_cmap):
     return mpl.cm.ScalarMappable(
         norm = mpl.colors.Normalize(vmin, vmax), 
-        cmap = get_continuous_cmap([GRN, YLW, RED, RED], [0, 0.8, 0.9, 1])
+        cmap = cmap
     )
 
 sm = get_cmap()
