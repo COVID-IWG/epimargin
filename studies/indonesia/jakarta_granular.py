@@ -14,7 +14,6 @@ from adaptive.models import SIR, NetworkedSIR
 from adaptive.policy import simulate_PID_controller
 from adaptive.smoothing import notched_smoothing
 from adaptive.utils import days, setup
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 from tqdm import tqdm
 
 logger = getLogger("DKIJ")
