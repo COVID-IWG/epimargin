@@ -297,7 +297,10 @@ def add_time_col(grp_df):
 
 # calculate daily totals and growth rate
 def get_time_series(df: pd.DataFrame, group_col: Optional[Sequence[str]] = None) -> pd.DataFrame:
-    group_cols = [group_col] + ["status_change_date", "current_status"] if group_col else ["status_change_date", "current_status"] 
+    if group_col:
+        group_cols = (group_col if isinstance(group_col, list) else [group_col]) + ["status_change_date", "current_status"]
+    else: 
+        group_cols = ["status_change_date", "current_status"]
     totals = df.groupby(group_cols)["num_cases"].agg(lambda counts: np.sum(np.abs(counts)))
     if len(totals) == 0:
         return pd.DataFrame()

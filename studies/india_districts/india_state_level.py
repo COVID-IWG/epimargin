@@ -14,8 +14,7 @@ from adaptive.estimators import analytical_MPVS
 from adaptive.etl.commons import download_data
 from adaptive.etl.covid19india import (get_time_series, load_statewise_data,
                                        state_name_lookup)
-from adaptive.plots import plot_RR_est
-from adaptive.smoothing import convolution
+from adaptive.smoothing import notched_smoothing
 from adaptive.utils import cwd, days
 
 simplefilter("ignore")
@@ -53,7 +52,7 @@ timeseries = []
     T_pred, T_CI_upper, T_CI_lower,
     total_cases, new_cases_ts,
     anomalies, anomaly_dates
-) = analytical_MPVS(country_time_series["Hospitalized"].iloc[:-1], CI = CI, smoothing = convolution(window = smoothing)) 
+) = analytical_MPVS(country_time_series["Hospitalized"].iloc[:-1], CI = CI, smoothing = notched_smoothing(window = smoothing)) 
 
 country_code = state_name_lookup["India"]
 for row in zip(dates, RR_pred, RR_CI_upper, RR_CI_lower):

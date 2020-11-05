@@ -74,7 +74,7 @@ logger.info("running province-level Rt estimate")
 (dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, T_pred, T_CI_upper, T_CI_lower, total_cases, new_cases_ts, anomalies, anomaly_dates)\
     = analytical_MPVS(new_cases, CI = CI, smoothing = smoothing, totals = False)
 
-plt.Rt(dates, Rt_pred[1:], Rt_CI_upper[1:], Rt_CI_lower[1:], CI)\
+plt.Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, CI)\
     .title("\nSouth Sulawesi: Reproductive Number Estimate")\
     .xlabel("\ndate")\
     .ylabel("$R_t$\n", rotation=0, labelpad=30)\
@@ -87,7 +87,7 @@ I0 = (~cases.confirmed.isna()).sum() - (~cases.recovered.isna()).sum() - (~cases
 IDN = SIR(name = "IDN", population = 8_819_500, dT0 = T_pred[-1], Rt0 = Rt_pred[-1], upper_CI = T_CI_upper[-1], lower_CI = T_CI_lower[-1], mobility = 0, random_seed = 0, I0 = I0)\
            .run(prediction_period)
 
-plt.daily_cases(dates, T_pred[1:], T_CI_upper[1:], T_CI_lower[1:], new_cases_ts[1:], anomaly_dates, anomalies, CI, 
+plt.daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI, 
     prediction_ts = [
         (IDN.dT[:-1], IDN.lower_CI[1:], IDN.upper_CI[1:], plt.PRED_PURPLE, "predicted cases")
     ])\
@@ -104,7 +104,7 @@ logger.info("running city-level Rt estimate")
 (dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, T_pred, T_CI_upper, T_CI_lower, total_cases, new_cases_ts, anomalies, anomaly_dates)\
     = analytical_MPVS(mak_new_cases, CI = CI, smoothing = smoothing, totals = False)
 
-plt.Rt(dates, Rt_pred[1:], Rt_CI_upper[1:], Rt_CI_lower[1:], CI)\
+plt.Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, CI)\
     .title("\nMakassar: Reproductive Number Estimate")\
     .xlabel("\ndate")\
     .ylabel("$R_t$\n", rotation=0, labelpad=30)\
@@ -117,7 +117,7 @@ I0 = (~mak_cases.confirmed.isna()).sum() - (~mak_cases.recovered.isna()).sum() -
 MAK = SIR(name = "MAK", population = 1.339e6, dT0 = T_pred[-1], Rt0 = Rt_pred[-1], upper_CI = T_CI_upper[-1], lower_CI = T_CI_lower[-1], mobility = 0, random_seed = 0, I0 = I0)\
            .run(prediction_period)
 
-plt.daily_cases(dates, T_pred[1:], T_CI_upper[1:], T_CI_lower[1:], new_cases_ts[1:], anomaly_dates, anomalies, CI, 
+plt.daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI, 
     prediction_ts = [
         (MAK.dT[:-1], MAK.lower_CI[1:], MAK.upper_CI[1:], plt.PRED_PURPLE, "predicted cases")
     ])\
@@ -148,7 +148,7 @@ gdf = gpd.read_file("data/gadm36_IDN_shp/gadm36_IDN_2.shp")\
     .query("NAME_1 == 'Sulawesi Selatan'")\
     .merge(estimates, left_on = "NAME_2", right_on = "regency")
 
-choro = plt.choropleth(gdf, mappable = plt.get_cmap(0.4, 1.4))
+choro = plt.choropleth(gdf, mappable = plt.get_cmap(0.4, 1.4, "viridis"))
 
 for ax in choro.figure.axes[:-1]:
     plt.sca(ax)
