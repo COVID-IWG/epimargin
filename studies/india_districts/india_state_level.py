@@ -34,7 +34,7 @@ data = root/"data"
 
 # model details 
 gamma     = 0.2
-smoothing = 21
+smoothing = 10
 CI        = 0.95
 
 download_data(data, 'state_wise_daily.csv')
@@ -67,7 +67,9 @@ with tqdm(state_names) as states:
         state_code = state_name_lookup[state]
         states.set_description(f"{state :<{max_len}}")
         try: 
-            (dates, RR_pred, RR_CI_upper, RR_CI_lower, T_pred, T_CI_upper, T_CI_lower, total_cases, new_cases_ts, anomalies, anomaly_dates) = analytical_MPVS(state_time_series.loc[state]['Hospitalized'], CI = CI, smoothing = convolution(window = smoothing))
+            (dates, RR_pred, RR_CI_upper, RR_CI_lower, T_pred, T_CI_upper, T_CI_lower, total_cases, new_cases_ts, anomalies, anomaly_dates) = analytical_MPVS(state_time_series.loc[state]['Hospitalized'], CI = CI, smoothing = notched_smoothing(window = smoothing), totals = False)
+            r = pd.Series(RR_pred, index = dates)
+            print("|::|", state, ",", round(r[(r.index > "2020-04-01") & (r.index < "2020-05-01")].max(), 3), ",", state_time_series.loc[state].Hospitalized.sum())
             for row in zip(dates, RR_pred, RR_CI_upper, RR_CI_lower):
                 timeseries.append((state_code, *row))
             estimates.append((state_code, RR_pred[-1], RR_CI_lower[-1], RR_CI_upper[-1], project(dates, RR_pred, smoothing)))
