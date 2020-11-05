@@ -274,18 +274,18 @@ def standardize_column_headers(df: pd.DataFrame):
     df.columns = df.columns.str.lower().str.strip().str.replace(" ","_").str.replace('[^a-zA-Z0-9_]', '')
 
 # load data until April 26
-def load_data_v3(path: Path):
+def load_data_v3(path: Path, drop = drop_cols_v3):
     cases = pd.read_csv(path, 
-        usecols     = set(columns_v3) - drop_cols_v3,
+        usecols     = set(columns_v3) - drop,
         dayfirst    = True, # source data does not have consistent date format so cannot rely on inference
         parse_dates = ["Date Announced", "Status Change Date"])
     standardize_column_headers(cases)
     return cases
 
 # load data for April 27 - May 09  
-def load_data_v4(path: Path):
+def load_data_v4(path: Path, drop = drop_cols_v3):
     cases = pd.read_csv(path, 
-        usecols     = set(columns_v4) - drop_cols_v4,
+        usecols     = set(columns_v4) - drop,
         dayfirst    = True, # source data does not have consistent date format so cannot rely on inference
         parse_dates = ["Date Announced", "Status Change Date"])
     standardize_column_headers(cases)
@@ -347,4 +347,5 @@ def load_statewise_data(statewise_data_path: Path, drop_unassigned: bool = True)
     df.columns = ["state", "current_status", "status_change_date", "num_cases"]
     df.replace("Confirmed", "Hospitalized", inplace=True)
     # drop negative cases and cases with no state assigned
-    return df[(df["num_cases"] >= 0) & (~df["state"].isin(["State Unassigned", "TT"] if drop_unassigned else ["TT"]))]
+    df_assigned = df[(~df["state"].isin(["Date_YMD", "State Unassigned", "TT"] if drop_unassigned else ["Date_YMD", "TT"]))]
+    return df_assigned[(df_assigned["num_cases"] >= 0)]
