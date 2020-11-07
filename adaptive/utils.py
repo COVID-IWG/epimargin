@@ -6,8 +6,9 @@ import logging
 
 import pandas as pd
 
-days  = 1
-weeks = 7 
+days    = 1
+weeks   = 7 
+million = 1e6
 
 def cwd() -> Path:
     argv0 = sys.argv[0]
