@@ -57,7 +57,7 @@ ss_max_rts = {}
 
 fig, axs = plt.subplots(4, 2, True, True)
 (dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, T_pred, T_CI_upper, T_CI_lower, total_cases, new_cases_ts, anomalies, anomaly_dates)\
-    = analytical_MPVS(age_ts.sum(level = 1), CI = CI, smoothing = smoothing, totals = False)
+    = analytical_MPVS(age_ts.sum(level = 1), CI = CI, smoothing = notched_smoothing(window = 5), totals = False)
 plt.sca(axs.flat[0])
 plt.Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, CI).annotate(f"all ages").adjust(left = 0.04, right = 0.96, top = 0.95, bottom = 0.05, hspace = 0.3, wspace = 0.15)
 r = pd.Series(Rt_pred, index = dates)
