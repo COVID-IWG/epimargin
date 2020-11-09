@@ -286,7 +286,7 @@ def simulations(
     set_tick_size(14)
     return PlotDevice()
 
-def Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, CI, ymin = 0.5, ymax = 3, yaxis_colors = True):
+def Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, CI, ymin = 0.5, ymax = 3, yaxis_colors = True, format_dates = True, critical_threshold = True):
     # dates = normalize_dates(dates)
     CI_marker  = plt.fill_between(dates, Rt_CI_lower, Rt_CI_upper, color = BLK_CI, alpha = 0.5)
     Rt_marker, = plt.plot(dates, Rt_pred, color = BLK, linewidth = 2, zorder = 5, solid_capstyle = "butt")
@@ -297,14 +297,19 @@ def Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, CI, ymin = 0.5, ymax = 3, yaxis
         plt.plot([dates[0], dates[0]], [1,    2.5], color = YLW, linewidth = 6, alpha = 0.9, solid_capstyle="butt", zorder = 10)
         plt.plot([dates[0], dates[0]], [ymin,   1], color = GRN, linewidth = 6, alpha = 0.9, solid_capstyle="butt", zorder = 10)
         plt.plot([dates[0], dates[0]], [ymin, ymax], color = "white", linewidth = 10, alpha = 1, solid_capstyle="butt", zorder = 9)
-    plt.hlines(1, xmin=dates[0], xmax=dates[-1], zorder = 11, color = "black", linestyles = "dotted")
+    if critical_threshold:
+        plt.hlines(1, xmin=dates[0], xmax=dates[-1], zorder = 11, color = "black", linestyles = "dotted")
     plt.ylim(ymin, ymax)
     plt.xlim(left=dates[0], right=dates[-1])
     plt.legend([(CI_marker, Rt_marker)], [f"Estimated $R_t$ ({100*CI}% CI)"], prop = {'size': 12}, framealpha = 1, handlelength = 1, loc = "best")
-    plt.gca().xaxis.set_major_formatter(DATE_FMT)
-    plt.gca().xaxis.set_minor_formatter(DATE_FMT)
+    if format_dates:
+        plt.gca().xaxis.set_major_formatter(DATE_FMT)
+        plt.gca().xaxis.set_minor_formatter(DATE_FMT)
     set_tick_size(14)
-    return PlotDevice()
+    pd = PlotDevice()
+    pd.markers = {"Rt" : (CI_marker, Rt_marker)}
+    pd.legend_props = dict(prop = {'size': 12}, framealpha = 1, handlelength = 1, loc = "best")
+    return pd 
 
 def daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI, prediction_ts = None): 
     # dates         = normalize_dates(dates)
