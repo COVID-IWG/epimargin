@@ -170,10 +170,13 @@ plt.daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dat
         (*rt1_25x, "mediumseagreen", "25% increase in school-age $R_t$"),
         (*rt1_50x, "hotpink",        "50% increase in school-age $R_t$"),
     ])\
-    .title("\nMakassar Daily Cases - school reopening scenarios")\
     .xlabel("\ndate")\
-    .ylabel("cases\n")\
-    .annotate("\nBayesian training process on empirical data, with anomalies identified")
+    .ylabel("cases\n")
+    # .title("\nMakassar Daily Cases - school reopening scenarios")\
+    # .annotate("\nBayesian training process on empirical data, with anomalies identified")
 (_, r) = plt.xlim()
-plt.xlim(left = pd.Timestamp("Aug 1, 2020"), right = r)
+plt.xlim(left = pd.Timestamp("Sep 1, 2020"), right = r)
+plt.ylim(bottom = 10, top = 1000)
+plt.vlines(dates[-1], ymin = 1, ymax = 1000, color = "black", linestyles = "solid")
+plt.semilogy()
 plt.show()

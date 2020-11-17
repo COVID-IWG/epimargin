@@ -342,7 +342,7 @@ def daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dat
     legends += [anomalies_marker]
     labels  += ["anomalies"]
     xlim(left = dates[0], right = end)
-    plt.legend(legends, labels, prop = {'size': 12}, framealpha = 1, handlelength = 1, loc = "best")
+    plt.legend(legends, labels, prop = {'size': 14}, framealpha = 1, handlelength = 1, loc = "best")
     plt.gca().xaxis.set_major_formatter(DATE_FMT)
     plt.gca().xaxis.set_minor_formatter(DATE_FMT)
     set_tick_size(14)
