@@ -24,15 +24,15 @@ logger = getLogger("IDNPROV")
 # ]
 provinces = [
     "DKI JAKARTA",
-    "JAWA BARAT",
-    "JAWA TENGAH",
-    "JAWA TIMUR",
-    "BALI",
-    "KALIMANTAN SELATAN",
-    "SULAWESI UTARA",
     "SULAWESI SELATAN",
-    "PAPUA"
-][:1]
+    # "JAWA BARAT",
+    # "JAWA TENGAH",
+    # "JAWA TIMUR",
+    # "BALI",
+    # "KALIMANTAN SELATAN",
+    # "SULAWESI UTARA",
+    # "PAPUA"
+]
 
 replacements = { 
     'YOGYAKARTA'     : "DAERAH ISTIMEWA YOGYAKARTA",
@@ -76,12 +76,11 @@ def load_province_timeseries(data_path: Path, province: str, start_date: Optiona
         return df[df.index >= start_date]
     return df 
     
-    
 
 (data, figs) = setup(level = "INFO")
-# for province in provinces:
-#     logger.info("downloading data for %s", province)
-#     download_data(data, filename(province), base_url = "https://data.covid19.go.id/public/api/")
+for province in provinces:
+    logger.info("downloading data for %s", province)
+    download_data(data, filename(province), base_url = "https://data.covid19.go.id/public/api/")
 
 province_cases = {province: load_province_timeseries(data, province, "Apr 1, 2020") for province in provinces}
 bgn = min(cases.index.min() for cases in province_cases.values())
