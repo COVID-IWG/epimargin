@@ -4,46 +4,77 @@ import numpy as np
 import pandas as pd
 from numpy import diag, tile, vstack, eye
 
+from scipy.stats import poisson as Poisson
+
 from adaptive.estimators import analytical_MPVS
 from adaptive.smoothing import notched_smoothing
+from adaptive.models import SIR
 import adaptive.plots as plt
 
-root = Path(__file__).parent
-data = root/"data"
+# root = Path(__file__).parent
+# data = root/"data"
 
 CI = 0.95
 window = 10
+gamma = 0.2
+infectious_period = 5
 
-def matrix_estimator(
-        infection_ts: pd.DataFrame, 
-        smoothing: Callable,
-        alpha: float = 3.0,                # shape 
-        beta:  float = 2.0,                # rate
-        CI:    float = 0.95,               # confidence interval 
-        infectious_period: int = 5*days,   # inf period = 1/gamma,
-        variance_shift: float = 0.99,      # how much to scale variance parameters by when anomaly detected 
-        totals: bool = False               # are these case totals or daily new cases?
+u = np.array([0.4, 0.38, 0.79,0.86, 0.8, 0.82,0.88, 0.74])
+
+class AgeStructured(SIR):
+    def __init__(self, 
+        name:       str, 
+        population: int,
+        dT0:        int, 
+        I0:         int,
+        rt:         float, 
+        contact_structure, 
+        age_structure,
+        prevalence_structure, 
+        num_age_bins = 8,
+        infectious_period = 5,
+        random_seed = 0
     ):
-    pass 
+        self.name = name 
+        self.pop0 = population 
+        self.N  = (population * age_structure).astype(int)
+        self.dT = [(dT0 * prevalence_structure).astype(int)]
+        self.C  = contact_structure
+        self.rt = rt
+        self.S  = [((population - I0) * age_structure).astype(int)]
+        self.I  = [(I0 * prevalence_structure).astype(int)]
+        self.num_age_bins = num_age_bins
+        self.gamma = 1/infectious_period
 
-
-class AgeStructuredSIR():
-    
-    def forward_epi_step(num_sims):
-        Rt = np.diag(S) @ self.Rt0 @ np.diag(1/N)
-        Bt = np.exp(self.gamma @ (Rt - np.eye(self.num_age_bins)))
-        dT = Poisson.rvs(mu = B @ dT0)
+    def forward_epi_step(self):
+        S = self.S[-1]
+        Rt = np.diag(S) @ (self.rt * self.C/C.sum()) @ np.diag(1/self.N)
+        print("Rt", Rt)
+        Bt = np.exp(self.gamma * (Rt - eye(self.num_age_bins)))
+        print("Bt", Bt)
+        print("----")
+        dT = Poisson.rvs(mu = Bt @ self.dT[-1])
+        self.S.append((S - dT).clip(0))
+        self.I.append(self.I[-1] + dT)
+        self.dT.append(dT)
 
 ##############################
 # load general purpose data
 
-u = ()    # age specific infection probability 
-# contact matrix from Laxminarayan 
+# # contact matrix from Laxminarayan (Table S8)
 C = np.array([
-
+    [89, 452, 1358, 1099, 716, 821, 297, 80+15],
+    [431, 3419, 8600, 7131, 5188, 5181, 1876, 502+67],
+    [1882, 11179, 41980, 29896, 23127, 22914, 7663, 1850+228],
+    [2196, 13213, 35625, 31752, 21777, 22541, 7250, 1796+226],
+    [1097, 9768, 27701, 23371, 18358, 17162, 6040, 1526+214],
+    [1181, 8314, 26992, 22714, 17886, 18973, 6173, 1633+217],
+    [358, 2855, 7479, 6539, 5160, 5695, 2415, 597+82],
+    [75+15, 693+109, 2001+282, 1675+205, 1443+178, 1482+212, 638+72, 211+18+15+7]
 ])
-beta = u @ c # effective contact rates 
+C_normed = C/C.sum()
 
+# get age structure
 IN_age_structure = { # WPP2019_POP_F01_1_POPULATION_BY_AGE_BOTH_SEXES
     0:  116_880,
     5:  117_982 + 126_156 + 126_046,
@@ -59,45 +90,18 @@ age_structure_norm = sum(IN_age_structure.values())
 IN_age_ratios = np.array([v/age_structure_norm for (k, v) in IN_age_structure.items()])
 split_by_age = lambda v: (v * IN_age_ratios).astype(int)
 
-# age specific recovery rates 
-g = ()
-G = np.diag(g)
-
-##############################
-# Karnataka 
+# get age-specific prevalence from KA sero
 KA = pd.read_stata("data/ka_cases_deaths_time_newagecat.dta")
-datemax = KA.date.max()
 
 KA.agecat = KA.agecat.where(KA.agecat != 85, 75) # we don't have econ data for 85+ so combine 75+ and 85+ categories 
 KA_agecases = KA.groupby(["agecat", "date"])["patientcode"]\
     .count().sort_index().rename("cases")\
     .unstack().fillna(0).stack()
 
-KA_long = KA_agecases.unstack()
+COVID_age_ratios = (KA_agecases.sum(level = 0)/KA_agecases.sum()).values
+split_by_prevalence = lambda v: (v * IN_age_ratios).astype(int)
 
-KA_ts = KA_agecases.sum(level = 1).sort_index()
-
-## estimate overall rt
-(
-    dates, Rt_pred, RR_CI_upper, RR_CI_lower, T_pred, T_CI_upper, T_CI_lower, total_cases, new_cases_ts, anomalies, anomaly_dates
-) = analytical_MPVS(KA_ts, CI = CI, smoothing = notched_smoothing(window = window), totals = False)
-
-plt.Rt(dates, Rt_pred, RR_CI_upper, RR_CI_lower, CI)
-plt.show()
-rt_KA_0 = np.mean(Rt_pred)
-
-d0 = pd.concat([KA_long.T[0.0].rename("y"), KA_long.T.shift(-1).rename(lambda _: "x" + str(int(_)), axis = 1)], axis = 1).dropna()
-params = sm.OLS.from_formula("y ~ x0 + x5 + x18 + x30 + x40 + x50 + x65 + x75 - 1", data = d0, hasconst = True).fit().params
-
-B_matrix = []
-for cat in [0.0, 5.0, 18.0, 30.0, 40.0, 50.0, 65.0, 75.0]:
-    d = pd.concat([KA_long.T[cat].rename("y"), KA_long.T.shift(1).rename(lambda _: "x" + str(int(_)), axis = 1)], axis = 1).dropna()
-    params = sm.OLS.from_formula("y ~ x0 + x5 + x18 + x30 + x40 + x50 + x65 + x75 - 1", data = d["July 1, 2020":]).fit().params
-    B_matrix.append(params.values)
-B = np.vstack(B_matrix)
-Rt = np.eye(8) + 5 * np.log(B)
-Rt.round(2)
-## get age-structured Rt 
-
-##############################
-# other states 
+model = AgeStructured("KA", 6.11e7, 857, 915345, 0.826, diag(u) @ C_normed, IN_age_ratios, COVID_age_ratios)
+while model.dT[-1].sum() > 0:
+    model.forward_epi_step()
+print(model.dT)
