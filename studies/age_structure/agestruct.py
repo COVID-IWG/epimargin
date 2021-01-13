@@ -1,15 +1,14 @@
 from pathlib import Path
 
+import adaptive.plots as plt
 import numpy as np
 import pandas as pd
-from numpy import diag, tile, vstack, eye
-
-from scipy.stats import poisson as Poisson
-
 from adaptive.estimators import analytical_MPVS
-from adaptive.smoothing import notched_smoothing
 from adaptive.models import SIR
-import adaptive.plots as plt
+from adaptive.smoothing import notched_smoothing
+from numpy import diag, eye, tile, vstack
+from scipy.stats import binom as Binom
+from scipy.stats import poisson as Poisson
 
 # root = Path(__file__).parent
 # data = root/"data"
@@ -37,25 +36,22 @@ class AgeStructured(SIR):
     ):
         self.name = name 
         self.pop0 = population 
-        self.N  = (population * age_structure).astype(int)
-        self.dT = [(dT0 * prevalence_structure).astype(int)]
+        self.N  = (population * age_structure).astype(int)   if isinstance(population, (int, float)) else population
+        self.dT = [(dT0 * prevalence_structure).astype(int)] if isinstance(dT, (int, float))         else dT
         self.C  = contact_structure
         self.rt = rt
-        self.S  = [((population - I0) * age_structure).astype(int)]
-        self.I  = [(I0 * prevalence_structure).astype(int)]
+        self.S  = [((population - I0) * age_structure).astype(int)] if isinstance(dT, (int, float))  else population
+        self.I  = [(I0 * prevalence_structure).astype(int)] if isinstance(I0, (int, float))          else I0
         self.num_age_bins = num_age_bins
         self.gamma = 1/infectious_period
 
     def forward_epi_step(self):
-        S = self.S[-1]
-        Rt = np.diag(S) @ (self.rt * self.C/C.sum()) @ np.diag(1/self.N)
-        print("Rt", Rt)
-        Bt = np.exp(self.gamma * (Rt - eye(self.num_age_bins)))
-        print("Bt", Bt)
-        print("----")
-        dT = Poisson.rvs(mu = Bt @ self.dT[-1])
+        M = self.rt * self.C / np.linalg.eigvals(self.C).max()
+        S, I, N = self.S[-1], self.I[-1], self.N
+        dT = Poisson.rvs(M @ (I/N))
+        dR = Poisson.rvs(self.gamma * (I + dT))
         self.S.append((S - dT).clip(0))
-        self.I.append(self.I[-1] + dT)
+        self.I.append((I + dT - dR).clip(0))
         self.dT.append(dT)
 
 ##############################
@@ -72,7 +68,6 @@ C = np.array([
     [358, 2855, 7479, 6539, 5160, 5695, 2415, 597+82],
     [75+15, 693+109, 2001+282, 1675+205, 1443+178, 1482+212, 638+72, 211+18+15+7]
 ])
-C_normed = C/C.sum()
 
 # get age structure
 IN_age_structure = { # WPP2019_POP_F01_1_POPULATION_BY_AGE_BOTH_SEXES
@@ -97,11 +92,17 @@ KA.agecat = KA.agecat.where(KA.agecat != 85, 75) # we don't have econ data for 8
 KA_agecases = KA.groupby(["agecat", "date"])["patientcode"]\
     .count().sort_index().rename("cases")\
     .unstack().fillna(0).stack()
+KA_ts = KA_agecases.sum(level = 1)
+(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, T_pred, T_CI_upper, T_CI_lower, total_cases, new_cases_ts, anomalies, anomaly_dates) = analytical_MPVS(KA_ts, notched_smoothing(5)) 
 
 COVID_age_ratios = (KA_agecases.sum(level = 0)/KA_agecases.sum()).values
 split_by_prevalence = lambda v: (v * IN_age_ratios).astype(int)
 
-model = AgeStructured("KA", 6.11e7, 857, 915345, 0.826, diag(u) @ C_normed, IN_age_ratios, COVID_age_ratios)
-while model.dT[-1].sum() > 0:
-    model.forward_epi_step()
-print(model.dT)
+for seed in range(10):
+    model = AgeStructured("KA", 6.11e7, 857, 915345, 1.826, diag(u) @ C, IN_age_ratios, COVID_age_ratios, seed)
+    counter = 0
+    while model.dT[-1].sum() > 0:
+        model.forward_epi_step()
+        counter += 1
+    print(seed, counter, model.dT)
+    

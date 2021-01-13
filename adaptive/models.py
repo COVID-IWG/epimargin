@@ -111,6 +111,52 @@ class SIR():
         self.beta.append(beta)
         self.dT.append(num_cases)
         self.total_cases.append(I + R + D)
+    
+    # parallel draws 
+    def parallel_forward_epi_step(self, dB: int = 0, num_sims = 10000): 
+        # get previous state 
+        S, I, R, D, N = (vector[-1].copy() for vector in (self.S, self.I, self.R, self.D, self.N))
+
+        # update state 
+        Rt = self.Rt0 * S/N
+        b  = np.exp(self.gamma * (Rt - 1))
+
+        rate_T    = (self.b[-1] * self.dT[-1]).clip(0)
+        num_cases = poisson.rvs(rate_T, size = num_sims)
+        self.upper_CI.append(poisson.ppf(self.CI,     rate_T))
+        self.lower_CI.append(poisson.ppf(1 - self.CI, rate_T))
+
+        I += num_cases
+        S -= num_cases
+
+        rate_D    = self.m * self.gamma * I
+        num_dead  = poisson.rvs(rate_D, size = num_sims)
+        D        += num_dead
+
+        rate_R    = (1 - self.m) * self.gamma * I 
+        num_recov = poisson.rvs(rate_R, size = num_sims)
+        R        += num_recov
+
+        I -= (num_dead + num_recov)
+
+        S = S.clip(0)
+        I = I.clip(0)
+        D = D.clip(0)
+
+        N = S + I + R
+        beta = (num_cases * N)/(b * S * I)
+
+        # update state vectors 
+        self.Rt.append(Rt)
+        self.b.append(b)
+        self.S.append(S)
+        self.I.append(I)
+        self.R.append(R)
+        self.D.append(D)
+        self.N.append(N)
+        self.beta.append(beta)
+        self.dT.append(num_cases)
+        self.total_cases.append(I + R + D)
 
     def run(self, days: int):
         for _ in range(days):
