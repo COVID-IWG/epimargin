@@ -1,14 +1,12 @@
 from pathlib import Path
 
-import adaptive.plots as plt
+# import adaptive.plots as plt
+import flat_table
 import numpy as np
 import pandas as pd
-from adaptive.estimators import analytical_MPVS
 from adaptive.etl.commons import download_data
-from adaptive.etl.covid19india import data_path, get_time_series, load_all_data, state_code_lookup
+from adaptive.etl.covid19india import state_code_lookup
 from adaptive.models import SIR
-from adaptive.smoothing import notched_smoothing
-import flat_table
 
 # root = Path(__file__).parent
 # data = root/"data"
@@ -58,7 +56,8 @@ Rt = pd.read_csv("data/Rt_timeseries_india.csv")
 
 date = "2020-12-24"
 
-for state in set(df.loc[date, :, :].columns) - {"TT", "LA", "SK", "NL"}: 
+# for state in set(df.loc[date, :, :].columns) - {"TT", "LA", "SK", "NL"}: 
+for state in ["TN"]:
     N = india_pop[state_code_lookup[state].replace("&", "and")]
     T = df[state].loc[date, "total", "confirmed"]
     R = df[state].loc[date, "total", "recovered"]
@@ -85,3 +84,48 @@ for state in set(df.loc[date, :, :].columns) - {"TT", "LA", "SK", "NL"}:
     lambda_x = dT/(Nx[..., None] - Tx)
     pd.DataFrame(lambda_x).to_csv(data/f"{state}_age_hazards.csv")
     pd.DataFrame(model.dT).T.to_csv(data/f"{state}_sims.csv")
+
+######################
+# sero scaling
+
+TN_sero_breakdown = np.array([0.311, 0.311, 0.311, 0.320, 0.333, 0.320, 0.272, 0.253]) # from TN sero, assume 0-18 sero = 18-30 sero
+TN_pop = india_pop["Tamil Nadu"]
+TN_seropos = split_by_age(TN_pop) @ TN_sero_breakdown/TN_pop
+
+KA_seropos = 0.467 # statewide from KA sero survey
+
+for (state, date, seropos, sero_breakdown) in (
+    ("TN", "2020-10-23", TN_seropos, TN_sero_breakdown), 
+    ("KA", "2020-07-22", KA_seropos, COVID_age_ratios)):
+
+    N = india_pop[state_code_lookup[state].replace("&", "and")]
+    T_conf = df[state].loc[date, "total", "confirmed"]
+    T = N * seropos
+    T_ratio = T/T_conf
+    R = df[state].loc[date, "total", "recovered"]
+    D = df[state].loc[date, "total", "deceased"]
+    model = SIR(
+        name        = state, 
+        population  = N - D, 
+        dT0         = np.ones(num_sims) * df[state].loc[date, "delta", "confirmed"] * T_ratio, 
+        Rt0         = Rt[(Rt.state == state) & (Rt.date == date)].Rt.iloc[0], 
+        I0          = np.ones(num_sims) * (T - R - D), 
+        R0          = np.ones(num_sims) * R, 
+        D0          = np.ones(num_sims) * D,
+        random_seed = 0
+    )
+    i = 0
+    while np.mean(model.dT[-1]) > 0:
+        model.parallel_forward_epi_step(num_sims = num_sims)
+        i += 1
+        print(state, i, np.mean(model.dT[-1]), np.std(model.dT[-1]))
+    dT  = np.array([_.mean().astype(int) for _ in model.dT])
+    S   = np.array([_.mean().astype(int) for _ in model.S])
+    dTx = (dT * sero_breakdown[..., None]).astype(int)
+    Sx  = (S  * COVID_age_ratios[..., None]).astype(int)
+    lambda_x = dTx/Sx
+    # Tx  = (T * sero_breakdown).astype(int)[..., None] + dTx.cumsum(axis = 1)
+    # Nx  = split_by_age(N)
+    # lambda_x = dTx/(Nx[..., None] - Tx)
+    pd.DataFrame(lambda_x).to_csv(data/f"{state}_scaled_age_hazards.csv")
+    pd.DataFrame(model.dT).T.to_csv(data/f"{state}_scaled_sims.csv")
