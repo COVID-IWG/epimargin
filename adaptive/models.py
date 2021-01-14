@@ -5,7 +5,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 from scipy.spatial import distance_matrix
-from scipy.stats import poisson
+from scipy.stats import poisson, binom
 
 
 class SIR():
@@ -155,6 +155,51 @@ class SIR():
         self.D.append(D)
         self.N.append(N)
         self.beta.append(beta)
+        self.dT.append(num_cases)
+        self.total_cases.append(I + R + D)
+
+    # parallel draws 
+    def parallel_forward_binom_step(self, dB: int = 0, num_sims = 10000): 
+        # get previous state 
+        S, I, R, D, N = (vector[-1].copy() for vector in (self.S, self.I, self.R, self.D, self.N))
+
+        # update state 
+        Rt = self.Rt0 * S/N
+        p = self.gamma * Rt * I/N
+
+        num_cases = binom.rvs(n = S.astype(int), p = p, size = num_sims)
+        self.upper_CI.append(binom.ppf(self.CI,     n = S.astype(int), p = p))
+        self.lower_CI.append(binom.ppf(1 - self.CI, n = S.astype(int), p = p))
+
+        I += num_cases
+        S -= num_cases
+
+        rate_D    = self.m * self.gamma * I
+        num_dead  = poisson.rvs(rate_D, size = num_sims)
+        D        += num_dead
+
+        rate_R    = (1 - self.m) * self.gamma * I 
+        num_recov = poisson.rvs(rate_R, size = num_sims)
+        R        += num_recov
+
+        I -= (num_dead + num_recov)
+
+        S = S.clip(0)
+        I = I.clip(0)
+        D = D.clip(0)
+
+        N = S + I + R
+        # beta = (num_cases * N)/(b * S * I)
+
+        # update state vectors 
+        self.Rt.append(Rt)
+        # self.b.append(b)
+        self.S.append(S)
+        self.I.append(I)
+        self.R.append(R)
+        self.D.append(D)
+        self.N.append(N)
+        # self.beta.append(beta)
         self.dT.append(num_cases)
         self.total_cases.append(I + R + D)
 
