@@ -394,7 +394,7 @@ class AR1():
         self.I = [I0]
         np.random.seed(random_seed)
     
-    def set_parameters(**kwargs):
+    def set_parameters(self, **kwargs):
         if "phi"   in kwargs: self.phi   = kwargs["phi"]
         if "sigma" in kwargs: self.sigma = kwargs["sigma"]
         return self 

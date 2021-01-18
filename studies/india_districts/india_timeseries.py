@@ -1,22 +1,14 @@
-import sys
-from pathlib import Path
-from typing import Dict, Optional, Sequence
 from warnings import simplefilter
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from statsmodels.regression.linear_model import OLS
-from statsmodels.tools import add_constant
-from tqdm import tqdm
 
 import flat_table
 from adaptive.estimators import analytical_MPVS
 from adaptive.etl.commons import download_data
-from adaptive.etl.covid19india import state_name_lookup
-from adaptive.plots import plot_RR_est
-from adaptive.smoothing import notch_filter, notched_smoothing
+from adaptive.smoothing import notched_smoothing
 from adaptive.utils import days, setup
 
 simplefilter("ignore")
