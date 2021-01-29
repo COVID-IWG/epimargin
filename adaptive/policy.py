@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional
 from itertools import product
 
 import numpy as np
@@ -181,3 +181,14 @@ def simulate_PID_controller(
         u = kP * error + kI * integral + kD * derivative
         prev_error = error
     return model 
+
+def vaccination_policy(
+    model: SIR, 
+    age_structure: np.array, 
+    total_vaccines: int, 
+    vaccination_rate: float, 
+    vaccination_effectiveness: float,
+    prioritization: Callable[[SIR, np.array]],
+    t: Optional[int] = None
+):
+    pass
