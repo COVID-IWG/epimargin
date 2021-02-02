@@ -1,15 +1,19 @@
-from typing import Callable, Dict, Optional
+from abc import abstractmethod
 from itertools import product
+from typing import Dict, List, Optional
 
 import numpy as np
+from scipy.stats import multinomial as Multinomial
+from sklearn.metrics import auc
 
 from .models import SIR
 from .utils import days, weeks
 
-from sklearn.metrics import auc 
 
 def AUC(curve):
     return auc(x = range(len(curve)), y = curve)
+
+# Adaptive Control policies
 
 def simulate_lockdown(model: SIR, lockdown_period: int, total_time: int, Rt0_mandatory: Dict[str, float], Rt0_voluntary: Dict[str, float], lockdown: np.matrix, migrations: np.matrix) -> SIR:
     return model.set_parameters(Rt0 = Rt0_mandatory)\
@@ -182,13 +186,56 @@ def simulate_PID_controller(
         prev_error = error
     return model 
 
-def vaccination_policy(
-    model: SIR, 
-    age_structure: np.array, 
-    total_vaccines: int, 
-    vaccination_rate: float, 
-    vaccination_effectiveness: float,
-    prioritization: Callable[[SIR, np.array]],
-    t: Optional[int] = None
-):
-    pass
+# Vaccination policies
+
+class VaccinationPolicy():
+    def name(self) -> str:
+        return self.__class__.__name__.lower()
+
+    @abstractmethod
+    def distribute_doses(self, model: SIR) -> np.array:
+        pass 
+
+class RandomVaccineAssignment(VaccinationPolicy):
+    def __init__(self, daily_doses: int, age_ratios: np.array):
+        self.daily_doses = daily_doses 
+        self.age_ratios = age_ratios
+
+    def distribute_doses(self, model: SIR) -> np.array:
+        model.S[-1] -= self.daily_doses
+        model.parallel_forward_epi_step()
+        return Multinomial.rvs(self.daily_doses, self.age_ratios)
+
+    def name(self) -> str:
+        return "randomassignment"
+
+class PrioritizedAssignment(VaccinationPolicy):
+    def __init__(self, daily_doses, bin_populations: np.array, prioritization: List[int], label: str):
+        self.daily_doses     = daily_doses
+        self.bin_populations = bin_populations
+        self.prioritization  = prioritization
+        self.label = label
+
+    def name(self) -> str:
+        return f"{self.label}prioritized"
+
+    def distribute_doses(self, model: SIR) -> np.array:
+        model.S[-1] -= self.daily_doses
+        model.parallel_forward_epi_step()
+
+        dVx = np.zeros(self.bin_populations.shape)
+        bin_idx, age_bin = next(((i, age_bin) for (i, age_bin) in enumerate(self.prioritization) if self.bin_populations[age_bin] > 0), (None, None))
+        if age_bin is not None:
+            if self.bin_populations[age_bin] > self.daily_doses:
+                self.bin_populations[age_bin] -= self.daily_doses
+                dVx[age_bin] = self.daily_doses
+            else: 
+                leftover = self.daily_doses - self.bin_populations[age_bin]
+                dVx[age_bin] = self.bin_populations[age_bin]
+                self.bin_populations[age_bin] = 0
+                if bin_idx != len(self.bin_populations) - 1:
+                    dVx[self.prioritization[bin_idx + 1]] = leftover
+                    self.bin_populations[self.prioritization[bin_idx + 1]] -= leftover 
+        else: 
+            print("vaccination exhausted", self.bin_populations, self.prioritization)
+        return dVx
