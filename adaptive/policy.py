@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from itertools import product
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from scipy.stats import multinomial as Multinomial
@@ -193,18 +193,25 @@ class VaccinationPolicy():
         return self.__class__.__name__.lower()
 
     @abstractmethod
-    def distribute_doses(self, model: SIR) -> np.array:
+    def distribute_doses(self, model: SIR) -> Tuple[np.array]:
         pass 
 
 class RandomVaccineAssignment(VaccinationPolicy):
-    def __init__(self, daily_doses: int, age_ratios: np.array):
+    def __init__(self, daily_doses: int, effectiveness: float, age_ratios: np.array):
         self.daily_doses = daily_doses 
         self.age_ratios = age_ratios
+        self.effectiveness = effectiveness
 
-    def distribute_doses(self, model: SIR) -> np.array:
-        model.S[-1] -= self.daily_doses
+    def distribute_doses(self, model: SIR) -> Tuple[np.array]:
+        if self.daily_doses * len(model.Rt) > model.pop0:
+            return (np.zeros(self.age_ratios.shape), np.zeros(self.age_ratios.shape), np.zeros(self.age_ratios.shape))
+        dV = (model.S[-1]/model.N[-1]) * self.daily_doses * self.effectiveness
+        model.S[-1] -= dV
         model.parallel_forward_epi_step()
-        return Multinomial.rvs(self.daily_doses, self.age_ratios)
+        distributed_doses = Multinomial.rvs(self.daily_doses, self.age_ratios)
+        effective_doses   = self.effectiveness * distributed_doses
+        immunizing_doses  = (model.S[-1].mean()/model.N[-1].mean()) * effective_doses
+        return (distributed_doses, effective_doses, immunizing_doses)
 
     def name(self) -> str:
         return "randomassignment"
@@ -219,8 +226,11 @@ class PrioritizedAssignment(VaccinationPolicy):
     def name(self) -> str:
         return f"{self.label}prioritized"
 
-    def distribute_doses(self, model: SIR) -> np.array:
-        model.S[-1] -= self.daily_doses
+    def distribute_doses(self, model: SIR) -> Tuple[np.array]:
+        if self.daily_doses * len(model.Rt) > model.pop0:
+            return (np.zeros(self.bin_populations.shape), np.zeros(self.bin_populations.shape), np.zeros(self.bin_populations.shape))
+        dV = (model.S[-1]/model.N[-1]) * self.daily_doses * self.effectiveness
+        model.S[-1] -= dV
         model.parallel_forward_epi_step()
 
         dVx = np.zeros(self.bin_populations.shape)
@@ -238,4 +248,8 @@ class PrioritizedAssignment(VaccinationPolicy):
                     self.bin_populations[self.prioritization[bin_idx + 1]] -= leftover 
         else: 
             print("vaccination exhausted", self.bin_populations, self.prioritization)
-        return dVx
+        return (
+            dVx, 
+            dVx * self.effectiveness, 
+            dVx * self.effectiveness * (model.S[-1].mean()/model.N[-1].mean())
+        )

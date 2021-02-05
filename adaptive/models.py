@@ -48,6 +48,8 @@ class SIR():
         self.I  = [I0] 
         self.R  = [R0]
         self.D  = [D0]
+        self.dR = [0]
+        self.dD = [0]
         self.N  = [population - D0] # total population = S + I + R 
         self.beta = [Rt0 * self.gamma] # initial contact rate 
         self.total_cases = [I0] # total cases 
@@ -107,6 +109,8 @@ class SIR():
         self.I.append(I)
         self.R.append(R)
         self.D.append(D)
+        self.dR.append(num_recov)
+        self.dD.append(num_dead)
         self.N.append(N)
         self.beta.append(beta)
         self.dT.append(num_cases)

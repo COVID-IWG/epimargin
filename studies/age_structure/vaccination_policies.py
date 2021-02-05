@@ -8,10 +8,8 @@ import seaborn as sns
 from adaptive.estimators import analytical_MPVS
 from adaptive.etl.covid19india import state_code_lookup
 from adaptive.models import SIR
-from adaptive.policy import RandomVaccineAssignment, PrioritizedAssignment
-from scipy.stats import multinomial as Multinomial
-
-from common_TN_data import *
+from adaptive.policy import PrioritizedAssignment, RandomVaccineAssignment
+from studies.age_structure.common_TN_data import *
 
 sns.set(style = "whitegrid")
 

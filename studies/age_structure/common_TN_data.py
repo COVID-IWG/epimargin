@@ -22,7 +22,8 @@ simulation_start = pd.Timestamp("Jan 1, 2021")
 num_sims = 10000
 
 # common vaccination parameters
-immunity_threshold = 0.75 
+immunity_threshold = 0.75
+Rt_threshold = 0.2
 
 #################################################################
 
@@ -55,6 +56,26 @@ IN_age_structure = { # WPP2019_POP_F01_1_POPULATION_BY_AGE_BOTH_SEXES
     # 50: 68_876 + 59_256 + 48_891,
     # 65: 38_260 + 24_091,
     # 75: 15_084 + 8_489 + 3_531 +  993 +  223 +  48,
+}
+
+TN_age_structure = { 
+    "0-17" : 15581526,
+    "18-29": 15674833,
+    "30-39": 11652016,
+    "40-49":  9777265,
+    "50-59":  6804602,
+    "60-69":  4650978,
+    "70+":    2858780,
+}
+
+TN_IFRs = { 
+    "0-17" : 0.00003,
+    "18-29": 0.00003,
+    "30-39": 0.00010,
+    "40-49": 0.00032,
+    "50-59": 0.00111,
+    "60-69": 0.00264,
+    "70+"  : 0.00588,
 }
 
 district_populations = { 
@@ -112,9 +133,16 @@ laxminarayan_contact_matrix = np.array([
 ])
 
 # normalize
-age_structure_norm = sum(IN_age_structure.values())
-IN_age_ratios = np.array([v/age_structure_norm for v in IN_age_structure.values()])
-split_by_age = lambda v: (v * IN_age_ratios).astype(int)
+IN_age_structure_norm = sum(IN_age_structure.values())
+IN_age_ratios = np.array([v/IN_age_structure_norm for v in IN_age_structure.values()])
+
+TN_age_structure_norm = sum(TN_age_structure.values())
+TN_age_ratios = np.array([v/TN_age_structure_norm for v in TN_age_structure.values()])
+split_by_age = lambda v: (v * TN_age_ratios).astype(int)
+
+TN_IFR_norm = sum(TN_IFRs.values())
+TN_IFR_ratios = np.array([v/TN_IFR_norm for v in TN_IFRs.values()])
+split_by_IFR = lambda v: (v * TN_age_ratios).astype(int)
 
 # from Karnataka
 COVID_age_ratios = np.array([0.01618736, 0.07107746, 0.23314877, 0.22946212, 0.18180406, 0.1882451 , 0.05852026, 0.02155489])
