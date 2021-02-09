@@ -157,6 +157,8 @@ class SIR():
         self.I.append(I)
         self.R.append(R)
         self.D.append(D)
+        self.dR.append(num_recov)
+        self.dD.append(num_dead)
         self.N.append(N)
         self.beta.append(beta)
         self.dT.append(num_cases)

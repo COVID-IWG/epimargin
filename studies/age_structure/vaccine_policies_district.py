@@ -15,22 +15,22 @@ def save_results(model, data, dVx_adm, dVx_eff, dVx_imm, tag):
     print(":::: serializing results")
     
     # Susceptibles
-    pd.DataFrame((IN_age_ratios [..., None] * [_.mean() for _ in model.S]).astype(int)).T\
+    pd.DataFrame((fS * [_.mean() for _ in model.S]).astype(int)).T\
         .rename(columns = dict(enumerate(IN_age_structure.keys())))\
         .to_csv(data/f"Sx_{tag}.csv")
 
     # Infectious 
-    pd.DataFrame((sero_breakdown[..., None] * [_.mean() for _ in model.I]).astype(int)).T\
+    pd.DataFrame((fI * [_.mean() for _ in model.I]).astype(int)).T\
         .rename(columns = dict(enumerate(IN_age_structure.keys())))\
         .to_csv(data/f"Ix_{tag}.csv")
 
     # Recovered
-    pd.DataFrame((IN_age_ratios [..., None] * [_.mean() for _ in model.R]).astype(int)).T\
+    pd.DataFrame((fR * [_.mean() for _ in model.R]).astype(int)).T\
         .rename(columns = dict(enumerate(IN_age_structure.keys())))\
         .to_csv(data/f"Rx_{tag}.csv")
 
     # Dead 
-    pd.DataFrame((IN_age_ratios [..., None] * [_.mean() for _ in model.D]).astype(int)).T\
+    pd.DataFrame((fD * [_.mean() for _ in model.D]).astype(int)).T\
         .rename(columns = dict(enumerate(IN_age_structure.keys())))\
         .to_csv(data/f"Dx_{tag}.csv")
 
@@ -88,7 +88,7 @@ for (district, N_district) in district_populations.items():
     )
 
     t = 0
-    while (t < 5 * 365) and model.Rt[-1].mean() > Rt_threshold:
+    while (model.Rt[-1].mean() > Rt_threshold) and (model.dT[-1].mean() > 0):
         model.parallel_forward_epi_step()
         print("::::", district, "no vax", t, np.mean(model.dT[-1]), np.std(model.dT[-1]), model.Rt[-1].mean())
         t += 1
@@ -96,7 +96,7 @@ for (district, N_district) in district_populations.items():
 
     for (vax_pct_annual_goal, vax_effectiveness) in product(
         (0.25, 0.50),
-        (0.70, 1.00)
+        (0.50, 0.70, 1.00)
     ):
         daily_rate = vax_pct_annual_goal/365
         daily_vax_doses = int(daily_rate * N_district)
@@ -113,10 +113,11 @@ for (district, N_district) in district_populations.items():
                 name        = district, 
                 population  = N_district, 
                 dT0         = np.ones(num_sims) * (dT_conf_district_smooth[simulation_start] * T_ratio).astype(int), 
-                Rt0         = Rt[simulation_start] * N_district/(N_district - T_scaled),
+                Rt0         = Rt[simulation_start],
                 I0          = np.ones(num_sims) * (T_scaled - R - D), 
                 R0          = np.ones(num_sims) * R, 
                 D0          = np.ones(num_sims) * D,
+                mortality   = mu_TN,
                 random_seed = 0
             )
 
@@ -125,13 +126,13 @@ for (district, N_district) in district_populations.items():
             dVx_eff = [np.zeros(len(IN_age_structure))] # effective doses
             dVx_imm = [np.zeros(len(IN_age_structure))] # immunizing doses
 
-            # run vax rate forward 1 year, then until 75% of pop is recovered or vax
-            while (t < 5 * 365) and model.Rt[-1].mean() > Rt_threshold:
+            # run while Rt > threshold or until everyone is vaccinated 
+            while (model.Rt[-1].mean() > Rt_threshold) and (model.S[-1].mean() > 0) and (not vaccination_policy.exhausted(model)):
                 adm, eff, imm = vaccination_policy.distribute_doses(model)
                 dVx_adm.append(adm)
                 dVx_eff.append(eff)
                 dVx_imm.append(imm)
-                print("::::", district, vax_pct_annual_goal, vax_effectiveness, vaccination_policy.name(), t, np.mean(model.dT[-1]), np.std(model.dT[-1]), model.Rt[-1].mean())
+                print("::::", district, vax_pct_annual_goal, vax_effectiveness, vaccination_policy.name(), t, np.mean(model.dT[-1]), np.std(model.dT[-1]), model.Rt[-1].mean(), model.S[-1].mean())
                 t += 1
 
             tag = geo_tag + "_".join([

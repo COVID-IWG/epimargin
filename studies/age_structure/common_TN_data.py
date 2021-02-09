@@ -79,43 +79,43 @@ TN_IFRs = {
 }
 
 district_populations = { 
-    'Ariyalur'       :   754_894, # 'Ariyalur'
-    'Chengalpattu'   : 2_556_244, # 'Chengalpattu'
-    'Chennai'        : 4_646_732, # 'Chennai'
-    'Coimbatore'     : 3_458_045, # 'Coimbatore'
-    'Cuddalore'      : 2_605_914, # 'Cuddalore'
-    'Dharmapuri'     : 1_506_843, # 'Dharmapuri'
-    'Dindigul'       : 2_159_775, # 'Dindigul'
-    'Erode'          : 2_251_744, # 'Erode'
-    'Kallakurichi'   : 1_370_281, # 'Kallakurichi'
-    'Kancheepuram'   : 1_166_401, # 'Kanchipuram'
-    'Kanyakumari'    : 1_870_374, # 'Kanniyakumari'
-    'Karur'          : 1_064_493, # 'Karur'
-    'Krishnagiri'    : 1_879_809, # 'Krishnagiri'
-    'Madurai'        : 3_038_252, # 'Madurai'
-    # 'Mayiladuthurai' :   918_356, # 'Mayiladuthurai'
-    'Nagapattinam'   :   697_069, # 'Nagapattinam'
-    'Namakkal'       : 1_726_601, # 'Namakkal'
-    'Nilgiris'       :   735_394, # 'Nilgiris'
-    'Perambalur'     :   565_223, # 'Perambalur'
-    'Pudukkottai'    : 1_618_345, # 'Pudukkottai'
-    'Ramanathapuram' : 1_353_445, # 'Ramanathapuram'
-    'Ranipet'        : 1_210_277, # 'Ranipet'
-    'Salem'          : 3_482_056, # 'Salem'
-    'Sivaganga'      : 1_339_101, # 'Sivagangai'
-    'Tenkasi'        : 1_407_627, # 'Tenkasi'
-    'Thanjavur'      : 2_405_890, # 'Thanjavur'
-    'Theni'          : 1_245_899, # 'Theni'
-    'Thiruvallur'    : 3_728_104, # 'Tiruvallur'
-    'Thiruvarur'     : 1_264_277, # 'Tiruvarur'
-    'Thoothukkudi'   : 1_750_176, # 'Thoothukudi'
-    'Tiruchirappalli': 2_722_290, # 'Tiruchirappalli'
-    'Tirunelveli'    : 1_665_253, # 'Tirunelveli'
-    'Tirupathur'     : 1_111_812, # 'Tirupattur'
-    'Tiruppur'       : 2_479_052, # 'Tiruppur'
-    'Tiruvannamalai' : 2_464_875, # 'Tiruvannamalai'
-    'Vellore'        : 1_614_242, # 'Vellore'
-    'Viluppuram'     : 2_093_003, # 'Viluppuram'
+    # 'Ariyalur'       :   754_894, # 'Ariyalur'
+    # 'Chengalpattu'   : 2_556_244, # 'Chengalpattu'
+    # 'Chennai'        : 4_646_732, # 'Chennai'
+    # 'Coimbatore'     : 3_458_045, # 'Coimbatore'
+    # 'Cuddalore'      : 2_605_914, # 'Cuddalore'
+    # 'Dharmapuri'     : 1_506_843, # 'Dharmapuri'
+    # 'Dindigul'       : 2_159_775, # 'Dindigul'
+    # 'Erode'          : 2_251_744, # 'Erode'
+    # 'Kallakurichi'   : 1_370_281, # 'Kallakurichi'
+    # 'Kancheepuram'   : 1_166_401, # 'Kanchipuram'
+    # 'Kanyakumari'    : 1_870_374, # 'Kanniyakumari'
+    # 'Karur'          : 1_064_493, # 'Karur'
+    # 'Krishnagiri'    : 1_879_809, # 'Krishnagiri'
+    # 'Madurai'        : 3_038_252, # 'Madurai'
+    # # 'Mayiladuthurai' :   918_356, # 'Mayiladuthurai'
+    # 'Nagapattinam'   :   697_069, # 'Nagapattinam'
+    # 'Namakkal'       : 1_726_601, # 'Namakkal'
+    # 'Nilgiris'       :   735_394, # 'Nilgiris'
+    # 'Perambalur'     :   565_223, # 'Perambalur'
+    # 'Pudukkottai'    : 1_618_345, # 'Pudukkottai'
+    # 'Ramanathapuram' : 1_353_445, # 'Ramanathapuram'
+    # 'Ranipet'        : 1_210_277, # 'Ranipet'
+    # 'Salem'          : 3_482_056, # 'Salem'
+    # 'Sivaganga'      : 1_339_101, # 'Sivagangai'
+    # 'Tenkasi'        : 1_407_627, # 'Tenkasi'
+    # 'Thanjavur'      : 2_405_890, # 'Thanjavur'
+    # 'Theni'          : 1_245_899, # 'Theni'
+    # 'Thiruvallur'    : 3_728_104, # 'Tiruvallur'
+    # 'Thiruvarur'     : 1_264_277, # 'Tiruvarur'
+    # 'Thoothukkudi'   : 1_750_176, # 'Thoothukudi'
+    # 'Tiruchirappalli': 2_722_290, # 'Tiruchirappalli'
+    # 'Tirunelveli'    : 1_665_253, # 'Tirunelveli'
+    # 'Tirupathur'     : 1_111_812, # 'Tirupattur'
+    # 'Tiruppur'       : 2_479_052, # 'Tiruppur'
+    # 'Tiruvannamalai' : 2_464_875, # 'Tiruvannamalai'
+    # 'Vellore'        : 1_614_242, # 'Vellore'
+    # 'Viluppuram'     : 2_093_003, # 'Viluppuram'
     'Virudhunagar'   : 1_942_288, # 'Virudhunagar'
 }
 
@@ -142,7 +142,42 @@ split_by_age = lambda v: (v * TN_age_ratios).astype(int)
 
 TN_IFR_norm = sum(TN_IFRs.values())
 TN_IFR_ratios = np.array([v/TN_IFR_norm for v in TN_IFRs.values()])
-split_by_IFR = lambda v: (v * TN_age_ratios).astype(int)
+split_by_IFR = lambda v: (v * TN_IFR_ratios).astype(int)
+
+# TN_death_norm = sum(TN_death_structure.values())
+# TN_death_ratios = np.array([v/TN_death_norm for v in TN_death_structure.values()])
+# split_by_death = lambda v: (v * TN_death_ratios).astype(int)
+
+# redefined estimators
+
+TN_death_structure = pd.Series({ 
+    "0-17" : 32,
+    "18-29": 121,
+    "30-39": 368,
+    "40-49": 984,
+    "50-59": 2423,
+    "60-69": 3471,
+    "70+"  : 4339,
+})
+
+
+TN_recovery_structure = pd.Series({ 
+    "0-17": 5054937,
+    "18-29": 4819218,
+    "30-39": 3587705,
+    "40-49": 3084814,
+    "50-59": 2178817,
+    "60-69": 1313049,
+    "70+": 738095,
+})
+
+TN_infection_structure = TN_death_structure + TN_recovery_structure
+fS = pd.Series(TN_age_ratios)[:, None]
+fD = (TN_death_structure      / TN_death_structure    .sum())[:, None]
+fR = (TN_recovery_structure   / TN_recovery_structure .sum())[:, None]
+fI = (TN_infection_structure  / TN_infection_structure.sum())[:, None]
+
+mu_TN = 0.000517534
 
 # from Karnataka
 COVID_age_ratios = np.array([0.01618736, 0.07107746, 0.23314877, 0.22946212, 0.18180406, 0.1882451 , 0.05852026, 0.02155489])

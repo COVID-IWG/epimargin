@@ -38,7 +38,7 @@ Rt = dict(zip(Rt_dates, Rt_est))
 immunity_threshold = 0.75
 
 for (vax_pct_annual_goal, vax_effectiveness) in product(
-    (0, 0.25, 0.50),
+    (0.25, 0.50),
     (0.70, 1.00)
 ):
     daily_rate = vax_pct_annual_goal/365

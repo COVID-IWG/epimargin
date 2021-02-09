@@ -196,6 +196,9 @@ class VaccinationPolicy():
     def distribute_doses(self, model: SIR) -> Tuple[np.array]:
         pass 
 
+    def exhausted(self, model) -> bool:
+        return self.daily_doses * len(model.Rt) > model.pop0
+
 class RandomVaccineAssignment(VaccinationPolicy):
     def __init__(self, daily_doses: int, effectiveness: float, age_ratios: np.array):
         self.daily_doses = daily_doses 
@@ -203,7 +206,7 @@ class RandomVaccineAssignment(VaccinationPolicy):
         self.effectiveness = effectiveness
 
     def distribute_doses(self, model: SIR) -> Tuple[np.array]:
-        if self.daily_doses * len(model.Rt) > model.pop0:
+        if self.exhausted(model):
             return (np.zeros(self.age_ratios.shape), np.zeros(self.age_ratios.shape), np.zeros(self.age_ratios.shape))
         dV = (model.S[-1]/model.N[-1]) * self.daily_doses * self.effectiveness
         model.S[-1] -= dV
@@ -227,8 +230,8 @@ class PrioritizedAssignment(VaccinationPolicy):
         return f"{self.label}prioritized"
 
     def distribute_doses(self, model: SIR) -> Tuple[np.array]:
-        if self.daily_doses * len(model.Rt) > model.pop0:
-            return (np.zeros(self.bin_populations.shape), np.zeros(self.bin_populations.shape), np.zeros(self.bin_populations.shape))
+        if self.exhausted(model):
+            return (np.zeros(self.age_ratios.shape), np.zeros(self.age_ratios.shape), np.zeros(self.age_ratios.shape))
         dV = (model.S[-1]/model.N[-1]) * self.daily_doses * self.effectiveness
         model.S[-1] -= dV
         model.parallel_forward_epi_step()
