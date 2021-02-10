@@ -25,6 +25,7 @@ T_conf_smooth = dT_conf_smooth.cumsum().astype(int)
 T = T_conf_smooth[date]
 T_sero = (N * seropos)
 T_ratio = T_sero/T
+T_scaled = dT_conf_smooth.cumsum()[simulation_start] * T_ratio
 
 # grab time series 
 R = df[state].loc[simulation_start, "total", "recovered"]
@@ -43,7 +44,7 @@ model = SIR(
     population  = N, 
     dT0         = np.ones(num_sims) * (dT_conf_smooth[simulation_start] * T_ratio).astype(int), 
     Rt0         = Rt[simulation_start],
-    I0          = np.ones(num_sims) * S, 
+    I0          = np.ones(num_sims) * (T_scaled - R - D), 
     R0          = np.ones(num_sims) * R, 
     D0          = np.ones(num_sims) * D,
     mortality   = mu_TN,
@@ -86,72 +87,26 @@ plt.yticks(fontsize = "16")
 plt.gca().xaxis.grid(True, which = "major")
 plt.show()
 
-# tag = f"{state}_"
-
-# # calculate hazards and probability 
-# dTx = sero_breakdown[..., None] * [_.mean().astype(int) for _ in model.dT]
-# Sx  = IN_age_ratios[..., None]  * [_.mean().astype(int) for _ in model.S]
-# lambda_x = dTx/Sx
-# Pr_covid_t     = np.zeros(lambda_x.shape)
-# Pr_covid_pre_t = np.zeros(lambda_x.shape)
-# Pr_covid_t[:, 0]     = lambda_x[:, 0]
-# Pr_covid_pre_t[:, 0] = lambda_x[:, 0]
-# for t in range(1, len(lambda_x[0, :])):
-#     Pr_covid_t[:, t] = lambda_x[:, t] * (1 - Pr_covid_pre_t[:, t-1])
-#     Pr_covid_pre_t[:, t] = Pr_covid_pre_t[:, t-1] + lambda_x[:, t] * (1 - Pr_covid_pre_t[:, t-1])
-
-#     # # save hazards, probabilities
-#     # pd.DataFrame(lambda_x).T\
-#     #     .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-#     #     .to_csv(data/f"lambdax_{tag}.csv")
-    
-#     # pd.DataFrame(Pr_covid_pre_t).T\
-#     #     .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-#     #     .to_csv(data/f"Pr_cov_pre_{tag}.csv")
-#     # pd.DataFrame(Pr_covid_t).T\
-#     #     .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-#     #     .to_csv(data/f"Pr_cov_at_{tag}.csv")
-
-#     # # save vaccine dose timeseries 
-#     # pd.DataFrame(dVx)\
-#     #     .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-#     #     .to_csv(data/f"dVx_{tag}.csv")
-    
-#     # # save recovery timeseries
-#     # pd.DataFrame([split_by_age(_.mean()).astype(int) for _ in model.R])\
-#     #     .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-#     #     .to_csv(data/f"Rx_{tag}.csv")
-
-# sns.set_palette(sns.color_palette("hls", 7))
-# pd.DataFrame(Pr_covid_t).T.rename(columns = dict(enumerate(IN_age_structure.keys()))).plot()
-# plt.legend(title = "Age category")
-# plt.xlim(left = 0, right = t)
-# plt.PlotDevice()\
-#     .xlabel("\ndate")\
-#     .ylabel("probability\n")\
-#     .title("\nProbability of contracting SARS-CoV-2 over time, by age group")\
-#     .annotate("Tamil Nadu, statewide simulation, no vaccination")
-# plt.show()
-
 
 # per-capita cases, deaths
-# date_index = pd.date_range(ts.index.get_level_values(1).min(), ts.index.get_level_values(1).max())
-# percap = ts.loc[list(district_populations.keys())][["dD", "dT"]]\
-#     .reset_index()
-# percap["month"] = percap.status_change_date.dt.month.astype(str) + "_" + percap.status_change_date.dt.year.astype(str)
-# percap["N"] = percap["detected_district"].replace(district_populations)
-# percap["dD"] = percap["dD"]/percap["N"]
-# percap["dT"] = percap["dT"]/percap["N"]
-# percap.groupby(["detected_district", "month"]).apply(np.mean)[["dD", "dT"]].to_csv(data/"TN_percap.csv")
+## state level 
+date_index = pd.date_range(ts.index.get_level_values(1).min(), ts.index.get_level_values(1).max())
+percap = ts.loc[list(district_populations.keys())][["dD", "dT"]]\
+    .reset_index()
+percap["month"] = percap.status_change_date.dt.month.astype(str) + "_" + percap.status_change_date.dt.year.astype(str)
+percap["N"] = percap["detected_district"].replace(district_populations)
+percap["dD"] = percap["dD"]/percap["N"]
+percap["dT"] = percap["dT"]/percap["N"]
+percap.groupby(["detected_district", "month"]).apply(np.mean)[["dD", "dT"]].to_csv(data/"TN_percap.csv")
 
-# nat_percap = \
-# df["TT"].loc[:, "delta"].unstack()[["confirmed", "deceased"]]\
-#     .reset_index()\
-#     .rename(columns = {"confirmed": "dT", "deceased": "dD", "index": "date"})\
-#     .assign(month = lambda _: _.date.dt.month.astype(str) + "_" + _.date.dt.year.astype(str))\
-#     .groupby("month")\
-#     .apply(np.mean)\
-#     .drop(columns = ["month"])\
-#     .sort_index()/(1.3e9)
-
-# nat_percap.to_csv(data/"IN_percap.csv")
+## national level 
+nat_percap = \
+df["TT"].loc[:, "delta"].unstack()[["confirmed", "deceased"]]\
+    .reset_index()\
+    .rename(columns = {"confirmed": "dT", "deceased": "dD", "index": "date"})\
+    .assign(month = lambda _: _.date.dt.month.astype(str) + "_" + _.date.dt.year.astype(str))\
+    .groupby("month")\
+    .apply(np.mean)\
+    .drop(columns = ["month"])\
+    .sort_index()/(1.3e9)
+nat_percap.to_csv(data/"IN_percap.csv")
