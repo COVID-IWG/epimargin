@@ -67,6 +67,8 @@ for (district, N_district) in district_populations.items():
     dT_conf_district = dT_conf_district.reindex(pd.date_range(dT_conf_district.index.min(), dT_conf_district.index.max()), fill_value = 0)
     dT_conf_district_smooth = pd.Series(smooth(dT_conf_district), index = dT_conf_district.index).clip(0).astype(int)
     T_scaled = dT_conf_district_smooth.cumsum()[simulation_start] * T_ratio
+    if T_scaled > N_district: 
+        T_scaled = dT_conf_district_smooth.cumsum()[simulation_start]
     S = N_district - T_scaled
 
     # run Rt estimation on scaled timeseries 
@@ -77,10 +79,10 @@ for (district, N_district) in district_populations.items():
 
     # # run model forward with no vaccination
     model = SIR(
-        name        = state, 
+        name        = district, 
         population  = N_district, 
         dT0         = np.ones(num_sims) * (dT_conf_district_smooth[simulation_start] * T_ratio).astype(int), 
-        Rt0         = Rt[simulation_start] * N_district/(N_district - T_scaled),
+        Rt0         = Rt[simulation_start],
         I0          = np.ones(num_sims) * (T_scaled - R - D), 
         R0          = np.ones(num_sims) * R, 
         D0          = np.ones(num_sims) * D,

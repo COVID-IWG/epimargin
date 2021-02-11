@@ -9,7 +9,7 @@ from adaptive.estimators import analytical_MPVS
 from adaptive.etl.covid19india import state_code_lookup
 from adaptive.models import SIR
 from adaptive.policy import PrioritizedAssignment, RandomVaccineAssignment
-from studies.age_structure.common_TN_data import *
+from studies.age_structure.commons import *
 
 sns.set(style = "whitegrid")
 
