@@ -11,7 +11,7 @@ code and analysis for our model-informed vaccine distribution proposal
 - `vaccine_mortality_district.py`: calculates explicit hazards for various vaccination plans
 - `vaccine_policies_district.py`: runs vaccination plans for each district in Tamil Nadu
 
-## prior experiments
+## prior experiments (`archive/`)
 - `scaled_hazards.py`: hazards run by seroprevalence scaling
 - `agestruct.py`: explicitly age-structured model (not ex post facto age bin assignment)
 - `test_pos_scaling.py`: attempts to scale confirmed cases by accounting for test positivity
