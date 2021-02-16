@@ -3,6 +3,7 @@ from itertools import product
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+from pandas.core import base
 from scipy.stats import multinomial as Multinomial
 from sklearn.metrics import auc
 
@@ -189,6 +190,9 @@ def simulate_PID_controller(
 # Vaccination policies
 
 class VaccinationPolicy():
+    def __init__(self, bin_populations: np.array) -> None:
+        self.bin_populations = bin_populations
+
     def name(self) -> str:
         return self.__class__.__name__.lower()
 
@@ -199,11 +203,17 @@ class VaccinationPolicy():
     def exhausted(self, model) -> bool:
         return self.daily_doses * len(model.Rt) > model.pop0
 
+    def get_mortality(self, base_IFRs) -> float:
+        if self.bin_populations.sum() == 0:
+            return 0
+        return base_IFRs @ self.bin_populations/self.bin_populations.sum()
+
 class RandomVaccineAssignment(VaccinationPolicy):
-    def __init__(self, daily_doses: int, effectiveness: float, age_ratios: np.array):
+    def __init__(self, daily_doses: int, effectiveness: float, bin_populations: np.array, age_ratios: np.array):
         self.daily_doses = daily_doses 
         self.age_ratios = age_ratios
         self.effectiveness = effectiveness
+        self.bin_populations = bin_populations
 
     def distribute_doses(self, model: SIR) -> Tuple[np.array]:
         if self.exhausted(model):
@@ -214,16 +224,18 @@ class RandomVaccineAssignment(VaccinationPolicy):
         distributed_doses = Multinomial.rvs(self.daily_doses, self.age_ratios)
         effective_doses   = self.effectiveness * distributed_doses
         immunizing_doses  = (model.S[-1].mean()/model.N[-1].mean()) * effective_doses
+        self.bin_populations -= immunizing_doses.astype(int)
         return (distributed_doses, effective_doses, immunizing_doses)
 
     def name(self) -> str:
         return "randomassignment"
 
 class PrioritizedAssignment(VaccinationPolicy):
-    def __init__(self, daily_doses, bin_populations: np.array, prioritization: List[int], label: str):
+    def __init__(self, daily_doses: int, effectiveness: float, bin_populations: np.array, prioritization: List[int], label: str):
         self.daily_doses     = daily_doses
         self.bin_populations = bin_populations
         self.prioritization  = prioritization
+        self.effectiveness   = effectiveness
         self.label = label
 
     def name(self) -> str:

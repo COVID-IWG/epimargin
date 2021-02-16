@@ -9,7 +9,7 @@ from adaptive.estimators import analytical_MPVS
 from adaptive.etl.covid19india import state_code_lookup
 from adaptive.models import SIR
 from adaptive.policy import PrioritizedAssignment, RandomVaccineAssignment
-from studies.age_structure.common_TN_data import *
+from studies.age_structure.commons import * 
 
 # first pass: one bucket 
 N_natl = sum(india_pop.values())
@@ -49,3 +49,14 @@ pd.DataFrame(data = {
     .apply(np.mean)\
     .drop(columns = ["month"])\
     .to_csv(data/"IN_simulated_percap.csv")
+
+"""
+- new sims in dropbox
+- deaths and YLL figures on overleaf
+- looking at econ stuff now 
+
+questions: 
+- do we really want to do a national model that is a superposition of 730 district models? 
+- do we want backtesting figures?
+- 
+"""

@@ -70,9 +70,28 @@ TN_IFRs = {
     "70+"  : 0.00588,
 }
 
+median_ages = { 
+    "0-17" : 8.5,
+    "18-29": 23.5,
+    "30-39": 34.5,
+    "40-49": 44.5,
+    "50-59": 54.5,
+    "60-69": 64.5,
+    "70+"  : 85,
+}
+
+age_bins = list(median_ages.keys())
+
+district_IFR = pd.read_csv(data/"district_estimates.csv").set_index("district")
+district_IFR.drop(columns = [_ for _ in district_IFR.columns if "Unnamed" in _], inplace = True)
+
+YLLs = pd.read_stata(data/"life_expectancy_2009_2013_collapsed.dta")\
+    .set_index("state").loc["Tamil Nadu"]\
+    .rename(lambda row: age_bins[int(row[-1]) - 1])
+
 district_populations = { 
-    # 'Ariyalur'       :   754_894, # 'Ariyalur'
-    # 'Chengalpattu'   : 2_556_244, # 'Chengalpattu'
+    'Ariyalur'       :   754_894, # 'Ariyalur'
+    'Chengalpattu'   : 2_556_244, # 'Chengalpattu'
     'Chennai'        : 4_646_732, # 'Chennai'
 #     'Coimbatore'     : 3_458_045, # 'Coimbatore'
 #     'Cuddalore'      : 2_605_914, # 'Cuddalore'
@@ -158,9 +177,9 @@ TN_recovery_structure = pd.Series({
 
 TN_infection_structure = TN_death_structure + TN_recovery_structure
 fS = pd.Series(TN_age_ratios)[:, None]
-fD = (TN_death_structure      / TN_death_structure    .sum())[:, None]
-fR = (TN_recovery_structure   / TN_recovery_structure .sum())[:, None]
-fI = (TN_infection_structure  / TN_infection_structure.sum())[:, None]
+fD = (TN_death_structure     / TN_death_structure    .sum())[:, None]
+fR = (TN_recovery_structure  / TN_recovery_structure .sum())[:, None]
+fI = (TN_infection_structure / TN_infection_structure.sum())[:, None]
 
 mu_TN = 0.000517534
 

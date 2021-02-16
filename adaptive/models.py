@@ -44,7 +44,7 @@ class SIR():
         self.dT = [dT0] # case change rate, initialized with the first introduction, if any
         self.Rt = [Rt0]
         self.b  = [np.exp(self.gamma * (Rt0 - 1.0))]
-        self.S  = [population - I0 - R0 - D0]
+        self.S  = [population - R0 - D0 - I0]
         self.I  = [I0] 
         self.R  = [R0]
         self.D  = [D0]
