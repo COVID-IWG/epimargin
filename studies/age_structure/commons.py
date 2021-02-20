@@ -93,41 +93,72 @@ district_populations = {
     'Ariyalur'       :   754_894, # 'Ariyalur'
     'Chengalpattu'   : 2_556_244, # 'Chengalpattu'
     'Chennai'        : 4_646_732, # 'Chennai'
-#     'Coimbatore'     : 3_458_045, # 'Coimbatore'
-#     'Cuddalore'      : 2_605_914, # 'Cuddalore'
-#     'Dharmapuri'     : 1_506_843, # 'Dharmapuri'
-#     'Dindigul'       : 2_159_775, # 'Dindigul'
-#     'Erode'          : 2_251_744, # 'Erode'
-#     'Kallakurichi'   : 1_370_281, # 'Kallakurichi'
-#     'Kancheepuram'   : 1_166_401, # 'Kanchipuram'
-#     'Kanyakumari'    : 1_870_374, # 'Kanniyakumari'
-#     'Karur'          : 1_064_493, # 'Karur'
-#     'Krishnagiri'    : 1_879_809, # 'Krishnagiri'
-#     'Madurai'        : 3_038_252, # 'Madurai'
-# #   'Mayiladuthurai' :   918_356, # 'Mayiladuthurai'
-#     'Nagapattinam'   :   697_069, # 'Nagapattinam'
-#     'Namakkal'       : 1_726_601, # 'Namakkal'
-#     'Nilgiris'       :   735_394, # 'Nilgiris'
-#     'Perambalur'     :   565_223, # 'Perambalur'
-#     'Pudukkottai'    : 1_618_345, # 'Pudukkottai'
-#     'Ramanathapuram' : 1_353_445, # 'Ramanathapuram'
-#     'Ranipet'        : 1_210_277, # 'Ranipet'
-#     'Salem'          : 3_482_056, # 'Salem'
-#     'Sivaganga'      : 1_339_101, # 'Sivagangai'
-#     'Tenkasi'        : 1_407_627, # 'Tenkasi'
-#     'Thanjavur'      : 2_405_890, # 'Thanjavur'
-#     'Theni'          : 1_245_899, # 'Theni'
-#     'Thiruvallur'    : 3_728_104, # 'Tiruvallur'
-#     'Thiruvarur'     : 1_264_277, # 'Tiruvarur'
-#     'Thoothukkudi'   : 1_750_176, # 'Thoothukudi'
-#     'Tiruchirappalli': 2_722_290, # 'Tiruchirappalli'
-#     'Tirunelveli'    : 1_665_253, # 'Tirunelveli'
-#     'Tirupathur'     : 1_111_812, # 'Tirupattur'
-#     'Tiruppur'       : 2_479_052, # 'Tiruppur'
-#     'Tiruvannamalai' : 2_464_875, # 'Tiruvannamalai'
-#     'Vellore'        : 1_614_242, # 'Vellore'
-#     'Viluppuram'     : 2_093_003, # 'Viluppuram'
-#     'Virudhunagar'   : 1_942_288, # 'Virudhunagar'
+    'Coimbatore'     : 3_458_045, # 'Coimbatore'
+    'Cuddalore'      : 2_605_914, # 'Cuddalore'
+    'Dharmapuri'     : 1_506_843, # 'Dharmapuri'
+    'Dindigul'       : 2_159_775, # 'Dindigul'
+    'Erode'          : 2_251_744, # 'Erode'
+    'Kallakurichi'   : 1_370_281, # 'Kallakurichi'
+    'Kancheepuram'   : 1_166_401, # 'Kanchipuram'
+    'Kanyakumari'    : 1_870_374, # 'Kanniyakumari'
+    'Karur'          : 1_064_493, # 'Karur'
+    'Krishnagiri'    : 1_879_809, # 'Krishnagiri'
+    'Madurai'        : 3_038_252, # 'Madurai'
+ #  'Mayiladuthurai' :   918_356, # 'Mayiladuthurai'
+    'Nagapattinam'   :   697_069, # 'Nagapattinam'
+    'Namakkal'       : 1_726_601, # 'Namakkal'
+    'Nilgiris'       :   735_394, # 'Nilgiris'
+    'Perambalur'     :   565_223, # 'Perambalur'
+    'Pudukkottai'    : 1_618_345, # 'Pudukkottai'
+    'Ramanathapuram' : 1_353_445, # 'Ramanathapuram'
+    'Ranipet'        : 1_210_277, # 'Ranipet'
+    'Salem'          : 3_482_056, # 'Salem'
+    'Sivaganga'      : 1_339_101, # 'Sivagangai'
+    'Tenkasi'        : 1_407_627, # 'Tenkasi'
+    'Thanjavur'      : 2_405_890, # 'Thanjavur'
+    'Theni'          : 1_245_899, # 'Theni'
+    'Thiruvallur'    : 3_728_104, # 'Tiruvallur'
+    'Thiruvarur'     : 1_264_277, # 'Tiruvarur'
+    'Thoothukkudi'   : 1_750_176, # 'Thoothukudi'
+    'Tiruchirappalli': 2_722_290, # 'Tiruchirappalli'
+    'Tirunelveli'    : 1_665_253, # 'Tirunelveli'
+    'Tirupathur'     : 1_111_812, # 'Tirupattur'
+    'Tiruppur'       : 2_479_052, # 'Tiruppur'
+    'Tiruvannamalai' : 2_464_875, # 'Tiruvannamalai'
+    'Vellore'        : 1_614_242, # 'Vellore'
+    'Viluppuram'     : 2_093_003, # 'Viluppuram'
+    'Virudhunagar'   : 1_942_288, # 'Virudhunagar'
+}
+
+district_codes = { 
+    "Chennai"        :  92,
+    "Coimbatore"     : 103,
+    "Cuddalore"      : 104,
+    "Dharmapuri"     : 123,
+    "Dindigul"       : 130,
+    "Erode"          : 140,
+    "Kancheepuram"   : 234,
+    "Kanyakumari"    : 238,
+    "Krishnagiri"    : 276,
+    "Madurai"        : 290,
+    "Nagapattinam"   : 325,
+    "Perambalur"     : 365,
+    "Pudukkottai"    : 371,
+    "Ramanathapuram" : 389,
+    "Salem"          : 410,
+    "Sivaganga"      : 443,
+    "Thanjavur"      : 472,
+    "Theni"          : 473,
+    "Thiruvallur"    : 474,
+    "Thiruvarur"     : 476,
+    "Thoothukkudi"   : 477,
+    "Tiruchirappalli": 479,
+    "Tirunelveli"    : 480,
+    "Tiruppur"       : 481,
+    "Tiruvannamalai" : 482,
+    "Vellore"        : 501,
+    "Viluppuram"     : 503,
+    "Virudhunagar"   : 504,
 }
 
 # laxminarayan contact matrix 

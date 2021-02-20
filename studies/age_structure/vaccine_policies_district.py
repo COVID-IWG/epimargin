@@ -11,48 +11,52 @@ from studies.age_structure.commons import *
 
 sns.set(style = "whitegrid")
 
+num_sims = 10000
+
 def save_results(model, data, dVx_adm, dVx_eff, dVx_imm, tag):
     print(":::: serializing results")
 
     # Susceptibles
     pd.DataFrame((fS * [_.mean() for _ in model.S]).astype(int)).T\
         .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-        .to_csv(data/f"compartment_counts/Sx_{tag}.csv")
+        .to_csv(data/f"cc100/Sx_{tag}.csv")
 
     # Infectious 
     pd.DataFrame((fI * [_.mean() for _ in model.I]).astype(int)).T\
         .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-        .to_csv(data/f"compartment_counts/Ix_{tag}.csv")
+        .to_csv(data/f"cc100/Ix_{tag}.csv")
 
     # Recovered
     pd.DataFrame((fR * [_.mean() for _ in model.R]).astype(int)).T\
         .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-        .to_csv(data/f"compartment_counts/Rx_{tag}.csv")
+        .to_csv(data/f"cc100/Rx_{tag}.csv")
 
     # Dead 
     pd.DataFrame((fD * [_.mean() for _ in model.D]).astype(int)).T\
         .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-        .to_csv(data/f"compartment_counts/Dx_{tag}.csv")
+        .to_csv(data/f"cc100/Dx_{tag}.csv")
 
     # full simulation results
-    pd.DataFrame(model.I).to_csv(data/f"full_sims/It_{tag}.csv")
-    pd.DataFrame(model.D).to_csv(data/f"full_sims/Dt_{tag}.csv")
+    pd.DataFrame(model.I ).to_csv(data/f"full_sims/It_{tag}.csv")
+    pd.DataFrame(model.D ).to_csv(data/f"full_sims/Dt_{tag}.csv")
+    pd.DataFrame(model.dT).to_csv(data/f"full_sims/dT_{tag}.csv")
+    pd.DataFrame(model.dD).to_csv(data/f"full_sims/dD_{tag}.csv")
 
     if dVx_adm:
         # Administered vaccines
         pd.DataFrame(dVx_adm).cumsum()\
             .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-            .to_csv(data/f"compartment_counts/Vx_adm_{tag}.csv")
+            .to_csv(data/f"cc100/Vx_adm_{tag}.csv")
 
         # Effective vaccines
         pd.DataFrame(dVx_eff).cumsum()\
             .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-            .to_csv(data/f"compartment_counts/Vx_eff_{tag}.csv")
+            .to_csv(data/f"cc100/Vx_eff_{tag}.csv")
 
         # Immunizing vaccines
         pd.DataFrame(dVx_imm).cumsum()\
             .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-            .to_csv(data/f"compartment_counts/Vx_imm_{tag}.csv")
+            .to_csv(data/f"cc100/Vx_imm_{tag}.csv")
 
 # scaling
 dT_conf = df[state].loc[:, "delta", "confirmed"] 
@@ -68,7 +72,7 @@ print(":: running simulations")
 evaluated_deaths = {}
 evaluated_YLLs   = {}
 ran_models = {}
-for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.itertuples():
+for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filter(items = district_codes.keys(), axis = 0).itertuples():
     # grab timeseries 
     D, R = ts.loc[district][["dD", "dR"]].sum()
 
@@ -103,16 +107,16 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.itert
         I0          = np.ones(num_sims) * I0, 
         R0          = np.ones(num_sims) * R, 
         D0          = np.ones(num_sims) * D,
-        mortality   = ts.loc[district].dD.cumsum()[simulation_start]/T_scaled if I0 == 0 else dD0/(gamma * I0),
+        mortality   = (ts.loc[district].dD.cumsum()[simulation_start]/T_scaled if I0 == 0 else dD0/(gamma * I0)),
         random_seed = 0
     )
-    model.dD[0] = np.ones(num_sims) 
+    model.dD[0] = np.ones(num_sims) * dD0
     param_tag = "novaccination"
-    ran_models[geo_tag + param_tag] = model
+    # ran_models[geo_tag + param_tag] = model
 
     t = 0
     while (model.Rt[-1].mean() > Rt_threshold) and (model.dT[-1].mean() > 0):
-        model.parallel_forward_epi_step()
+        model.parallel_forward_epi_step(num_sims = num_sims)
         print("::::", district, "no vax", t, np.mean(model.dT[-1]), np.std(model.dT[-1]), model.Rt[-1].mean())
         t += 1
     save_results(model, data, [], [], [], geo_tag + param_tag)
@@ -123,15 +127,15 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.itert
     else:
         evaluated_deaths[param_tag]  = policy_deaths
 
-    policy_YLL = np.sort((fD * np.sum(model.dD)).T @ YLLs[:, None], axis = None)
+    policy_YLL = np.sort((fD * np.sum(model.dD, axis = 0)).T @ YLLs[:, None], axis = None)
     if param_tag in evaluated_YLLs:
         evaluated_YLLs[param_tag] += policy_YLL
     else:
         evaluated_YLLs[param_tag]  = policy_YLL
 
     for (vax_pct_annual_goal, vax_effectiveness) in product(
-        (0.25, 0.50),
-        (0.50, 0.70, 1.00)
+        (0.5,),
+        (0.70,)
     ):
         daily_rate = vax_pct_annual_goal/365
         daily_vax_doses = int(daily_rate * N_district)
@@ -150,12 +154,21 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.itert
                 population  = N_district, 
                 dT0         = np.ones(num_sims) * (dT_conf_district_smooth[simulation_start] * T_ratio).astype(int), 
                 Rt0         = Rt[simulation_start],
-                I0          = np.ones(num_sims) * (T_scaled - R - D), 
+                I0          = np.ones(num_sims) * I0, 
                 R0          = np.ones(num_sims) * R, 
                 D0          = np.ones(num_sims) * D,
-                mortality   = IFR_sero,
+                mortality   = (ts.loc[district].dD.cumsum()[simulation_start]/T_scaled if I0 == 0 else dD0/(gamma * I0)),
                 random_seed = 0
             )
+            model.dD[0] = np.ones(num_sims) * dD0
+            param_tag = "_".join([
+                vaccination_policy.name(),
+                f"ve{int(100*vax_effectiveness)}",
+                f"annualgoal{int(100 * vax_pct_annual_goal)}",
+                f"Rt_threshold{Rt_threshold}"
+            ])
+            tag = geo_tag + param_tag
+            # ran_models[geo_tag + param_tag] = model
 
             t = 0
             dVx_adm = [np.zeros(len(IN_age_structure))] # administered doses
@@ -164,7 +177,7 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.itert
 
             # run while Rt > threshold or until everyone is vaccinated 
             while (model.Rt[-1].mean() > Rt_threshold) and (not vaccination_policy.exhausted(model)):
-                adm, eff, imm = vaccination_policy.distribute_doses(model)
+                adm, eff, imm = vaccination_policy.distribute_doses(model, num_sims = num_sims)
                 model.m       = vaccination_policy.get_mortality(list(TN_IFRs.values()))
                 dVx_adm.append(adm)
                 dVx_eff.append(eff)
@@ -172,29 +185,22 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.itert
                 print("::::", district, vax_pct_annual_goal, vax_effectiveness, vaccination_policy.name(), t, np.mean(model.dT[-1]), np.std(model.dT[-1]), model.Rt[-1].mean(), model.S[-1].mean())
                 t += 1
 
-            param_tag = "_".join([
-                vaccination_policy.name(),
-                f"ve{int(100*vax_effectiveness)}",
-                f"annualgoal{int(100 * vax_pct_annual_goal)}",
-                f"Rt_threshold{Rt_threshold}"
-            ])
-            tag = geo_tag + param_tag
             save_results(model, data, dVx_adm, dVx_eff, dVx_imm, tag)
             
-            policy_deaths = np.sort(np.sum(model.dD, axis = 0))
+            policy_deaths = np.sum(model.dD, axis = 0)
             if param_tag in evaluated_deaths:
                 evaluated_deaths[param_tag] += policy_deaths
             else:
                 evaluated_deaths[param_tag]  = policy_deaths
 
-            policy_YLL = np.sort((fD * np.sum(model.dD)).T @ YLLs[:, None], axis = None)
+            policy_YLL = (fD * np.sum(model.dD, axis = 0)).T @ YLLs[:, None]
             if param_tag in evaluated_YLLs:
                 evaluated_YLLs[param_tag] += policy_YLL
             else:
                 evaluated_YLLs[param_tag]  = policy_YLL
 
-evaluated_death_percentiles = {k: np.percentile(v, [0.05, 0.50, 0.95]) for (k, v) in evaluated_deaths.items()}
-evaluated_YLL_percentiles   = {k: np.percentile(v, [0.05, 0.50, 0.95]) for (k, v) in evaluated_YLLs.items()  }
+evaluated_death_percentiles = {k: np.percentile(v, [5, 50, 95]) for (k, v) in evaluated_deaths.items()}
+evaluated_YLL_percentiles   = {k: np.percentile(v, [5, 50, 95]) for (k, v) in evaluated_YLLs.items()  }
 
 # plot deaths
 novax_death_percentiles     = {k: v for (k, v) in evaluated_death_percentiles.items() if "novaccination" in k}
@@ -221,8 +227,8 @@ plt.xticks(fontsize = "16")
 plt.yticks(fontsize = "16")
 plt.grid(False, which = "both", axis = "x")
 ylims = plt.ylim() #(800, 1150)
-plt.vlines([-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5], ymin = ylims[0], ymax = ylims[1])
-plt.xlim(left = -0.5, right = 5.5)
+# plt.vlines([-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5], ymin = ylims[0], ymax = ylims[1])
+# plt.xlim(left = -0.5, right = 5.5)
 plt.ylim(*ylims)
 plt.show()
 
@@ -254,7 +260,7 @@ plt.yticks(fontsize = "16")
 plt.grid(False, which = "both", axis = "x")
 ylims = plt.ylim() #(800, 1150)
 plt.vlines([-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5], ymin = ylims[0], ymax = ylims[1])
-plt.xlim(left = -0.5, right = 5.5)
+# plt.xlim(left = -0.5, right = 5.5)
 plt.ylim(*ylims)
 plt.show()
 
