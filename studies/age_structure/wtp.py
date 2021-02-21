@@ -104,26 +104,20 @@ def daily_WTP(district):
 
 # satej's method
 def discounted_WTP(wtp, rate = (4.25/100)/365):
-    (wtp * (1/np.power((1 + rate), np.arange(len(wtp))))[:, None]).sum(axis = 0)
+    return (wtp * np.power((1 + rate), -np.arange(len(wtp)))[:, None]).sum(axis = 0)
 
 # alice's method
 def avg_monthly_WTP(wtp):
     return 30 * wtp.groupby(wtp.index.month.astype(str).str.zfill(2) + "_" + wtp.index.year.astype(str)).mean().mean()
 
 def latex_table_row(rowname, items):
-    return " & ".join([rowname] + items.round(2)) + " \\ "
+    return " & ".join([rowname] + list(items.values.round(2).astype(str))) + " \\\\ "
 
 # run calculations and then print out each aggregation
 daily_WTP_calcs = {district: daily_WTP(district) for district in district_codes.keys()}
 
-for (district, daily_wtp) in daily_WTP_calcs.items():
-    try:
-        print(latex_table_row(district, discounted_WTP(daily_WTP)))
-    except:
-        pass
+for (district, wtp) in daily_WTP_calcs.items():
+    print(latex_table_row(district, discounted_WTP(wtp)/30))
 
-for (district, daily_wtp) in daily_WTP_calcs.items():
-    try:
-        print(latex_table_row(district, avg_monthly_WTP(daily_WTP)))
-    except:
-        pass
+for (district, wtp) in daily_WTP_calcs.items():
+    print(latex_table_row(district, avg_monthly_WTP(wtp)))
