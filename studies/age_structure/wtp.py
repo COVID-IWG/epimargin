@@ -10,7 +10,9 @@ coeffs = pd.read_stata(data/"reg_estimates.dta")\
     .rename(columns = {"parm": "param", "estimate": "value"})
 
 # per capita daily consumption levels 
-consumption_2019 = pd.read_stata("data/pcons_2019m6.dta").set_index("districtnum")
+consumption_2019 = pd.read_stata("data/pcons_2019m6.dta")\
+    .set_index("districtnum")\
+    .rename(index = {"Kanniyakumari": "Kanyakumari"})
 
 # national-level forward simulation
 IN_simulated_percap = pd.read_csv("data/IN_simulated_percap.csv")\
@@ -97,7 +99,8 @@ def daily_WTP(district):
         pd.date_range(start = simulation_start, end = simulation_start + pd.Timedelta(len(Dx_v) - 1, "days"))
     )
 
-    return (WTP_v - WTP_nv).fillna(0)
+    return (WTP_v - WTP_nv)\
+        .fillna(0) # where vaccination time series is longer than no vax timeseries, we assume consumption is identical 
 
 # satej's method
 def discounted_WTP(wtp, rate = 4.25/100):
@@ -107,11 +110,11 @@ def discounted_WTP(wtp, rate = 4.25/100):
 def avg_monthly_WTP(wtp):
     return 30 * wtp.groupby(wtp.index.month.astype(str).str.zfill(2) + "_" + wtp.index.year.astype(str)).mean().mean()
 
-# run calculations and then print out each aggregation
-daily_WTP_calcs = {district: daily_WTP(district) for district in district_codes.keys()}
-
 def latex_table_row(rowname, items):
     return " & ".join([rowname] + items.round(2)) + " \\ "
+
+# run calculations and then print out each aggregation
+daily_WTP_calcs = {district: daily_WTP(district) for district in district_codes.keys()}
 
 for (district, daily_wtp) in daily_WTP_calcs.items():
     try:
