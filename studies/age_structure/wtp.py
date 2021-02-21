@@ -1,143 +1,126 @@
-from itertools import product
-from studies.age_structure.national_model import D
-
 import pandas as pd
-from scipy.stats.morestats import probplot
 from studies.age_structure.commons import *
 
 """ Calculate willingness to pay """ 
 
+# coefficients of consumption ~ prevalence regression
 coeffs = pd.read_stata(data/"reg_estimates.dta")\
     [["parm", "label", "estimate"]]\
     .set_index("parm")\
     .rename(columns = {"parm": "param", "estimate": "value"})
 
-pcons = pd.read_stata("data/pcons_2019m6.dta").set_index("districtnum")
+# per capita daily consumption levels 
+consumption_2019 = pd.read_stata("data/pcons_2019m6.dta").set_index("districtnum")
 
-datareg = pd.read_stata("data/datareg.dta")
+# national-level forward simulation
 IN_simulated_percap = pd.read_csv("data/IN_simulated_percap.csv")\
     .assign(month = lambda _: _.month.str.zfill(7))\
     .set_index("month")\
     .sort_index()
 
-I_cat_limits = [datareg[datareg.I_cat == _].I.max() for _ in range(11)]
-D_cat_limits = [datareg[datareg.D_cat == _].D.max() for _ in range(11)]
+# bin cutoffs for prevalence categories
+datareg = pd.read_stata("data/datareg.dta")
+dI_percap_cat_limits = [datareg[datareg.I_cat == _].I.max() for _ in range(11)]
+dD_percap_cat_limits = [datareg[datareg.D_cat == _].D.max() for _ in range(11)]
 
-I_cat_national_limits = [datareg[datareg.I_cat_national == _].I_national.max() for _ in range(11)]
-D_cat_national_limits = [datareg[datareg.D_cat_national == _].D_national.max() for _ in range(11)]
+dI_percap_cat_national_limits = [datareg[datareg.I_cat_national == _].I_national.max() for _ in range(11)]
+dD_percap_cat_national_limits = [datareg[datareg.D_cat_national == _].D_national.max() for _ in range(11)]
 
-# Alice's formula 
-# [ve +  (1-ve)*(1-p(die))] *c(v1) – (1-p(die))*c(v0)
+# national prevalence categories are sparse and easily mapped as a function of time
+def date_to_I_cat_natl(date: pd.Timestamp):
+    if date.year != 2021:
+        return 0
+    return {
+        1: 10, 
+        2: 4, # should be 6 but it's missing in the cuts
+        3: 3,
+        4: 2,
+        5: 2,
+        6: 1,
+        7: 1
+    }.get(date.month, 0)
 
-for (district, _, N_district, _, IFR_sero, _) in district_IFR.iloc[2:3].itertuples():
-    # evaluate novax first 
+def coeff_label(suffix, dropped):
+    return lambda i: str(i) + ("b" if i == dropped else "") + "." + suffix
 
-    for (vax_pct_annual_goal, vax_effectiveness) in product(
-        (0.25, 0.50),
-        (0.50, 0.70, 1.00)
-    ):
-        pass 
+def coeff_value(column, dropped):
+    return lambda _: coeffs.loc[_[column].apply(lambda i: str(i) + ("b" if i == dropped else "") + "." + column)].value.values
 
-It = pd.read_csv("data/full_sims/It_TN_Chennai_novaccination.csv")
-Dt = pd.read_csv("data/full_sims/Dt_TN_Chennai_novaccination.csv")
+def estimate_consumption_decline(district, dI_pc, dD_pc):
+    district_code = str(district_codes[district])
+    district_coeff_label = district_code + ("b" if district_code == "92" else "") + ".districtnum"
+    constant = coeffs.loc["_cons"].value + coeffs.loc[district_coeff_label].value
 
-It = It.rename(columns = {"Unnamed: 0": "t"})[["t"] + list(map(str, range(10)))]
-It["month"] = It.t.apply(lambda _: simulation_start + pd.Timedelta(_, "days")).dt.month
+    # map values to categoricals 
+    indicators = pd.DataFrame({
+        "I_cat": pd.cut(dI_pc, bins = dI_percap_cat_limits, labels = False).fillna(0).astype(int),
+        "D_cat": pd.cut(dD_pc, bins = dD_percap_cat_limits, labels = False).fillna(0).astype(int),
+        "date": [(simulation_start + pd.Timedelta(_, "days")) for _ in range(len(dI_pc))]
+    }).assign(
+        month          = lambda _: _.date.dt.month,
+        I_cat_national = lambda _: _.date.apply(date_to_I_cat_natl)
+    )
 
-Dx = pd.read_csv("data/compartment_counts/Dx_TN_Chennai_novaccination.csv").drop(columns = ["Unnamed: 0"]) 
+    # index categoricals into coefficients and sum
+    return indicators.assign(
+        I_coeff     = coeff_value("I_cat",          dropped = 0),
+        D_coeff     = coeff_value("D_cat",          dropped = 0),
+        I_nat_coeff = coeff_value("I_cat_national", dropped = 0),
+        month_coeff = coeff_value("month",          dropped = 1),
+    )\
+    .set_index("date")\
+    .filter(like = "coeff", axis = 1)\
+    .sum(axis = 1) + constant
 
-def I_to_cat(I, N):
-    return 10 - (I/N).apply(lambda x: next((i for i in reversed(range(11)) if x < I_cat_limits[i]), 0))
-
-It_cat = 10 - (It["0"]/N_district).apply(lambda x: next((i for i in reversed(range(11)) if x < I_cat_limits[i]), 0))
-Dt_cat = 10 - (Dt["0"]/N_district).apply(lambda x: next((i for i in reversed(range(11)) if x < D_cat_limits[i]), 0))
-
-def date_to_I_cat_national(m_Y):
-    if m_Y == "01_2021":
-        return 10
-    return 0
-
-def predict(district, dIt, dDt):
-    N_district = district_populations[district]
-    district_num  = district_codes[district]
-    district_code = str(district_num) + "b" if district_num == 92 else str(district_num)
-    rchat0 = coeffs.loc["_cons"].value + coeffs.loc[f"{district_code}.districtnum"].value
-
-    rchats = dict()
-    for sim in range(1):
-        monthly = pd.DataFrame({
-            "date": [simulation_start + pd.Timedelta(_, "days") for _ in range(len(dIt))],
-            "dI":    dIt[str(sim)],
-            "dD":    dDt[str(sim)],
-        }).assign(m_Y = lambda _:_.date.dt.strftime("%m_%Y"))\
-        .groupby("m_Y")\
-        [["dI", "dD"]]\
-        .mean()\
-        .reset_index()\
-        .assign(
-            I_cat          = lambda _:10 - (_.dI/N_district).apply(lambda x: next((i for i in reversed(range(11)) if x < I_cat_limits[i]), 0)),
-            D_cat          = lambda _:10 - (_.dD/N_district).apply(lambda x: next((i for i in reversed(range(11)) if x < D_cat_limits[i]), 0)),
-            I_cat_national = lambda _:_.m_Y.apply(date_to_I_cat_national)
-        )
-        rchats[sim] = []
-        for (_, mY, I_cat, D_cat, I_cat_national) in monthly[["m_Y", "I_cat", "D_cat", "I_cat_national"]].itertuples():
-            m = mY.split("_")[0].strip("0")
-            rchats[sim] += [rchat0 + (
-                coeffs.loc[(m + 'b' if m == '1' else m) + ".month"].value + 
-                coeffs.loc[(str(I_cat) + 'b' if I_cat == 0 else str(I_cat)) + ".I_cat"].value + 
-                coeffs.loc[(str(D_cat) + 'b' if D_cat == 0 else str(D_cat)) + ".D_cat"].value + 
-                coeffs.loc[(str(I_cat_national) + 'b' if I_cat_national == 0 else str(I_cat_national)) + ".I_cat_national"].value 
-            )]
-        return np.array(rchats[sim])
-
-def prob_death(Dx, N_district):
-    return (Dx.iloc[-1] - Dx.iloc[1])/split_by_age(N_district)
-
-def vax_weight(ve, Dx, N_district):
-    return ve + (1 - ve)*(1 - prob_death(Dx, N_district))
-
-def WTP(district, ve, It_v, Dt_v, Dx_v, It_nv, Dt_nv, Dx_nv):
-    N_district = district_populations[district]
-    rchat_v  = predict(district, It_v,  Dt_v)
-    rchat_nv = predict(district, It_nv, Dt_nv)
-    if district == "Kanyakumari":
-        district = "Kanniyakumari"
-    cons_v  = (1 + rchat_v)  * pcons.loc[district]
-    cons_nv = (1 + rchat_nv) * pcons.loc[district]
-    if len(It_nv) > len(It_v):
-        cons_v += pcons.loc[district] * (len(It_nv) - len(It_v))//30
-    return vax_weight(ve, Dx_v, N_district).values * cons_v.values - (1 - prob_death(Dx_nv, N_district)).values * cons_nv.values
-
-def get_WTP(district):
+def daily_WTP(district):
     ve  = 0.7 
     N_district = district_populations[district]
 
+    # no vaccination case
+    dI_pc = pd.read_csv(f"data/full_sims/dT_TN_{district}_novaccination.csv").rename(columns = {"Unnamed: 0": "t"}).set_index("t").mean(axis = 1)/N_district
+    dD_pc = pd.read_csv(f"data/full_sims/dD_TN_{district}_novaccination.csv").rename(columns = {"Unnamed: 0": "t"}).set_index("t").mean(axis = 1)/N_district
 
-    dIt = pd.read_csv(f"data/full_sims/dT_TN_{district}_novaccination.csv")
-    dDt = pd.read_csv(f"data/full_sims/dD_TN_{district}_novaccination.csv")
+    f_hat_nv = estimate_consumption_decline(district, dI_pc, dD_pc)
+    consumption_nv = (1 + f_hat_nv)[:, None] * consumption_2019.loc[district].values
+
     Dx_nv = pd.read_csv(f"data/compartment_counts/Dx_TN_{district}_novaccination.csv").drop(columns = ["Unnamed: 0"])
-    P_death_nv = Dx_nv.iloc[-1]/split_by_age(N_district)
+    P_death_nv = Dx_nv.diff().fillna(0).cumsum()/split_by_age(N_district) 
+    WTP_nv = ((1 - P_death_nv) * consumption_nv).set_index(f_hat_nv.index)
 
-    Dx_v = pd.read_csv(f"data/compartment_counts/Dx_TN_{district}_mortalityprioritized_ve70_annualgoal50_Rt_threshold0.2.csv").drop(columns = ["Unnamed: 0"])
-    P_death_v = Dx_nv.iloc[-1]/split_by_age(N_district)
+    # vaccination 
+    f_hat_v = estimate_consumption_decline(district, pd.Series([0]), pd.Series([0]))
+    consumption_v = (1 + f_hat_v)[:, None] * consumption_2019.loc[district].values
 
-    rchat_nv = predict("Chennai", dIt, dDt).mean()
-    cons_nv = (1 + rchat_nv) * pcons.loc[district].values
-    rchat_v = predict("Chennai", pd.DataFrame({"0": np.zeros(len(dIt))}), pd.DataFrame({"0": np.zeros(len(dIt))})).mean()
-    cons_v = (1 + rchat_v) * pcons.loc[district].values
+    Dx_v = pd.read_csv(f"data/compartment_counts/Dx_TN_{district}_randomassignment_ve70_annualgoal50_Rt_threshold0.2.csv").drop(columns = ["Unnamed: 0"])
+    P_death_v = Dx_v.diff().fillna(0).cumsum()/split_by_age(N_district) 
+    WTP_v = ((ve + (1-ve)*(1 - P_death_v)) * consumption_v).set_index(
+        pd.date_range(start = simulation_start, end = simulation_start + pd.Timedelta(len(Dx_v) - 1, "days"))
+    )
 
-    return 30 * (
-        (ve + (1 - P_death_v)*(1 - ve)) * cons_v - 
-        (1 - P_death_nv) * cons_nv
-    ).values
-    
-    # It_nv = pd.read_csv(f"data/full_sims/It_TN_{district}_novaccination.csv")
-    # Dt_nv = pd.read_csv(f"data/full_sims/Dt_TN_{district}_novaccination.csv")
-    
-    # print(" & ".join([district] + list(map(str, WTP(district, ve, It_v, Dt_v, Dx_v, It_nv, Dt_nv, Dx_nv).round(2)))) + " \\\\ ")
+    return (WTP_v - WTP_nv).fillna(0)
 
-for district in district_codes.keys():
+# satej's method
+def discounted_WTP(wtp, rate = 4.25/100):
+    (wtp * (1/np.power((1 + rate), np.arange(len(wtp))))[:, None]).sum(axis = 0)
+
+# alice's method
+def avg_monthly_WTP(wtp):
+    return 30 * wtp.groupby(wtp.index.month.astype(str).str.zfill(2) + "_" + wtp.index.year.astype(str)).mean().mean()
+
+# run calculations and then print out each aggregation
+daily_WTP_calcs = {district: daily_WTP(district) for district in district_codes.keys()}
+
+def latex_table_row(rowname, items):
+    return " & ".join([rowname] + items.round(2)) + " \\ "
+
+for (district, daily_wtp) in daily_WTP_calcs.items():
     try:
-        print(district, get_WTP(district).round(4))
+        print(latex_table_row(district, discounted_WTP(daily_WTP)))
+    except:
+        pass
+
+for (district, daily_wtp) in daily_WTP_calcs.items():
+    try:
+        print(latex_table_row(district, avg_monthly_WTP(daily_WTP)))
     except:
         pass
