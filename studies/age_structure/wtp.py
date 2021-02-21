@@ -103,7 +103,7 @@ def daily_WTP(district):
         .fillna(0) # where vaccination time series is longer than no vax timeseries, we assume consumption is identical 
 
 # satej's method
-def discounted_WTP(wtp, rate = 4.25/100):
+def discounted_WTP(wtp, rate = (4.25/100)/365):
     (wtp * (1/np.power((1 + rate), np.arange(len(wtp))))[:, None]).sum(axis = 0)
 
 # alice's method
