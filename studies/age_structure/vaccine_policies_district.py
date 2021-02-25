@@ -17,48 +17,13 @@ def save_results(model, data, dVx_adm, dVx_eff, dVx_imm, tag):
     print(":::: serializing results")
 
     if "novaccination" in tag:
-        pd.DataFrame(model.dT).to_csv(data/f"full_sims/dT_{tag}.csv")
-        pd.DataFrame(model.dD).to_csv(data/f"full_sims/dD_{tag}.csv")
+        pd.DataFrame(model.dT).to_csv(data/f"latest_sims/dT_{tag}.csv")
+        pd.DataFrame(model.dD).to_csv(data/f"latest_sims/dD_{tag}.csv")
 
     # Dead 
     pd.DataFrame((fD * [_.mean() for _ in model.D]).astype(int)).T\
         .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-        .to_csv(data/f"correct_sims/Dx_{tag}.csv")
-
-    # # Susceptibles
-    # pd.DataFrame((fS * [_.mean() for _ in model.S]).astype(int)).T\
-    #     .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-    #     .to_csv(data/f"cc100/Sx_{tag}.csv")
-
-    # # Infectious 
-    # pd.DataFrame((fI * [_.mean() for _ in model.I]).astype(int)).T\
-    #     .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-    #     .to_csv(data/f"cc100/Ix_{tag}.csv")
-
-    # # Recovered
-    # pd.DataFrame((fR * [_.mean() for _ in model.R]).astype(int)).T\
-    #     .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-    #     .to_csv(data/f"cc100/Rx_{tag}.csv")
-
-    # full simulation results
-    # pd.DataFrame(model.I ).to_csv(data/f"full_sims/I_{tag}.csv")
-    # pd.DataFrame(model.D ).to_csv(data/f"full_sims/D_{tag}.csv")
-
-    # if dVx_adm:
-    #     # Administered vaccines
-    #     pd.DataFrame(dVx_adm).cumsum()\
-    #         .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-    #         .to_csv(data/f"cc100/Vx_adm_{tag}.csv")
-
-    #     # Effective vaccines
-    #     pd.DataFrame(dVx_eff).cumsum()\
-    #         .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-    #         .to_csv(data/f"cc100/Vx_eff_{tag}.csv")
-
-    #     # Immunizing vaccines
-    #     pd.DataFrame(dVx_imm).cumsum()\
-    #         .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-    #         .to_csv(data/f"cc100/Vx_imm_{tag}.csv")
+        .to_csv(data/f"latest_sims/Dx_{tag}.csv")
 
 # scaling
 dT_conf = df[state].loc[:, "delta", "confirmed"] 
@@ -103,7 +68,7 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filte
 
     for (vax_pct_annual_goal, vax_effectiveness) in product(
         (0, 0.25, 0.5, 0.75, 1.0, 2.0, 4.0),
-        (0.5, 0.7, 1.0,)
+        (0.5, 0.7, 1.0)
     ):
         daily_rate = vax_pct_annual_goal/365
         daily_vax_doses = int(daily_rate * N_district)
@@ -115,10 +80,26 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filte
                 vax_effectiveness, 
                 np.tile(split_by_age(S), (num_sims, 1)), 
                 np.tile(np.squeeze(fI * I0), (num_sims, 1)),
-                IN_age_ratios, 
-                np.array(list(TN_IFRs.values()))) 
-            # PrioritizedAssignment(  daily_vax_doses, vax_effectiveness, split_by_age(S), np.squeeze(fI * I0), [6, 5, 4, 3, 2, 1, 0], np.array(list(TN_IFRs.values())), "mortality"), 
-            # PrioritizedAssignment(  daily_vax_doses, vax_effectiveness, split_by_age(S), np.squeeze(fI * I0), [1, 2, 3, 4, 0, 5, 6], np.array(list(TN_IFRs.values())), "contactrate")
+                IN_age_ratios,
+                np.array(list(TN_IFRs.values()))),
+            PrioritizedAssignment(
+                daily_vax_doses, 
+                vax_effectiveness, 
+                np.tile(split_by_age(S), (num_sims, 1)), 
+                np.tile(np.squeeze(fI * I0), (num_sims, 1)),
+                IN_age_ratios,
+                np.array(list(TN_IFRs.values())),
+                [6, 5, 4, 3, 2, 1, 0], 
+                "mortality"),
+            PrioritizedAssignment( 
+                daily_vax_doses, 
+                vax_effectiveness, 
+                np.tile(split_by_age(S), (num_sims, 1)), 
+                np.tile(np.squeeze(fI * I0), (num_sims, 1)),
+                IN_age_ratios,
+                np.array(list(TN_IFRs.values())),
+                [1, 2, 3, 4, 0, 5, 6], 
+                "contactrate")
         ]
 
         vaccination_policy: VaccinationPolicy
@@ -155,15 +136,10 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filte
             dVx_eff = [np.zeros(len(IN_age_structure))] # effective doses
             dVx_imm = [np.zeros(len(IN_age_structure))] # immunizing doses
 
-            while t < 5 * 365:
-                adm, eff, imm = vaccination_policy.distribute_doses(model, num_sims = num_sims)
-                dVx_adm.append(adm)
-                dVx_eff.append(eff)
-                dVx_imm.append(imm)
+            for t in range(5 * 365):
+                vaccination_policy.distribute_doses(model, num_sims = num_sims)
                 model.m = vaccination_policy.update_mortality()
                 print("::::", district, vax_pct_annual_goal, vax_effectiveness, vaccination_policy.name(), t, np.mean(model.dT[-1]), np.std(model.dT[-1]), model.Rt[-1].mean(), model.S[-1].mean())
-                t += 1
-                1/0
 
             save_results(model, data, dVx_adm, dVx_eff, dVx_imm, tag)
             
@@ -181,17 +157,9 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filte
 
 
 plt.hist(
-    [
-        # evaluated_deaths["novaccination"], 
-        evaluated_deaths["randomassignment_ve100_annualgoal0_Rt_threshold0.2"], 
-        evaluated_deaths["randomassignment_ve100_annualgoal1_Rt_threshold0.2"],
-        evaluated_deaths["randomassignment_ve100_annualgoal100_Rt_threshold0.2"],
-        evaluated_deaths["randomassignment_ve100_annualgoal1000_Rt_threshold0.2"],
-    ], 
-    bins = list(range(0, 600, 30)),
-    label = [
-        # "no vax", 
-        "random, phi = 0%", "random, phi = 1%", "random, phi = 100%", "random, phi = 1000%"]
+    list(evaluated_deaths.values()),
+    bins  = list(range(0, 600, 30)),
+    label = list(evaluated_deaths.keys())
 )
 plt.PlotDevice().title("\ndistribution of deaths")
 plt.legend()
@@ -199,8 +167,8 @@ plt.xlim(left = 0, right = 600)
 plt.show()
 
 evaluated_death_percentiles = {k: np.percentile(v, [5, 50, 95]) for (k, v) in evaluated_deaths.items()}
-evaluated_death_percentiles.pop("novaccination")
-labels = [key.split("_")[2].replace("annualgoal", "") for key in evaluated_death_percentiles.keys()]
+# evaluated_death_percentiles.pop("novaccination")
+labels = ["0" if "novacc" in key else key.split("_")[2].replace("annualgoal", "") for key in evaluated_death_percentiles.keys()]
 fig = plt.figure()
 for (i, (key, (lo, md, hi))) in enumerate(evaluated_death_percentiles.items()):
     plt.errorbar(
@@ -213,8 +181,8 @@ plt.legend()
 plt.show()
 
 evaluated_death_means = {k:[v.min(), v.mean(), v.max()] for (k, v) in evaluated_deaths.items()}   
-evaluated_death_means.pop("novaccination")
-labels = [key.split("_")[2].replace("annualgoal", "") for key in evaluated_death_means.keys()]
+# evaluated_death_means.pop("novaccination")
+labels = ["0" if "novacc" in key else key.split("_")[2].replace("annualgoal", "") for key in evaluated_death_means.keys()]
 fig = plt.figure()
 for (i, (key, (lo, md, hi))) in enumerate(evaluated_death_means.items()):
     plt.errorbar(
@@ -226,8 +194,8 @@ plt.PlotDevice().title("death ranges (min, avg, max)")
 plt.show()
 
 evaluated_YLL_percentiles = {k: np.percentile(v, [5, 50, 95]) for (k, v) in evaluated_YLLs.items()}
-evaluated_YLL_percentiles.pop("novaccination")
-labels = [key.split("_")[2].replace("annualgoal", "") for key in evaluated_YLL_percentiles.keys()]
+# evaluated_YLL_percentiles.pop("novaccination")
+labels = ["0" if "novacc" in key else key.split("_")[2].replace("annualgoal", "") for key in evaluated_YLL_percentiles.keys()]
 fig = plt.figure()
 for (i, (key, (lo, md, hi))) in enumerate(evaluated_YLL_percentiles.items()):
     plt.errorbar(
@@ -240,8 +208,8 @@ plt.legend()
 plt.show()
 
 evaluated_YLL_means = {k:[v.min(), v.mean(), v.max()] for (k, v) in evaluated_YLLs.items()}   
-evaluated_YLL_means.pop("novaccination")
-labels = [key.split("_")[2].replace("annualgoal", "") for key in evaluated_YLL_means.keys()]
+# evaluated_YLL_means.pop("novaccination")
+labels = ["0" if "novacc" in key else key.split("_")[2].replace("annualgoal", "") for key in evaluated_YLL_means.keys()]
 fig = plt.figure()
 for (i, (key, (lo, md, hi))) in enumerate(evaluated_YLL_means.items()):
     plt.errorbar(

@@ -204,7 +204,7 @@ class VaccinationPolicy():
         return self.__class__.__name__.lower()
 
     @abstractmethod
-    def distribute_doses(self, model: SIR, *kwargs) -> Tuple[np.array]:
+    def distribute_doses(self, model: SIR, *kwargs):
         pass 
 
     def exhausted(self, model) -> bool:
@@ -223,7 +223,7 @@ class RandomVaccineAssignment(VaccinationPolicy):
         self.IFRs          = IFRs
         self.dD_bins       = []
 
-    def distribute_doses(self, model: SIR, num_sims: int = 10000) -> Tuple[np.array]:
+    def distribute_doses(self, model: SIR, num_sims: int = 10_000):
         if self.exhausted(model):
             return (np.zeros(self.age_ratios.shape), np.zeros(self.age_ratios.shape), np.zeros(self.age_ratios.shape))
         model.parallel_forward_epi_step(num_sims = num_sims)
@@ -242,13 +242,11 @@ class RandomVaccineAssignment(VaccinationPolicy):
         self.I_bins = (self.I_bins - (dD_bin_update + dR_bin_update)).clip(0)
         self.dD_bins.append(dD_bin_update)
 
-        return (distributed_doses, effective_doses, immunizing_doses)
-
     def name(self) -> str:
         return "randomassignment"
 
 class PrioritizedAssignment(VaccinationPolicy):
-    def __init__(self, daily_doses: int, effectiveness: float, S_bins: np.array, I_bins: np.array, age_ratios: np.array, prioritization: List[int], IFRs: np.array, label: str):
+    def __init__(self, daily_doses: int, effectiveness: float, S_bins: np.array, I_bins: np.array, age_ratios: np.array, IFRs: np.array, prioritization: List[int], label: str):
         self.daily_doses     = daily_doses
         self.effectiveness   = effectiveness
         self.S_bins          = S_bins.astype(float)
@@ -262,7 +260,7 @@ class PrioritizedAssignment(VaccinationPolicy):
     def name(self) -> str:
         return f"{self.label}prioritized"
 
-    def distribute_doses(self, model: SIR, num_sims: int = 10_000) -> Tuple[np.array]:
+    def distribute_doses(self, model: SIR, num_sims: int = 10_000):
         if self.exhausted(model):
             return (np.zeros(self.age_ratios.shape), np.zeros(self.age_ratios.shape), np.zeros(self.age_ratios.shape))
         model.parallel_forward_epi_step(num_sims = num_sims)
@@ -278,25 +276,12 @@ class PrioritizedAssignment(VaccinationPolicy):
         self.I_bins = (self.I_bins - (dD_bin_update + dR_bin_update)).clip(0)
         self.dD_bins.append(dD_bin_update)
 
-        dVx = np.zeros(self.S_bins.shape)
         # permute by prioritization to assign more easily 
         self.S_bins = self.S_bins[:, self.prioritization]
-        bin_idx, age_bin = next(((i, age_bin) for (i, age_bin) in enumerate(self.prioritization) if self.S_bins[age_bin] > 0), (None, None))
-        if age_bin is not None:
-            if self.S_bins[age_bin] > self.daily_doses:
-                self.S_bins[age_bin] -= self.daily_doses
-                dVx[age_bin] = self.daily_doses
-            else: 
-                leftover = self.daily_doses - self.S_bins[age_bin]
-                dVx[age_bin] = self.S_bins[age_bin]
-                self.S_bins[age_bin] = 0
-                if bin_idx != len(self.S_bins) - 1:
-                    dVx[self.prioritization[bin_idx + 1]] = leftover
-                    self.S_bins[self.prioritization[bin_idx + 1]] -= leftover 
+        # find bins exhausted by latest dose
+        new_S_bins = np.where(self.S_bins.cumsum(axis = 1) <= dV[:, None], 0, self.S_bins) 
+        # subtract leftover doses from non-exhausted bins
+        new_S_bins[np.arange(len(new_S_bins)), (new_S_bins != 0).argmax(axis = 1)] -=\
+            (dV - np.where(self.S_bins.cumsum(axis = 1) > dV[:, None], 0, self.S_bins).sum(axis = 1))
         # reverse permutation once assignment is done 
-        self.S_bins = self.S_bins[:, self.prioritization]
-        return (
-            dVx, 
-            dVx * self.effectiveness, 
-            dVx * self.effectiveness * (model.S[-1].mean()/model.N[-1].mean())
-        )
+        self.S_bins = new_S_bins[:, self.prioritization]
