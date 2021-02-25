@@ -172,21 +172,6 @@ def daily_WTP(district, dI_pc, dD_pc):
     # where vaccination time series is longer than no vax timeseries, we assume consumption is identical 
     return (WTP_v - WTP_nv).fillna(0) 
 
-def average_prevalence_daily_wtp(district, dI_pc_range, dD_pc_range):
-    N_district = district_populations[district]
-    # no vaccination case
-    dI_pc = pd.read_csv(f"data/full_sims/dT_TN_{district}_novaccination.csv")\
-        .rename(columns = {"Unnamed: 0": "t"})\
-        .set_index("t")\
-        .mean(axis = 1)/N_district
-    dD_pc = pd.read_csv(f"data/full_sims/dD_TN_{district}_novaccination.csv")\
-        .rename(columns = {"Unnamed: 0": "t"})\
-        .set_index("t")\
-        .mean(axis = 1)/N_district
-    return daily_WTP(district, dI_pc, dD_pc)
-
-
-
 def monthly_WTP(district):
     
     Dx_nv.pipe(day_idx).groupby(lambda _:_.month).mean().pipe(month_idx)/N_Chennai
@@ -213,6 +198,20 @@ def discounted_WTP(wtp, rate = (4.25/100), period = "daily"):
 # alice's method
 def avg_monthly_WTP(wtp):
     return 30 * wtp.groupby(wtp.index.month.astype(str).str.zfill(2) + "_" + wtp.index.year.astype(str)).mean().mean()
+
+def average_prevalence_daily_wtp(district, dI_pc_range, dD_pc_range):
+    N_district = district_populations[district]
+    # no vaccination case
+    dI_pc = pd.read_csv(f"data/full_sims/dT_TN_{district}_novaccination.csv")\
+        .rename(columns = {"Unnamed: 0": "t"})\
+        .set_index("t")\
+        .mean(axis = 1)/N_district
+    dD_pc = pd.read_csv(f"data/full_sims/dD_TN_{district}_novaccination.csv")\
+        .rename(columns = {"Unnamed: 0": "t"})\
+        .set_index("t")\
+        .mean(axis = 1)/N_district
+    return daily_WTP(district, dI_pc, dD_pc)
+
 
 def latex_table_row(rowname, items):
     return " & ".join([rowname] + list(items.values.round(2).astype(str))) + " \\\\ "
