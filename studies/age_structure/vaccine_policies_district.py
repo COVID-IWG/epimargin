@@ -16,6 +16,15 @@ num_sims = 5000
 def save_results(model, data, dVx_adm, dVx_eff, dVx_imm, tag):
     print(":::: serializing results")
 
+    if "novaccination" in tag:
+        pd.DataFrame(model.dT).to_csv(data/f"full_sims/dT_{tag}.csv")
+        pd.DataFrame(model.dD).to_csv(data/f"full_sims/dD_{tag}.csv")
+
+    # Dead 
+    pd.DataFrame((fD * [_.mean() for _ in model.D]).astype(int)).T\
+        .rename(columns = dict(enumerate(IN_age_structure.keys())))\
+        .to_csv(data/f"correct_sims/Dx_{tag}.csv")
+
     # # Susceptibles
     # pd.DataFrame((fS * [_.mean() for _ in model.S]).astype(int)).T\
     #     .rename(columns = dict(enumerate(IN_age_structure.keys())))\
@@ -31,16 +40,9 @@ def save_results(model, data, dVx_adm, dVx_eff, dVx_imm, tag):
     #     .rename(columns = dict(enumerate(IN_age_structure.keys())))\
     #     .to_csv(data/f"cc100/Rx_{tag}.csv")
 
-    # # Dead 
-    # pd.DataFrame((fD * [_.mean() for _ in model.D]).astype(int)).T\
-    #     .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-    #     .to_csv(data/f"cc100/Dx_{tag}.csv")
-
     # full simulation results
     # pd.DataFrame(model.I ).to_csv(data/f"full_sims/I_{tag}.csv")
     # pd.DataFrame(model.D ).to_csv(data/f"full_sims/D_{tag}.csv")
-    # pd.DataFrame(model.dT).to_csv(data/f"full_sims/dT_{tag}.csv")
-    # pd.DataFrame(model.dD).to_csv(data/f"full_sims/dD_{tag}.csv")
 
     # if dVx_adm:
     #     # Administered vaccines
@@ -72,6 +74,8 @@ print(":: running simulations")
 evaluated_deaths = {}
 evaluated_YLLs   = {}
 ran_models = {}
+novax_districts = set()
+
 # for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filter(items = district_codes.keys(), axis = 0).itertuples():
 for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filter(items = ["Chennai"], axis = 0).itertuples():
     # grab timeseries 
@@ -97,48 +101,9 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filte
     dD0 = ts.loc[district].dD.loc[simulation_start]
     I0 = max(0, (T_scaled - R - D))
 
-    print(district, I0, "extended IFR", ts.loc[district].dD.cumsum()[simulation_start]/T_scaled, "instantaneous IFR", dD0/(gamma * I0))
-
-    # # run model forward with no vaccination
-    model = SIR(
-        name        = district, 
-        population  = N_district, 
-        dT0         = np.ones(num_sims) * (dT_conf_district_smooth[simulation_start] * T_ratio).astype(int), 
-        Rt0         = Rt[simulation_start],
-        I0          = np.ones(num_sims) * I0, 
-        R0          = np.ones(num_sims) * R, 
-        D0          = np.ones(num_sims) * D,
-        mortality   = (ts.loc[district].dD.cumsum()[simulation_start]/T_scaled if I0 == 0 else dD0/(gamma * I0)),
-        random_seed = 0
-    )
-    model.dD[0] = np.ones(num_sims) * dD0
-    param_tag = "novaccination"
-    # ran_models[geo_tag + param_tag] = model
-
-    t = 0
-    # while (model.Rt[-1].mean() > Rt_threshold) and (model.dT[-1].mean() > 0):
-    # while t < 5 * 365:
-    #     model.parallel_forward_epi_step(num_sims = num_sims)
-    #     print("::::", district, "no vax", t, np.mean(model.dT[-1]), np.std(model.dT[-1]), model.Rt[-1].mean())
-    #     t += 1
-    # save_results(model, data, [], [], [], geo_tag + param_tag)
-
-    # policy_deaths = np.sort(np.sum(model.dD, axis = 0))
-    # if param_tag in evaluated_deaths:
-    #     evaluated_deaths[param_tag] += policy_deaths
-    # else:
-    #     evaluated_deaths[param_tag]  = policy_deaths
-
-    # policy_YLL = np.sort((fD * np.sum(model.dD, axis = 0)).T @ YLLs[:, None], axis = None)
-    # if param_tag in evaluated_YLLs:
-    #     evaluated_YLLs[param_tag] += policy_YLL
-    # else:
-    #     evaluated_YLLs[param_tag]  = policy_YLL
-
     for (vax_pct_annual_goal, vax_effectiveness) in product(
-        # (0.25, 0.5, 0.75, 1.0, 2.0, 4.0),
-        (0.5,),
-        (1.0,)
+        (0, 0.25, 0.5, 0.75, 1.0, 2.0, 4.0),
+        (0.5, 0.7, 1.0,)
     ):
         daily_rate = vax_pct_annual_goal/365
         daily_vax_doses = int(daily_rate * N_district)
@@ -158,6 +123,20 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filte
 
         vaccination_policy: VaccinationPolicy
         for vaccination_policy in policies:
+            if vax_pct_annual_goal == 0:
+                param_tag = "novaccination"
+                if district in novax_districts:
+                    break
+                else:
+                    novax_districts.add(district)
+            else: 
+                param_tag = "_".join([
+                    vaccination_policy.name(),
+                    f"ve{int(100*vax_effectiveness)}",
+                    f"annualgoal{int(100 * vax_pct_annual_goal)}",
+                    f"Rt_threshold{Rt_threshold}"
+                ])
+            tag = geo_tag + param_tag
             model = SIR(
                 name        = district, 
                 population  = N_district, 
@@ -170,22 +149,12 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filte
                 random_seed = 0
             )
             model.dD[0] = np.ones(num_sims) * dD0
-            param_tag = "_".join([
-                vaccination_policy.name(),
-                f"ve{int(100*vax_effectiveness)}",
-                f"annualgoal{int(100 * vax_pct_annual_goal)}",
-                f"Rt_threshold{Rt_threshold}"
-            ])
-            tag = geo_tag + param_tag
-            # ran_models[geo_tag + param_tag] = model
 
             t = 0
             dVx_adm = [np.zeros(len(IN_age_structure))] # administered doses
             dVx_eff = [np.zeros(len(IN_age_structure))] # effective doses
             dVx_imm = [np.zeros(len(IN_age_structure))] # immunizing doses
 
-            # run while Rt > threshold or until everyone is vaccinated 
-            # while (model.Rt[-1].mean() > Rt_threshold) and (not vaccination_policy.exhausted(model)):
             while t < 5 * 365:
                 adm, eff, imm = vaccination_policy.distribute_doses(model, num_sims = num_sims)
                 dVx_adm.append(adm)
