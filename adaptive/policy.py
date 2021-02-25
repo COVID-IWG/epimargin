@@ -191,12 +191,11 @@ def simulate_PID_controller(
 # Vaccination policies
 
 class VaccinationPolicy():
-    def __init__(self, daily_doses: int, effectiveness: float, S_bins: np.array, I_bins: np.array, D_bins: np.array, IFRs: np.array) -> None:
+    def __init__(self, daily_doses: int, effectiveness: float, S_bins: np.array, I_bins: np.array, IFRs: np.array) -> None:
         self.daily_doses   = daily_doses
         self.effectiveness = effectiveness
         self.S_bins  = S_bins
         self.I_bins  = I_bins
-        self.D_bins  = D_bins
         self.IFRs    = IFRs
         self.dD_bins = []
 

@@ -33,20 +33,6 @@ IN_simulated_percap = pd.read_csv("data/IN_simulated_percap.csv")\
 N_Chennai = np.array([1206512, 1065145, 822092, 646810, 442051, 273618, 183610])
 
 # bin cutoffs for prevalence categories
-datareg = pd.read_stata("data/datareg.dta")
-
-datareg.filter(regex = "I_.*national", axis = 1)\
-    .sort_values("I_national")\
-    .drop_duplicates(subset = ["I_cat_national"], keep = "last") 
-
-datareg = datareg[datareg.month_code >= "January 01, 2020"]
-dI_percap_cat_national_limits = [datareg[datareg.I_cat_national == _].I_national.max() for _ in range(11)]
-dD_percap_cat_national_limits = [datareg[datareg.D_cat_national == _].D_national.max() for _ in range(11)]
-
-datareg = datareg[datareg.month_code >= "March 01, 2020"]
-dI_percap_cat_limits = [datareg[datareg.I_cat == _].I.max() for _ in range(11)]
-dD_percap_cat_limits = [datareg[datareg.D_cat == _].D.max() for _ in range(11)]
-
 infection_cutoffs = [
     1.31359918148e-06,
     2.78728440853e-06,
@@ -106,8 +92,8 @@ def estimate_consumption_decline(district, dI_pc, dD_pc):
 
     # map values to categoricals 
     indicators = pd.DataFrame({
-        "I_cat": pd.cut(dI_pc, bins = dI_percap_cat_limits, labels = False).fillna(0).astype(int),
-        "D_cat": pd.cut(dD_pc, bins = dD_percap_cat_limits, labels = False).fillna(0).astype(int),
+        "I_cat": (1 + pd.cut(dI_pc, [0] + infection_cutoffs + [1], labels = False)).fillna(0).astype(int),
+        "D_cat": (1 + pd.cut(dD_pc, [0] +     death_cutoffs + [1], labels = False)).fillna(0).astype(int),
         "date": [(simulation_start + pd.Timedelta(_, "days")) for _ in range(len(dI_pc))]
     }).assign(
         month          = lambda _: _.date.dt.month,
@@ -131,9 +117,9 @@ def estimate_consumption_decline_monthly(district, dI_pc, dD_pc):
     constant = coeffs.loc["_cons"].value + coeffs.loc[district_coeff_label].value
 
     timeseries = pd.DataFrame({ 
-        "dI_pc": dI_pc.reindex(range(365), fill_value = 0), 
-        "dD_pc": dD_pc.reindex(range(365), fill_value = 0), 
-        "date": [(simulation_start + pd.Timedelta(_, "days")) for _ in range(365)]
+        "dI_pc": dI_pc, 
+        "dD_pc": dD_pc, 
+        "date": [(simulation_start + pd.Timedelta(_, "days")) for _ in range(len(dI_pc))]
     }).assign(
         month = lambda _: _.date.dt.strftime("%m_%Y")
     ).groupby("month")\
@@ -157,36 +143,26 @@ def estimate_consumption_decline_monthly(district, dI_pc, dD_pc):
     .filter(like = "coeff", axis = 1)\
     .sum(axis = 1) + constant
 
-def daily_WTP(district):
+def daily_WTP(district, dI_pc, dD_pc):
     ve  = 0.7 
     N_district = district_populations[district]
-
-    # no vaccination case
-    dI_pc = pd.read_csv(f"data/full_sims/dT_TN_{district}_novaccination.csv")\
-        .rename(columns = {"Unnamed: 0": "t"})\
-        .set_index("t")\
-        .mean(axis = 1)/N_district
-    dD_pc = pd.read_csv(f"data/full_sims/dD_TN_{district}_novaccination.csv")\
-        .rename(columns = {"Unnamed: 0": "t"})\
-        .set_index("t")\
-        .mean(axis = 1)/N_district
 
     f_hat_nv = estimate_consumption_decline(district, dI_pc, dD_pc)
     consumption_nv = (1 + f_hat_nv)[:, None] * consumption_2019.loc[district].values
 
-    Dx_nv = pd.read_csv(f"data/compartment_counts/Dx_TN_{district}_novaccination.csv")\
+    Dx_nv = pd.read_csv(f"data/latest_sims/Dx_TN_{district}_novaccination.csv")\
         .drop(columns = ["Unnamed: 0"])
-    P_death_nv = Dx_nv.diff().fillna(0).cumsum()/split_by_age(N_district) 
+    P_death_nv = Dx_nv.diff().shift(-1).fillna(0).cumsum()/split_by_age(N_district) 
     WTP_nv = ((1 - P_death_nv) * consumption_nv).set_index(f_hat_nv.index)
 
     # vaccination 
     f_hat_v = estimate_consumption_decline(district, pd.Series([0]), pd.Series([0]))
     consumption_v = (1 + f_hat_v)[:, None] * consumption_2019.loc[district].values
 
-    Dx_path = f"data/compartment_counts/Dx_TN_{district}_randomassignment_ve70_annualgoal50_Rt_threshold0.2.csv"
+    Dx_path = f"data/latest_sims/Dx_TN_{district}_randomassignment_ve70_annualgoal50_Rt_threshold0.2.csv"
     Dx_v = pd.read_csv(Dx_path)\
         .drop(columns = ["Unnamed: 0"])
-    P_death_v = Dx_v.diff().fillna(0).cumsum()/split_by_age(N_district) 
+    P_death_v = Dx_v.diff().shift(-1).fillna(0).cumsum()/split_by_age(N_district) 
     WTP_v = ((ve + (1-ve)*(1 - P_death_v)) * consumption_v).set_index(
         pd.date_range(
             start = simulation_start, 
@@ -196,11 +172,25 @@ def daily_WTP(district):
     # where vaccination time series is longer than no vax timeseries, we assume consumption is identical 
     return (WTP_v - WTP_nv).fillna(0) 
 
+def average_prevalence_daily_wtp(district, dI_pc_range, dD_pc_range):
+    N_district = district_populations[district]
+    # no vaccination case
+    dI_pc = pd.read_csv(f"data/full_sims/dT_TN_{district}_novaccination.csv")\
+        .rename(columns = {"Unnamed: 0": "t"})\
+        .set_index("t")\
+        .mean(axis = 1)/N_district
+    dD_pc = pd.read_csv(f"data/full_sims/dD_TN_{district}_novaccination.csv")\
+        .rename(columns = {"Unnamed: 0": "t"})\
+        .set_index("t")\
+        .mean(axis = 1)/N_district
+    return daily_WTP(district, dI_pc, dD_pc)
+
+
+
 def monthly_WTP(district):
     
     Dx_nv.pipe(day_idx).groupby(lambda _:_.month).mean().pipe(month_idx)/N_Chennai
     Dx_v .pipe(day_idx).groupby(lambda _:_.month).mean().pipe(month_idx)/N_Chennai
-
 
 def monthly_WTP_diffprob(district):
     Dx_nv\
@@ -231,7 +221,7 @@ def latex_table_row(rowname, items):
 daily_WTP_calcs = {district: daily_WTP(district) for district in district_codes.keys()}
 
 for (district, wtp) in daily_WTP_calcs.items():
-    print(latex_table_row(district, discounted_WTP(wtp)/30))
+    print(latex_table_row(district, discounted_WTP(wtp)))
 
 for (district, wtp) in daily_WTP_calcs.items():
     print(latex_table_row(district, avg_monthly_WTP(wtp)))

@@ -11,7 +11,7 @@ from studies.age_structure.commons import *
 
 sns.set(style = "whitegrid")
 
-num_sims = 5000
+num_sims = 10_000
 
 def save_results(model, data, dVx_adm, dVx_eff, dVx_imm, tag):
     print(":::: serializing results")
@@ -41,8 +41,7 @@ evaluated_YLLs   = {}
 ran_models = {}
 novax_districts = set()
 
-# for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filter(items = district_codes.keys(), axis = 0).itertuples():
-for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filter(items = ["Chennai"], axis = 0).itertuples():
+for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filter(items = district_codes.keys(), axis = 0).itertuples():
     # grab timeseries 
     D, R = ts.loc[district][["dD", "dR"]].sum()
 
@@ -156,66 +155,66 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filte
                 evaluated_YLLs[param_tag]  = policy_YLL
 
 
-plt.hist(
-    list(evaluated_deaths.values()),
-    bins  = list(range(0, 600, 30)),
-    label = list(evaluated_deaths.keys())
-)
-plt.PlotDevice().title("\ndistribution of deaths")
-plt.legend()
-plt.xlim(left = 0, right = 600)
-plt.show()
+# plt.hist(
+#     list(evaluated_deaths.values()),
+#     bins  = list(range(0, 600, 30)),
+#     label = list(evaluated_deaths.keys())
+# )
+# plt.PlotDevice().title("\ndistribution of deaths")
+# plt.legend()
+# plt.xlim(left = 0, right = 600)
+# plt.show()
 
-evaluated_death_percentiles = {k: np.percentile(v, [5, 50, 95]) for (k, v) in evaluated_deaths.items()}
-# evaluated_death_percentiles.pop("novaccination")
-labels = ["0" if "novacc" in key else key.split("_")[2].replace("annualgoal", "") for key in evaluated_death_percentiles.keys()]
-fig = plt.figure()
-for (i, (key, (lo, md, hi))) in enumerate(evaluated_death_percentiles.items()):
-    plt.errorbar(
-        x = [i], y = [md], yerr = [[md - lo], [hi - md]],
-        figure = fig, fmt = "o", label = "$\phi =$ " + labels[i]
-    )
-plt.xticks(list(range(len(evaluated_death_percentiles))), labels)
-plt.PlotDevice().title("death percentiles (5, 50, 95)")
-plt.legend()
-plt.show()
+# evaluated_death_percentiles = {k: np.percentile(v, [5, 50, 95]) for (k, v) in evaluated_deaths.items()}
+# # evaluated_death_percentiles.pop("novaccination")
+# labels = ["0" if "novacc" in key else key.split("_")[2].replace("annualgoal", "") for key in evaluated_death_percentiles.keys()]
+# fig = plt.figure()
+# for (i, (key, (lo, md, hi))) in enumerate(evaluated_death_percentiles.items()):
+#     plt.errorbar(
+#         x = [i], y = [md], yerr = [[md - lo], [hi - md]],
+#         figure = fig, fmt = "o", label = "$\phi =$ " + labels[i]
+#     )
+# plt.xticks(list(range(len(evaluated_death_percentiles))), labels)
+# plt.PlotDevice().title("death percentiles (5, 50, 95)")
+# plt.legend()
+# plt.show()
 
-evaluated_death_means = {k:[v.min(), v.mean(), v.max()] for (k, v) in evaluated_deaths.items()}   
-# evaluated_death_means.pop("novaccination")
-labels = ["0" if "novacc" in key else key.split("_")[2].replace("annualgoal", "") for key in evaluated_death_means.keys()]
-fig = plt.figure()
-for (i, (key, (lo, md, hi))) in enumerate(evaluated_death_means.items()):
-    plt.errorbar(
-        x = [i], y = [md], yerr = [[md - lo], [hi - md]],
-        figure = fig, fmt = "o", label = "$\phi =$ " + labels[i]
-    )
-plt.xticks(list(range(len(evaluated_death_means))), labels)
-plt.PlotDevice().title("death ranges (min, avg, max)")
-plt.show()
+# evaluated_death_means = {k:[v.min(), v.mean(), v.max()] for (k, v) in evaluated_deaths.items()}   
+# # evaluated_death_means.pop("novaccination")
+# labels = ["0" if "novacc" in key else key.split("_")[2].replace("annualgoal", "") for key in evaluated_death_means.keys()]
+# fig = plt.figure()
+# for (i, (key, (lo, md, hi))) in enumerate(evaluated_death_means.items()):
+#     plt.errorbar(
+#         x = [i], y = [md], yerr = [[md - lo], [hi - md]],
+#         figure = fig, fmt = "o", label = "$\phi =$ " + labels[i]
+#     )
+# plt.xticks(list(range(len(evaluated_death_means))), labels)
+# plt.PlotDevice().title("death ranges (min, avg, max)")
+# plt.show()
 
-evaluated_YLL_percentiles = {k: np.percentile(v, [5, 50, 95]) for (k, v) in evaluated_YLLs.items()}
-# evaluated_YLL_percentiles.pop("novaccination")
-labels = ["0" if "novacc" in key else key.split("_")[2].replace("annualgoal", "") for key in evaluated_YLL_percentiles.keys()]
-fig = plt.figure()
-for (i, (key, (lo, md, hi))) in enumerate(evaluated_YLL_percentiles.items()):
-    plt.errorbar(
-        x = [i], y = [md], yerr = [[md - lo], [hi - md]],
-        figure = fig, fmt = "o", label = "$\phi =$ " + labels[i]
-    )
-plt.xticks(list(range(len(evaluated_YLL_percentiles))), labels)
-plt.PlotDevice().title("YLL percentiles (5, 50, 95)")
-plt.legend()
-plt.show()
+# evaluated_YLL_percentiles = {k: np.percentile(v, [5, 50, 95]) for (k, v) in evaluated_YLLs.items()}
+# # evaluated_YLL_percentiles.pop("novaccination")
+# labels = ["0" if "novacc" in key else key.split("_")[2].replace("annualgoal", "") for key in evaluated_YLL_percentiles.keys()]
+# fig = plt.figure()
+# for (i, (key, (lo, md, hi))) in enumerate(evaluated_YLL_percentiles.items()):
+#     plt.errorbar(
+#         x = [i], y = [md], yerr = [[md - lo], [hi - md]],
+#         figure = fig, fmt = "o", label = "$\phi =$ " + labels[i]
+#     )
+# plt.xticks(list(range(len(evaluated_YLL_percentiles))), labels)
+# plt.PlotDevice().title("YLL percentiles (5, 50, 95)")
+# plt.legend()
+# plt.show()
 
-evaluated_YLL_means = {k:[v.min(), v.mean(), v.max()] for (k, v) in evaluated_YLLs.items()}   
-# evaluated_YLL_means.pop("novaccination")
-labels = ["0" if "novacc" in key else key.split("_")[2].replace("annualgoal", "") for key in evaluated_YLL_means.keys()]
-fig = plt.figure()
-for (i, (key, (lo, md, hi))) in enumerate(evaluated_YLL_means.items()):
-    plt.errorbar(
-        x = [i], y = [md], yerr = [[md - lo], [hi - md]],
-        figure = fig, fmt = "o", label = "$\phi =$ " + labels[i]
-    )
-plt.xticks(list(range(len(evaluated_YLL_means))), labels)
-plt.PlotDevice().title("YLL ranges (min, avg, max)")
-plt.show()
+# evaluated_YLL_means = {k:[v.min(), v.mean(), v.max()] for (k, v) in evaluated_YLLs.items()}   
+# # evaluated_YLL_means.pop("novaccination")
+# labels = ["0" if "novacc" in key else key.split("_")[2].replace("annualgoal", "") for key in evaluated_YLL_means.keys()]
+# fig = plt.figure()
+# for (i, (key, (lo, md, hi))) in enumerate(evaluated_YLL_means.items()):
+#     plt.errorbar(
+#         x = [i], y = [md], yerr = [[md - lo], [hi - md]],
+#         figure = fig, fmt = "o", label = "$\phi =$ " + labels[i]
+#     )
+# plt.xticks(list(range(len(evaluated_YLL_means))), labels)
+# plt.PlotDevice().title("YLL ranges (min, avg, max)")
+# plt.show()
