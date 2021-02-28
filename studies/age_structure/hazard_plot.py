@@ -10,6 +10,7 @@ from adaptive.etl.covid19india import state_code_lookup
 from adaptive.models import SIR
 from matplotlib import dates as mdates
 from studies.age_structure.commons import *
+from studies.age_structure.palette import *
 
 sns.set(style = "whitegrid")
 data = Path("./data").resolve()
@@ -19,7 +20,7 @@ N = india_pop[state_code_lookup[state].replace("&", "and")]
 
 models = {}
 
-max_t = 0
+max_t = 1
 
 for (district, N_district) in district_populations.items():
     # grab timeseries 
@@ -54,26 +55,30 @@ for (district, N_district) in district_populations.items():
         print("::::", district, t, np.mean(model.dT[-1]), np.std(model.dT[-1]))
         model.parallel_forward_epi_step()
         t += 1
-    max_t = max(max_t, t)
+    max_t = max(max_t, t+1)
 
     models[district] = model 
 
-dDx = fD * sum(np.pad([np.mean(_) for _ in model.dD[1:]], (0, max_t - len(model.Rt))) for model in models.values())
-Sx  = fS * sum(np.pad([np.mean(_) for _ in model.S [1:]], (0, max_t - len(model.Rt))) for model in models.values())
+dD = sum(np.pad([np.mean(_) for _ in model.dD[1:]], (0, max_t - len(model.Rt))) for model in models.values())
+S  = sum(np.pad([np.mean(_) for _ in model.S [1:]], (0, max_t - len(model.Rt))) for model in models.values())
+
+dDx = fD * dD
+Sx  = fS * S
 
 all_dT = sum(np.pad([np.mean(_) for _ in model.dT[1:]], (0, max_t - len(model.Rt))) for model in models.values())
 
-prob_death = dDx/Sx
+prob_deathx = dDx/Sx
+prob_death  = dD /S
 
 sns.set_palette(sns.color_palette("hls", 7))
 dt = [simulation_start + pd.Timedelta(n, "days") for n in range(max_t-1)]
-PrD = pd.DataFrame(prob_death).T\
+PrD = pd.DataFrame(prob_deathx).T\
     .rename(columns = dict(enumerate(IN_age_structure.keys())))\
     .assign(t = dt)\
     .set_index("t")
 PrD.plot()
 plt.legend(title = "Age category", title_fontsize = 18, fontsize = 16, framealpha = 1, handlelength = 1)
-plt.xlim(right = pd.Timestamp("Feb 01, 2021"))
+plt.xlim(right = pd.Timestamp("Jan 01, 2022"))
 plt.PlotDevice()\
     .xlabel("\nDate")\
     .ylabel("Probability\n")
@@ -84,6 +89,24 @@ plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
 plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
 plt.xticks(fontsize = "16")
 plt.yticks(fontsize = "16")
+plt.gca().xaxis.grid(True, which = "major")
+plt.semilogy()
+plt.ylim(bottom = 1e-7)
+plt.show()
+
+PrD = pd.DataFrame(prob_death).set_index(pd.date_range(start = simulation_start, freq = "D", periods = len(prob_death)))
+plt.plot(PrD, color = TN_color, linewidth = 2, label = "probability of death")
+plt.xlim(left = pd.Timestamp("Jan 01, 2021"), right = pd.Timestamp("Jan 01, 2022"))
+plt.PlotDevice()\
+    .xlabel("\ndate")\
+    .ylabel("probability\n")
+plt.subplots_adjust(left = 0.12, bottom = 0.12, right = 0.94, top = 0.96)
+plt.gca().xaxis.set_minor_locator(mpl.ticker.NullLocator())
+plt.gca().xaxis.set_minor_formatter(mpl.ticker.NullFormatter())
+plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
+plt.xticks(fontsize = "20", rotation = 45)
+plt.yticks(fontsize = "20")
 plt.gca().xaxis.grid(True, which = "major")
 plt.semilogy()
 plt.ylim(bottom = 1e-7)

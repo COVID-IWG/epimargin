@@ -10,6 +10,10 @@ from adaptive.smoothing import notched_smoothing
 
 data = Path("./data").resolve()
 
+USD = 1/72
+
+age_bin_labels = ["0-17", "18-29","30-39", "40-49", "50-59", "60-69","70+"]
+
 # Rt estimation parameters
 CI = 0.95
 window = 14
