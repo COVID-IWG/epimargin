@@ -26,12 +26,19 @@ S = T_sero - R - D
 (Rt_dates, Rt_est, CI_l, CI_u, *_) = analytical_MPVS(T_ratio * dT_conf_smooth["Feb 29, 2020":simulation_start], CI = CI, smoothing = lambda _:_, totals = False)
 Rt = dict(zip(Rt_dates, Rt_est))
 
-plt.Rt(Rt_dates, Rt_est, CI_l, CI_u, 0.95, ymin = 0.5, ymax = 3.5).show()
+plt.Rt(Rt_dates, Rt_est, CI_l, CI_u, 0.95, ymin = 0.5, ymax = 3.5)
+plt.xticks(fontsize = "20", rotation = 45)
+plt.yticks(fontsize = "20")
+plt.legend(fontsize = "20")
+plt.show()
+
 
 dT_slice = dT_conf_smooth["Feb 29, 2020":simulation_start]
 dT_idx = dT_slice.index
 fig = plt.figure()
 plt.scatter(dT_slice.index, dT_conf["Feb 29, 2020":simulation_start]        * T_ratio/N, color = TN_color, label = "seroprevelance-scaled infection rate",        figure = fig, alpha = 0.5, marker = "o", s = 10)
 plt.plot   (dT_slice.index, dT_conf_smooth["Feb 29, 2020":simulation_start] * T_ratio/N, color = TN_color, label = "smoothed, scaled infection rate time series", figure = fig)
-plt.legend()
+plt.xticks(fontsize = "20", rotation = 45)
+plt.yticks(fontsize = "20")
+plt.legend(fontsize = "20")
 plt.show()

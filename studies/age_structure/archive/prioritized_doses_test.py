@@ -1,9 +1,9 @@
 import numpy as np
 from adaptive.models import SIR
 from adaptive.policy import PrioritizedAssignment
-# from studies.age_structure.commons import *
+from studies.age_structure.commons import *
 
-vp = PrioritizedAssignment(
+mp = PrioritizedAssignment(
     daily_doses    = 100,
     effectiveness  = 1, 
     S_bins         = np.array([
@@ -19,7 +19,26 @@ vp = PrioritizedAssignment(
     age_ratios     = np.array([0.2, 0.2, 0.25, 0.1, 0.1, 0.1, 0.05]),
     IFRs           = np.array([0.01, 0.01, 0.01, 0.02, 0.02, 0.03, 0.04]), 
     prioritization = [6, 5, 4, 3, 2, 1, 0],
-    label          = "testpolicy"
+    label          = "test-mortality"
+)
+
+cr = PrioritizedAssignment(
+    daily_doses    = 100,
+    effectiveness  = 1, 
+    S_bins         = np.array([
+        [10, 20, 30, 40, 50, 50, 60],
+        [10, 20, 30, 40, 50, 50, 45],
+        [10, 20, 30, 40, 50, 50, 0]
+    ]),
+    I_bins         = np.array([
+        [0, 0, 0, 5, 6, 7, 10],
+        [0, 0, 0, 5, 6, 7, 45],
+        [0, 0, 0, 5, 6, 7, 70]
+    ]), 
+    age_ratios     = np.array([0.2, 0.2, 0.25, 0.1, 0.1, 0.1, 0.05]),
+    IFRs           = np.array([0.01, 0.01, 0.01, 0.02, 0.02, 0.03, 0.04]), 
+    prioritization = [1, 0, 5, 2, 4, 3, 6],
+    label          = "test-contact"
 )
 
 result = np.array([
@@ -30,8 +49,12 @@ result = np.array([
 ])
 
 model = SIR("testmodel", 100000, I0 = np.array([28, 63, 88]), D0 = np.array([0, 0, 0]), R0 = np.array([0, 0, 0]))
+mp.distribute_doses(model, num_sims = 3)
+print(mp.S_bins)
 
-vp.distribute_doses(model, num_sims = 3)
+model = SIR("testmodel", 100000, I0 = np.array([28, 63, 88]), D0 = np.array([0, 0, 0]), R0 = np.array([0, 0, 0]))
+cr.distribute_doses(model, num_sims = 3)
+print(cr.S_bins)
 
 # p = vp.S_bins.copy()
 

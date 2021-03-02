@@ -1,7 +1,7 @@
 import pandas as pd
 from studies.age_structure.commons import *
 from studies.age_structure.palette import *
-
+from collections import defaultdict
 import adaptive.plots as plt
 
 """ Calculate willingness to pay """ 
@@ -155,7 +155,7 @@ def daily_WTP_old(district, N_district, dI_pc, dD_pc, Dx_v, Dx_nv, ve = 0.7):
     WTP_nv = ((1 - P_death_nv) * consumption_nv).set_index(f_hat_nv.index)
 
     # vaccination 
-    f_hat_v = estimate_consumption_decline(district, pd.Series([0]), pd.Series([0]))
+    f_hat_v = estimate_consumption_decline(district, pd.Series([0]*len(dI_pc)), pd.Series([0]*len(dI_pc)))
     consumption_v = (1 + f_hat_v)[:, None] * consumption_2019.loc[district].values
 
     P_death_v = Dx_v.diff().shift(-1).fillna(0).cumsum()/split_by_age(N_district) 
@@ -203,44 +203,52 @@ def discounted_WTP(wtp, rate = (4.25/100), period = "daily"):
 def avg_monthly_WTP(wtp):
     return 30 * wtp.groupby(wtp.index.month.astype(str).str.zfill(2) + "_" + wtp.index.year.astype(str)).mean().mean()
 
-
 def latex_table_row(rowname, items):
     return " & ".join([rowname] + list(items.values.round(2).astype(str))) + " \\\\ "
 
 # run calculations and then print out each aggregation
 # daily_WTP_calcs = {district: daily_WTP(district) for district in district_codes.keys()}
-wtp_daily = {}
-wtp_total = {}
-wtp_range = {}
-wtp_percentiles = {}
-wtp_income = {}
-wtp_health = {}
-for district in district_codes.keys():
-    print(district)
-    N_district = district_populations[district]
-    dI_pc_range_nv = pd.read_csv(f"data/latest_sims/dT_TN_{district}_novaccination.csv")\
-        .rename(columns = {"Unnamed: 0": "t"})\
-        .set_index("t")/N_district
-    dD_pc_range_nv = pd.read_csv(f"data/latest_sims/dD_TN_{district}_novaccination.csv")\
-        .rename(columns = {"Unnamed: 0": "t"})\
-        .set_index("t")/N_district
-    Dx_nv = pd.read_csv(f"data/latest_sims/Dx_TN_{district}_novaccination.csv")\
-        .drop(columns = ["Unnamed: 0"])\
-        .reindex(range(1 + 5 * 365)).fillna(method = "ffill")
-    
-    dI_pc_range_v = pd.read_csv(f"data/latest_sims/dT_TN_{district}_randomassignment_ve70_annualgoal50_Rt_threshold0.2.csv")\
-        .rename(columns = {"Unnamed: 0": "t"})\
-        .set_index("t")/N_district
-    dD_pc_range_v = pd.read_csv(f"data/latest_sims/dD_TN_{district}_randomassignment_ve70_annualgoal50_Rt_threshold0.2.csv")\
-        .rename(columns = {"Unnamed: 0": "t"})\
-        .set_index("t")/N_district
+wtp_daily  = defaultdict(lambda: 0)
+wtp_total  = defaultdict(lambda: 0)
+wtp_range  = defaultdict(lambda: 0)
+wtp_percentiles  = defaultdict(lambda: 0)
+wtp_income  = defaultdict(lambda: 0)
+wtp_health  = defaultdict(lambda: 0)
 
-    Dx_v  = pd.read_csv(f"data/latest_sims/Dx_TN_{district}_randomassignment_ve70_annualgoal50_Rt_threshold0.2.csv")\
-        .drop(columns = ["Unnamed: 0"])\
-        .reindex(range(1 + 5 * 365)).fillna(method = "ffill")
+ve = 0.7
+for phi in (.25, .50):
+    for district in ["Chennai"]:
+        if district == "Perambalur":
+                continue
+        print(district)
+        N_district = district_populations[district]
+        dI_pc_range_nv = pd.read_csv(f"data/clean_sims/dT_TN_{district}_novaccination.csv")\
+            .rename(columns = {"Unnamed: 0": "t"})\
+            .set_index("t")/N_district
+        dD_pc_range_nv = pd.read_csv(f"data/clean_sims/dD_TN_{district}_novaccination.csv")\
+            .rename(columns = {"Unnamed: 0": "t"})\
+            .set_index("t")/N_district
+        Dx_nv = pd.read_csv(f"data/clean_sims/Dx_TN_{district}_novaccination.csv")\
+            .drop(columns = ["Unnamed: 0"])\
+            .reindex(range(1 + 5 * 365)).fillna(method = "ffill")            
+        for policy in ["randomassignment", "mortalityprioritized", "contactrateprioritized"]:
 
-    wtp_income[district] = discounted_WTP(daily_WTP_income(district, N_district, dI_pc_range_nv["0"], dD_pc_range_v["0"], dI_pc_range_v["0"], dD_pc_range_v["0"], Dx_nv))
-    wtp_health[district] = discounted_WTP(daily_WTP_health(district, N_district, dI_pc_range_v["0"], dD_pc_range_v["0"], Dx_v, Dx_nv))
+            Dx_v  = pd.read_csv(f"data/clean_sims/Dx_TN_{district}_{policy}_ve70_annualgoal{int(100*phi)}_Rt_threshold0.2.csv")\
+                .drop(columns = ["Unnamed: 0"])\
+                .reindex(range(1 + 5 * 365)).fillna(method = "ffill")
+ 
+            wtp_range[(phi, policy)] += np.array([
+                discounted_WTP(daily_WTP_old(district, N_district, dI_pc_range_nv.iloc[:, _], dD_pc_range_nv.iloc[:, _], Dx_v, Dx_nv)) 
+                for _ in range(100)
+            ])
+        # for district in ["Chennai"]:#, "Thiruvallur", "Vellore", "Viluppuram", "Tiruchirappalli", "Pudukkottai", "Thanjavur", "Dindigul", "Thiruvarur", "Theni"]:
+            
+            # dI_pc_range_v = pd.read_csv(f"data/clean_sims/dT_TN_{district}_{policy}_ve70_annualgoal{int(100*phi)}_Rt_threshold0.2.csv")\
+            #     .rename(columns = {"Unnamed: 0": "t"})\
+            #     .set_index("t")/N_district
+            # dD_pc_range_v = pd.read_csv(f"data/clean_sims/dD_TN_{district}_{policy}_ve70_annualgoal{int(100*phi)}_Rt_threshold0.2.csv")\
+            #     .rename(columns = {"Unnamed: 0": "t"})\
+            #     .set_index("t")/N_district
 
     # wtp_daily[district] = daily_WTP(district, N_district, dI_pc_range.mean(axis = 1), dD_pc_range.mean(axis = 1), Dx_v, Dx_nv)
     # wtp_total[district] = discounted_WTP(wtp_daily[district])
@@ -258,6 +266,27 @@ for district in district_codes.keys():
     #     .set_index("t")/N_district
     # wtp_health[district] = discounted_WTP(daily_wtp_health(district, N_district, dI_pc_range["0"], dD_pc_range["0"], dI_pc_range_v["0"], dD_pc_range_v["0"], Dx_v))
 
+wtp_percentiles = {k: np.percentile(np.sum(v, axis = 1), [5, 50, 95]) for (k, v) in wtp_range.items()}
+
+
+fig = plt.figure()
+for (i, phi) in ((0, 0.25), (1, 0.5)):
+    for (dx, policy) in enumerate(["randomassignment", "mortalityprioritized", "contactrateprioritized"]):
+        clr = [contactrate_vax_color,  mortality_vax_color, random_vax_color,][dx]
+        (lo, md, hi) = wtp_percentiles[(phi, policy)]
+        lo, md, hi = lo * USD, md * USD, hi * USD
+        *_, bars = plt.errorbar(
+            x = [i - 0.3* (1 - dx)], y = [md], yerr = [[md - lo], [hi - md]],
+            figure = fig, fmt = "o", color = clr, label = None if i > 0 else ["random assignment", "mortality prioritized", "contact rate prioritized"][dx],
+            ms = 12, elinewidth = 5
+        )
+        [_.set_alpha(0.5) for _ in bars]
+plt.legend(ncol = 3, fontsize = "20")
+plt.xticks([0, 1], ["$\phi = 25$%", "$\phi = 50$%"], fontsize = "20")
+plt.yticks(fontsize = "20")
+plt.PlotDevice().ylabel("WTP (USD)\n")
+# plt.ylim(top = 900)
+plt.show()
 
 # statewide aggregation
 summed_WTP = [v.sum(axis = 0) for v in wtp_range.values()] 

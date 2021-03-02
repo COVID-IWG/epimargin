@@ -12,18 +12,18 @@ from studies.age_structure.palette import *
 
 sns.set(style = "whitegrid")
 
-num_sims = 10_000
+num_sims = 100
 
 def save_results(model, data, dVx_adm, dVx_eff, dVx_imm, tag):
     print(":::: serializing results")
 
-    pd.DataFrame(model.dT).to_csv(data/f"latest_sims/dT_{tag}.csv")
-    pd.DataFrame(model.dD).to_csv(data/f"latest_sims/dD_{tag}.csv")
+    pd.DataFrame(model.dT).to_csv(data/f"100_sims/dT_{tag}.csv")
+    pd.DataFrame(model.dD).to_csv(data/f"100_sims/dD_{tag}.csv")
 
     # Dead 
     pd.DataFrame((fD * [_.mean() for _ in model.D]).astype(int)).T\
         .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-        .to_csv(data/f"latest_sims/Dx_{tag}.csv")
+        .to_csv(data/f"100_sims/Dx_{tag}.csv")
 
 # scaling
 dT_conf = df[state].loc[:, "delta", "confirmed"] 
@@ -41,8 +41,9 @@ evaluated_YLLs   = {}
 ran_models = {}
 novax_districts = set()
 
-for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filter(items = district_codes.keys(), axis = 0).itertuples():
+for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filter(items = sorted(set(district_codes.keys()) - set(["Perambalur"])), axis = 0).itertuples():
 # for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filter(items = ["Chennai"], axis = 0).itertuples():
+# for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.iloc[:10].itertuples():
     # grab timeseries 
     D, R = ts.loc[district][["dD", "dR"]].sum()
 
@@ -67,8 +68,9 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filte
     I0 = max(0, (T_scaled - R - D))
 
     for (vax_pct_annual_goal, vax_effectiveness) in product(
-        (0, 0.5),
+        (0, 0.25, 0.5),
         # (0, 0.25, 0.5, 0.75, 1.0, 2.0, 3.0, 4.0),
+        # (1.0,)
         (0.7,)# (0.5, 0.7, 1.0)
     ):
         daily_rate = vax_pct_annual_goal/365
@@ -76,35 +78,41 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filte
         daily_net_doses = int(vax_effectiveness * daily_rate * N_district)
 
         policies = [
-            RandomVaccineAssignment(
-                daily_vax_doses, 
-                vax_effectiveness, 
-                np.tile(split_by_age(S), (num_sims, 1)), 
-                np.tile(np.squeeze(fI * I0), (num_sims, 1)),
-                IN_age_ratios,
-                np.array(list(TN_IFRs.values()))),
-            # PrioritizedAssignment(
-            #     daily_vax_doses, 
-            #     vax_effectiveness, 
-            #     np.tile(split_by_age(S), (num_sims, 1)), 
-            #     np.tile(np.squeeze(fI * I0), (num_sims, 1)),
-            #     IN_age_ratios,
-            #     np.array(list(TN_IFRs.values())),
-            #     [6, 5, 4, 3, 2, 1, 0], 
-            #     "mortality"),
-            # PrioritizedAssignment( 
-            #     daily_vax_doses, 
-            #     vax_effectiveness, 
-            #     np.tile(split_by_age(S), (num_sims, 1)), 
-            #     np.tile(np.squeeze(fI * I0), (num_sims, 1)),
-            #     IN_age_ratios,
-            #     np.array(list(TN_IFRs.values())),
-            #     [1, 2, 3, 4, 0, 5, 6], 
-            #     "contactrate")
+            RandomVaccineAssignment(daily_vax_doses, vax_effectiveness, split_by_age(S), IN_age_ratios), 
+            PrioritizedAssignment(  daily_vax_doses, vax_effectiveness, split_by_age(S), [6, 5, 4, 3, 2, 1, 0], "mortality"), 
+            PrioritizedAssignment(  daily_vax_doses, vax_effectiveness, split_by_age(S), [1, 2, 3, 4, 0, 5, 6], "contactrate")
         ]
+        # policies = [
+        #     RandomVaccineAssignment(
+        #         daily_vax_doses, 
+        #         vax_effectiveness, 
+        #         np.tile(split_by_age(S), (num_sims, 1)), 
+        #         np.tile(np.squeeze(fI * I0), (num_sims, 1)),
+        #         IN_age_ratios,
+        #         np.array(list(TN_IFRs.values()))),
+        #     PrioritizedAssignment(
+        #         daily_vax_doses, 
+        #         vax_effectiveness, 
+        #         np.tile(split_by_age(S), (num_sims, 1)), 
+        #         np.tile(np.squeeze(fI * I0), (num_sims, 1)),
+        #         IN_age_ratios,
+        #         np.array(list(TN_IFRs.values())),
+        #         [6, 5, 4, 3, 2, 1, 0], 
+        #         "mortality"),
+        #     PrioritizedAssignment( 
+        #         daily_vax_doses, 
+        #         vax_effectiveness, 
+        #         np.tile(split_by_age(S), (num_sims, 1)), 
+        #         np.tile(np.squeeze(fI * I0), (num_sims, 1)),
+        #         IN_age_ratios,
+        #         np.array(list(TN_IFRs.values())),
+        #         [1, 2, 3, 4, 0, 5, 6], 
+        #         "contactrate")
+        # ]
 
         vaccination_policy: VaccinationPolicy
         for vaccination_policy in policies:
+            print(district, vax_pct_annual_goal, vax_effectiveness, vaccination_policy.name())
             if vax_pct_annual_goal == 0:
                 param_tag = "novaccination"
                 if district in novax_districts:
@@ -119,6 +127,7 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filte
                     f"Rt_threshold{Rt_threshold}"
                 ])
             tag = geo_tag + param_tag
+            print(tag)
             model = SIR(
                 name        = district, 
                 population  = N_district, 
@@ -138,18 +147,26 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filte
             dVx_imm = [np.zeros(len(IN_age_structure))] # immunizing doses
 
             for t in range(5 * 365):
-                vaccination_policy.distribute_doses(model, num_sims = num_sims)
-                model.m = vaccination_policy.update_mortality()
-                print("::::", district, vax_pct_annual_goal, vax_effectiveness, vaccination_policy.name(), t, np.mean(model.dT[-1]), np.std(model.dT[-1]), model.Rt[-1].mean(), model.S[-1].mean())
+                # vaccination_policy.distribute_doses(model, num_sims = num_sims)
+                # model.m = vaccination_policy.update_mortality()
+                # # print("::::", district, vax_pct_annual_goal, vax_effectiveness, vaccination_policy.name(), t, np.mean(model.dT[-1]), np.std(model.dT[-1]), model.Rt[-1].mean(), model.S[-1].mean())
+                adm, eff, imm = vaccination_policy.distribute_doses(model, num_sims = num_sims)
+                model.m       = vaccination_policy.get_mortality(list(TN_IFRs.values()))
+                dVx_adm.append(adm)
+                dVx_eff.append(eff)
+                dVx_imm.append(imm)
+                # print("::::", district, vax_pct_annual_goal, vax_effectiveness, vaccination_policy.name(), t, np.mean(model.dT[-1]), np.std(model.dT[-1]), model.Rt[-1].mean(), model.S[-1].mean())
+                # t += 1
 
             save_results(model, data, dVx_adm, dVx_eff, dVx_imm, tag)
             
-            policy_deaths = np.sum(model.dD, axis = 0)
+            policy_deaths = np.sum(model.dD, axis = 0)  # np.sum(vaccination_policy.dD_bins, axis = 0)
             if param_tag in evaluated_deaths:
                 evaluated_deaths[param_tag] += policy_deaths
             else:
                 evaluated_deaths[param_tag]  = policy_deaths
 
+            # policy_YLL = np.sum(vaccination_policy.dD_bins, axis = 0) @ YLLs
             policy_YLL = (fD * np.sum(model.dD, axis = 0)).T @ YLLs[:, None]
             if param_tag in evaluated_YLLs:
                 evaluated_YLLs[param_tag] += policy_YLL
@@ -163,29 +180,35 @@ mortality_percentiles = {k: v for (k, v) in evaluated_death_percentiles.items() 
 novax_percentiles     = {k: v for (k, v) in evaluated_death_percentiles.items() if "novacc"    in k}
 
 fig = plt.figure()
-plt.errorbar(
+*_, bars = plt.errorbar(
     x = [-1],
     y = novax_percentiles["novaccination"][1],
     yerr = [novax_percentiles["novaccination"][1] - [novax_percentiles["novaccination"][0]],[novax_percentiles["novaccination"][2] - novax_percentiles["novaccination"][1]]],
     fmt = "o",
     color = no_vax_color,
     label = "no vaccination",
-    figure = fig
+    figure = fig,
+    ms = 12, elinewidth = 5
 )
+[_.set_alpha(0.5) for _ in bars]
+
 
 for (dx, (metrics, clr)) in enumerate(zip(
         [contact_percentiles, random_percentiles, mortality_percentiles],
         [contactrate_vax_color, random_vax_color, mortality_vax_color]
     )):
     for (i, (key, (lo, md, hi))) in enumerate(metrics.items()):
-        plt.errorbar(
+        *_, bars = plt.errorbar(
             x = [i + 0.2*(dx - 1)], y = [md], yerr = [[md - lo], [hi - md]],
-            figure = fig, fmt = "o", color = clr, label = None if i > 0 else ["contact rate prioritized", "random assignment", "mortality prioritized"][dx]
+            figure = fig, fmt = "o", color = clr, label = None if i > 0 else ["contact rate prioritized", "random assignment", "mortality prioritized"][dx],
+            ms = 12, elinewidth = 5
         )
-plt.xticks(list(range(-1, len(metrics))), [f"$\phi = {phi}$%" for phi in [0, 25, 50, 75, 100, 200, 400]])
-plt.PlotDevice().ylabel("deaths")
-plt.ylim(200, 450)
-plt.legend()
+        [_.set_alpha(0.5) for _ in bars]
+    
+plt.xticks(list(range(-1, len(metrics))), [f"$\phi = {phi}$%" for phi in [0, 25, 50, 75, 100, 200, 400]], fontsize = "20")
+plt.yticks(fontsize = "20")
+plt.PlotDevice().ylabel("\ndeaths")
+plt.legend(fontsize = "20", ncol = 4, loc = "lower center", bbox_to_anchor = (0.5, 1))
 plt.show()
 
 
@@ -196,14 +219,15 @@ mortality_percentiles = {k: v for (k, v) in evaluated_YLL_percentiles.items() if
 novax_percentiles     = {k: v for (k, v) in evaluated_YLL_percentiles.items() if "novacc"    in k}
 
 fig = plt.figure()
-plt.errorbar(
+*_, bars = plt.errorbar(
     x = [-1],
     y = novax_percentiles["novaccination"][1],
     yerr = [novax_percentiles["novaccination"][1] - [novax_percentiles["novaccination"][0]],[novax_percentiles["novaccination"][2] - novax_percentiles["novaccination"][1]]],
     fmt = "o",
     color = no_vax_color,
     label = "no vaccination",
-    figure = fig
+    figure = fig,
+    ms = 12, elinewidth = 5
 )
 
 for (dx, (metrics, clr)) in enumerate(zip(
@@ -211,12 +235,15 @@ for (dx, (metrics, clr)) in enumerate(zip(
         [contactrate_vax_color, random_vax_color, mortality_vax_color]
     )):
     for (i, (key, (lo, md, hi))) in enumerate(metrics.items()):
-        plt.errorbar(
+        *_, bars = plt.errorbar(
             x = [i + 0.2*(dx - 1)], y = [md], yerr = [[md - lo], [hi - md]],
-            figure = fig, fmt = "o", color = clr, label = None if i > 0 else ["contact rate prioritized", "random assignment", "mortality prioritized"][dx]
+            figure = fig, fmt = "o", color = clr, label = None if i > 0 else ["contact rate prioritized", "random assignment", "mortality prioritized"][dx],
+            ms = 12, elinewidth = 5
         )
-plt.xticks(list(range(-1, len(metrics))), [f"$\phi = {phi}$%" for phi in [0, 25, 50, 75, 100, 200, 400]])
-plt.PlotDevice().ylabel("YLLs")
+        [_.set_alpha(0.5) for _ in bars]
+plt.xticks(list(range(-1, len(metrics))), [f"$\phi = {phi}$%" for phi in [0, 25, 50, 75, 100, 200, 400]], fontsize = "20")
+plt.yticks(fontsize = "20")
+plt.PlotDevice().ylabel("YLLs\n")
 # plt.ylim(200, 450)
-plt.legend()
+plt.legend(fontsize = "20", ncol = 4, loc = "lower center", bbox_to_anchor = (0.5, 1))
 plt.show()
