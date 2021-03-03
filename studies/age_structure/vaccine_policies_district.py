@@ -14,16 +14,33 @@ sns.set(style = "whitegrid")
 
 num_sims = 100
 
-def save_results(model, data, dVx_adm, dVx_eff, dVx_imm, tag):
+def save_results(data: Path, policy: VaccinationPolicy, tag: str):
     print(":::: serializing results")
 
-    pd.DataFrame(model.dT).to_csv(data/f"100_sims/dT_{tag}.csv")
-    pd.DataFrame(model.dD).to_csv(data/f"100_sims/dD_{tag}.csv")
+    folder = data/"100_sims_all/"
 
-    # Dead 
-    pd.DataFrame((fD * [_.mean() for _ in model.D]).astype(int)).T\
-        .rename(columns = dict(enumerate(IN_age_structure.keys())))\
-        .to_csv(data/f"100_sims/Dx_{tag}.csv")
+    folder.mkdir(exist_ok = True)
+
+    outputs = {
+        "S_vm": policy.S_vm,
+        "S_vn": policy.S_vn,
+        "I_vn": policy.I_vn,
+        "D_vn": policy.D_vn,
+        "R_vn": policy.R_vn,
+        "R_vm": policy.R_vm,
+        "S"   : policy.S,
+        "I"   : policy.I,
+        "R"   : policy.R,
+        "D"   : policy.D,
+        "N_v" : policy.N_v,
+        "N_nv": policy.N_nv,
+        "pi"  : policy.pi,
+        "q_1" : policy.q_1,
+        "q_0" : policy.q_0,
+    }
+
+    for (label, timeseries) in outputs.items():
+        np.savetxt(folder/f"{label}_{tag}.csv", timeseries, delimiter = ",")
 
 # scaling
 dT_conf = df[state].loc[:, "delta", "confirmed"] 
@@ -43,7 +60,6 @@ novax_districts = set()
 
 for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filter(items = sorted(set(district_codes.keys()) - set(["Perambalur"])), axis = 0).itertuples():
 # for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filter(items = ["Chennai"], axis = 0).itertuples():
-# for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.iloc[:10].itertuples():
     # grab timeseries 
     D, R = ts.loc[district][["dD", "dR"]].sum()
 
@@ -69,46 +85,42 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filte
 
     for (vax_pct_annual_goal, vax_effectiveness) in product(
         (0, 0.25, 0.5),
-        # (0, 0.25, 0.5, 0.75, 1.0, 2.0, 3.0, 4.0),
-        # (1.0,)
-        (0.7,)# (0.5, 0.7, 1.0)
+        # (0.5,),
+        (0.7,)
     ):
         daily_rate = vax_pct_annual_goal/365
         daily_vax_doses = int(daily_rate * N_district)
         daily_net_doses = int(vax_effectiveness * daily_rate * N_district)
 
         policies = [
-            RandomVaccineAssignment(daily_vax_doses, vax_effectiveness, split_by_age(S), IN_age_ratios), 
-            PrioritizedAssignment(  daily_vax_doses, vax_effectiveness, split_by_age(S), [6, 5, 4, 3, 2, 1, 0], "mortality"), 
-            PrioritizedAssignment(  daily_vax_doses, vax_effectiveness, split_by_age(S), [1, 2, 3, 4, 0, 5, 6], "contactrate")
+            # RandomVaccineAssignment(
+            #     daily_vax_doses, 
+            #     vax_effectiveness, 
+            #     split_by_age(S), 
+            #     fI[:, 0] * I0, 
+            #     fR[:, 0] * R, 
+            #     fD[:, 0] * D,
+            #     split_by_age(N_district),
+            #     IN_age_ratios), 
+            PrioritizedAssignment(
+                daily_vax_doses, 
+                vax_effectiveness, 
+                split_by_age(S), 
+                fI[:, 0] * I0, 
+                fR[:, 0] * R, 
+                fD[:, 0] * D,
+                split_by_age(N_district),
+                IN_age_ratios, [6, 5, 4, 3, 2, 1, 0], "mortality"), 
+            # PrioritizedAssignment(
+            #     daily_vax_doses, 
+            #     vax_effectiveness, 
+            #     split_by_age(S), 
+            #     fI[:, 0] * I0, 
+            #     fR[:, 0] * R, 
+            #     fD[:, 0] * D,
+            #     split_by_age(N_district),
+            #     IN_age_ratios, [1, 2, 3, 4, 0, 5, 6], "contactrate")
         ]
-        # policies = [
-        #     RandomVaccineAssignment(
-        #         daily_vax_doses, 
-        #         vax_effectiveness, 
-        #         np.tile(split_by_age(S), (num_sims, 1)), 
-        #         np.tile(np.squeeze(fI * I0), (num_sims, 1)),
-        #         IN_age_ratios,
-        #         np.array(list(TN_IFRs.values()))),
-        #     PrioritizedAssignment(
-        #         daily_vax_doses, 
-        #         vax_effectiveness, 
-        #         np.tile(split_by_age(S), (num_sims, 1)), 
-        #         np.tile(np.squeeze(fI * I0), (num_sims, 1)),
-        #         IN_age_ratios,
-        #         np.array(list(TN_IFRs.values())),
-        #         [6, 5, 4, 3, 2, 1, 0], 
-        #         "mortality"),
-        #     PrioritizedAssignment( 
-        #         daily_vax_doses, 
-        #         vax_effectiveness, 
-        #         np.tile(split_by_age(S), (num_sims, 1)), 
-        #         np.tile(np.squeeze(fI * I0), (num_sims, 1)),
-        #         IN_age_ratios,
-        #         np.array(list(TN_IFRs.values())),
-        #         [1, 2, 3, 4, 0, 5, 6], 
-        #         "contactrate")
-        # ]
 
         vaccination_policy: VaccinationPolicy
         for vaccination_policy in policies:
@@ -127,7 +139,6 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filte
                     f"Rt_threshold{Rt_threshold}"
                 ])
             tag = geo_tag + param_tag
-            print(tag)
             model = SIR(
                 name        = district, 
                 population  = N_district, 
@@ -142,23 +153,12 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filte
             model.dD[0] = np.ones(num_sims) * dD0
 
             t = 0
-            dVx_adm = [np.zeros(len(IN_age_structure))] # administered doses
-            dVx_eff = [np.zeros(len(IN_age_structure))] # effective doses
-            dVx_imm = [np.zeros(len(IN_age_structure))] # immunizing doses
 
             for t in range(5 * 365):
-                # vaccination_policy.distribute_doses(model, num_sims = num_sims)
-                # model.m = vaccination_policy.update_mortality()
-                # # print("::::", district, vax_pct_annual_goal, vax_effectiveness, vaccination_policy.name(), t, np.mean(model.dT[-1]), np.std(model.dT[-1]), model.Rt[-1].mean(), model.S[-1].mean())
-                adm, eff, imm = vaccination_policy.distribute_doses(model, num_sims = num_sims)
-                model.m       = vaccination_policy.get_mortality(list(TN_IFRs.values()))
-                dVx_adm.append(adm)
-                dVx_eff.append(eff)
-                dVx_imm.append(imm)
-                # print("::::", district, vax_pct_annual_goal, vax_effectiveness, vaccination_policy.name(), t, np.mean(model.dT[-1]), np.std(model.dT[-1]), model.Rt[-1].mean(), model.S[-1].mean())
-                # t += 1
+                vaccination_policy.distribute_doses(model, fS, fI, fR, fD, num_sims = num_sims)
+                model.m = vaccination_policy.get_mortality(list(TN_IFRs.values()))
 
-            save_results(model, data, dVx_adm, dVx_eff, dVx_imm, tag)
+            save_results(data, vaccination_policy, tag)
             
             policy_deaths = np.sum(model.dD, axis = 0)  # np.sum(vaccination_policy.dD_bins, axis = 0)
             if param_tag in evaluated_deaths:
@@ -229,6 +229,7 @@ fig = plt.figure()
     figure = fig,
     ms = 12, elinewidth = 5
 )
+[_.set_alpha(0.5) for _ in bars]
 
 for (dx, (metrics, clr)) in enumerate(zip(
         [contact_percentiles, random_percentiles, mortality_percentiles],
