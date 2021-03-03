@@ -12,35 +12,46 @@ from studies.age_structure.palette import *
 
 sns.set(style = "whitegrid")
 
-num_sims = 100
+num_sims = 10
 
-def save_results(data: Path, policy: VaccinationPolicy, tag: str):
+def save_results(model, data, dVx_adm, dVx_eff, dVx_imm, tag):
     print(":::: serializing results")
 
-    folder = data/"100_sims_all/"
+    np.savetxt(data/f"hack/dT_{tag}.csv", model.dT, delimiter = ",")
+    np.savetxt(data/f"hack/dD_{tag}.csv", model.dD, delimiter = ",")
 
-    folder.mkdir(exist_ok = True)
+    # Dead 
+    np.savetxt(data/f"hack/Dx_{tag}.csv", (fD * [_.mean() for _ in model.D]), delimiter = ",")
+    np.savetxt(data/f"hack/YLLt_{tag}.csv", np.array([(fD * _) * YLLs[:, None] for _ in model.dD]).reshape(-1, 70), delimiter = ",")
 
-    outputs = {
-        "S_vm": policy.S_vm,
-        "S_vn": policy.S_vn,
-        "I_vn": policy.I_vn,
-        "D_vn": policy.D_vn,
-        "R_vn": policy.R_vn,
-        "R_vm": policy.R_vm,
-        "S"   : policy.S,
-        "I"   : policy.I,
-        "R"   : policy.R,
-        "D"   : policy.D,
-        "N_v" : policy.N_v,
-        "N_nv": policy.N_nv,
-        "pi"  : policy.pi,
-        "q_1" : policy.q_1,
-        "q_0" : policy.q_0,
-    }
 
-    for (label, timeseries) in outputs.items():
-        np.savetxt(folder/f"{label}_{tag}.csv", timeseries, delimiter = ",")
+# def save_results(data: Path, policy: VaccinationPolicy, tag: str):
+#     print(":::: serializing results")
+
+#     folder = data/"100_sims_all/"
+
+#     folder.mkdir(exist_ok = True)
+
+#     outputs = {
+#         "S_vm": policy.S_vm,
+#         "S_vn": policy.S_vn,
+#         "I_vn": policy.I_vn,
+#         "D_vn": policy.D_vn,
+#         "R_vn": policy.R_vn,
+#         "R_vm": policy.R_vm,
+#         "S"   : policy.S,
+#         "I"   : policy.I,
+#         "R"   : policy.R,
+#         "D"   : policy.D,
+#         "N_v" : policy.N_v,
+#         "N_nv": policy.N_nv,
+#         "pi"  : policy.pi,
+#         "q_1" : policy.q_1,
+#         "q_0" : policy.q_0,
+#     }
+
+#     for (label, timeseries) in outputs.items():
+#         np.savetxt(folder/f"{label}_{tag}.csv", timeseries, delimiter = ",")
 
 # scaling
 dT_conf = df[state].loc[:, "delta", "confirmed"] 
@@ -55,6 +66,7 @@ print(":: running simulations")
 # coefplot metrics
 evaluated_deaths = {}
 evaluated_YLLs   = {}
+evaluated_YLLs_t = {}
 ran_models = {}
 novax_districts = set()
 
@@ -93,6 +105,9 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filte
         daily_net_doses = int(vax_effectiveness * daily_rate * N_district)
 
         policies = [
+            RandomVaccineAssignment(daily_vax_doses, vax_effectiveness, split_by_age(S), IN_age_ratios), 
+            PrioritizedAssignment(  daily_vax_doses, vax_effectiveness, split_by_age(S), [6, 5, 4, 3, 2, 1, 0], "mortality"), 
+            PrioritizedAssignment(  daily_vax_doses, vax_effectiveness, split_by_age(S), [1, 2, 3, 4, 0, 5, 6], "contactrate")
             # RandomVaccineAssignment(
             #     daily_vax_doses, 
             #     vax_effectiveness, 
@@ -102,15 +117,15 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filte
             #     fD[:, 0] * D,
             #     split_by_age(N_district),
             #     IN_age_ratios), 
-            PrioritizedAssignment(
-                daily_vax_doses, 
-                vax_effectiveness, 
-                split_by_age(S), 
-                fI[:, 0] * I0, 
-                fR[:, 0] * R, 
-                fD[:, 0] * D,
-                split_by_age(N_district),
-                IN_age_ratios, [6, 5, 4, 3, 2, 1, 0], "mortality"), 
+            # PrioritizedAssignment(
+            #     daily_vax_doses, 
+            #     vax_effectiveness, 
+            #     split_by_age(S), 
+            #     fI[:, 0] * I0, 
+            #     fR[:, 0] * R, 
+            #     fD[:, 0] * D,
+            #     split_by_age(N_district),
+            #     IN_age_ratios, [6, 5, 4, 3, 2, 1, 0], "mortality"), 
             # PrioritizedAssignment(
             #     daily_vax_doses, 
             #     vax_effectiveness, 
@@ -155,12 +170,15 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filte
             t = 0
 
             for t in range(5 * 365):
-                vaccination_policy.distribute_doses(model, fS, fI, fR, fD, num_sims = num_sims)
-                model.m = vaccination_policy.get_mortality(list(TN_IFRs.values()))
+                # vaccination_policy.distribute_doses(model, fS, fI, fR, fD, num_sims = num_sims)
+                # model.m = vaccination_policy.get_mortality(list(TN_IFRs.values()))
+                adm, eff, imm = vaccination_policy.distribute_doses(model, num_sims = num_sims)
+                model.m       = vaccination_policy.get_mortality(list(TN_IFRs.values()))
 
-            save_results(data, vaccination_policy, tag)
+            # save_results(data, vaccination_policy, tag)
+            save_results(model, data, [], [], [], tag)
             
-            policy_deaths = np.sum(model.dD, axis = 0)  # np.sum(vaccination_policy.dD_bins, axis = 0)
+            policy_deaths = model.D[-1]  # np.sum(vaccination_policy.dD_bins, axis = 0)
             if param_tag in evaluated_deaths:
                 evaluated_deaths[param_tag] += policy_deaths
             else:

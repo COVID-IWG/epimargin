@@ -283,8 +283,8 @@ class RandomVaccineAssignment(VaccinationPolicy):
     def __init__(self, daily_doses: int, effectiveness: float, 
         S_bins: np.array, 
         I_bins: np.array, 
-        D_bins: np.array, 
         R_bins: np.array, 
+        D_bins: np.array, 
         N_bins: np.array,
         age_ratios: np.array):
         self.daily_doses = daily_doses 
@@ -331,22 +331,23 @@ class RandomVaccineAssignment(VaccinationPolicy):
 
         model.S[-1] -= dS_vm.sum()
 
-        self.S.append(self.S[-1] * fS[:, 0] - dS_vm - dS_vn)
-        self.S_vm.append(self.S_vm[-1] + dS_vm)
-        self.S_vn.append(self.S_vn[-1] + dS_vn)
+        self.R.append(model.R[-1].mean() * normalize(self.I[-1] + self.I_vn[-1]) - dR_vm - dR_vn)
+        self.R_vm.append(self.R_vm[-1] + dR_vm)
+        self.R_vn.append(self.R_vn[-1] + dR_vn)
+
+        self.D.append(model.D[-1].mean() * normalize(self.I[-1] + self.I_vn[-1]) - dD_vn)
+        self.D_vn.append(self.D_vn[-1] + dD_vn)
 
         self.I.append(model.I[-1].mean() * normalize(self.S[-1] + dS_vm + dS_vn) - dI_vn)
         self.I_vn.append(self.I_vn[-1] + dI_vn)
 
-        self.R.append(model.R[-1].mean() * fR[:, 0] - dR_vm - dR_vn)
-        self.R_vm.append(self.R_vm[-1] + dR_vm)
-        self.R_vn.append(self.R_vn[-1] + dR_vn)
-
-        self.D.append(model.D[-1].mean() * fD[:, 0] - dD_vn)
-        self.D_vn.append(self.D_vn[-1] + dD_vn)
+        self.S.append(self.S[-1] * fS[:, 0] - dS_vm - dS_vn)
+        self.S_vm.append(self.S_vm[-1] + dS_vm)
+        self.S_vn.append(self.S_vn[-1] + dS_vn)
 
         self.N_v.append(sum(_[-1] for _ in [self.S_vm, self.S_vn, self.I_vn, self.D_vn, self.R_vn, self.R_vm]))
         self.N_nv.append(self.N[0] - self.N_v[-1])
+        self.N.append(self.N_v[-1] + self.N_nv[-1])
 
         self.pi.append(self.N_v[-1]/self.N[0])
         self.q_1.append((self.N_v[-1]  - self.D_vn[-1])/self.N_v[-1])
@@ -359,8 +360,8 @@ class PrioritizedAssignment(VaccinationPolicy):
     def __init__(self, daily_doses: int, effectiveness: float, 
         S_bins: np.array, 
         I_bins: np.array, 
-        D_bins: np.array, 
         R_bins: np.array, 
+        D_bins: np.array, 
         N_bins: np.array,
         age_ratios: np.array,
         prioritization: List[int], label: str):
@@ -443,11 +444,11 @@ class PrioritizedAssignment(VaccinationPolicy):
         self.I.append(model.I[-1].mean() * normalize(self.S[-1] + self.S_vn[-1] + self.S_vm[-1]) - dI_vn)
         self.I_vn.append(self.I_vn[-1] + dI_vn)
 
-        self.R.append(model.R[-1].mean() * fR[:, 0] - dR_vm - dR_vn)
+        self.R.append(model.R[-1].mean() * normalize(self.I[-1] + self.I_vn[-1]) - dR_vm - dR_vn)
         self.R_vm.append(self.R_vm[-1] + dR_vm)
         self.R_vn.append(self.R_vn[-1] + dR_vn)
 
-        self.D.append(model.D[-1].mean() * fD[:, 0] - dD_vn)
+        self.D.append(model.D[-1].mean() * normalize(self.I[-1] + self.I_vn[-1]) - dD_vn)
         self.D_vn.append(self.D_vn[-1] + dD_vn)
 
         self.N_v.append(sum(_[-1] for _ in [self.S_vm, self.S_vn, self.I_vn, self.D_vn, self.R_vn, self.R_vm]))
