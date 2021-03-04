@@ -289,15 +289,13 @@ class Age_SIRVD(SIR):
         S -= S_ratios * num_cases
         I += S_ratios * num_cases
 
-        rate_D    = self.m * self.gamma * fillna((I + I_vn).sum(axis = 1))
-        num_dead  = poisson.rvs(rate_D, size = num_sims)
-        D        += I_ratios * num_dead
+        num_dead  = poisson.rvs(    self.m  * self.gamma * (I + I_vn), size = (num_sims, self.num_age_bins))
+        D        += num_dead
 
-        rate_R    = (1 - self.m) * self.gamma * fillna((I + I_vn).sum(axis = 1))
-        num_recov = poisson.rvs(rate_R, size = num_sims)
-        R        += I_ratios * num_recov
+        num_recov = poisson.rvs((1- self.m) * self.gamma * (I + I_vn), size = (num_sims, self.num_age_bins))
+        R        += num_recov
 
-        I = (I - I_ratios * (num_dead + num_recov)).clip(0)
+        I = (I - (num_dead + num_recov)).clip(0)
 
         N = S + I + R
 
@@ -305,9 +303,9 @@ class Age_SIRVD(SIR):
 
         # vaccination updates 
         dS_vm = S/N * (    self.ve) * dV[:, 0]
-        dS_vn = S/N * (1 - self.ve) * dV[:, 0]
+        dS_vn = S/N * (1 - self.ve) * dV[:, 0] - S_vn/(S + S_vn) * (S_ratios * num_cases)
 
-        dI_vn = I/N * dV[:, 0]
+        dI_vn = I/N * dV[:, 0] + S_vn/(S + S_vn) * (S_ratios * num_cases)
         dR_vm = R/N * dV[:, 0]
 
         dR_vn = fillna(I_vn/(I + I_vn) * num_recov)
@@ -315,6 +313,9 @@ class Age_SIRVD(SIR):
 
         S_vm += dS_vm
         R_vm += dR_vm
+
+        R_vn += dR_vn
+        D_vn += dD_vn
         
         S_vn += dS_vn
         I_vn = (I_vn + (dI_vn - dR_vn - dD_vn)).clip(0)
