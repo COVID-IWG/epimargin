@@ -1,9 +1,10 @@
 import argparse
+import logging
 import sys
 from pathlib import Path
 from typing import Optional, Tuple
-import logging
 
+import numpy as np
 import pandas as pd
 
 days    = 1
@@ -36,3 +37,9 @@ def setup(**kwargs) -> Tuple[Path]:
     logging.basicConfig(**kwargs)
     logging.getLogger('flat_table').addFilter(lambda _: 0)
     return (mkdir(root/"data"), mkdir(root/"figs"))
+
+def fillna(array):
+    return np.nan_to_num(array, nan = 0, posinf = 0, neginf = 0)
+
+def normalize(array, axis = 0):
+    return fillna(array/array.sum(axis = axis))

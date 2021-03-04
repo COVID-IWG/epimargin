@@ -54,12 +54,12 @@ def save_results(model, data, dVx_adm, dVx_eff, dVx_imm, tag):
 #         np.savetxt(folder/f"{label}_{tag}.csv", timeseries, delimiter = ",")
 
 # scaling
-dT_conf = df[state].loc[:, "delta", "confirmed"] 
-dT_conf_smooth = pd.Series(smooth(dT_conf), index = dT_conf.index)
-T_conf_smooth = dT_conf_smooth.cumsum().astype(int)
-T = T_conf_smooth[date]
-T_sero = (N * seropos)
-T_ratio = T_sero/T
+# dT_conf = df[state].loc[:, "delta", "confirmed"] 
+# dT_conf_smooth = pd.Series(smooth(dT_conf), index = dT_conf.index)
+# T_conf_smooth = dT_conf_smooth.cumsum().astype(int)
+# T = T_conf_smooth[date]
+# T_sero = (N * seropos)
+# T_ratio = T_sero/T
 
 print(":: running simulations")
 
