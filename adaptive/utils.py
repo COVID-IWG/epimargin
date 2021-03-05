@@ -42,4 +42,4 @@ def fillna(array):
     return np.nan_to_num(array, nan = 0, posinf = 0, neginf = 0)
 
 def normalize(array, axis = 0):
-    return fillna(array/array.sum(axis = axis))
+    return fillna(array/array.sum(axis = axis)[:, None])

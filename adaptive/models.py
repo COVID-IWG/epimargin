@@ -275,49 +275,47 @@ class Age_SIRVD(SIR):
             (self.S, self.S_vm, self.S_vn, self.I, self.I_vn, self.R, self.R_vm, self.R_vn, self.D, self.D_vn, self.N))
 
         S_ratios = normalize(S + S_vn, axis = 1)
-        I_ratios = normalize(I + I_vn, axis = 1)
 
         # core epi update
-        Rt = self.Rt0 * (S + S_vn).sum()/N.sum()
+        Rt = self.Rt0 * (S + S_vn).sum()/(N + S_vn).sum()
         b  = np.exp(self.gamma * (Rt - 1))
 
-        rate_T    = (self.b[-1] * self.dT[-1]).clip(0)
-        num_cases = poisson.rvs(rate_T, size = num_sims)
-        self.upper_CI.append(poisson.ppf(self.CI,     rate_T))
-        self.lower_CI.append(poisson.ppf(1 - self.CI, rate_T))
+        lambda_T = (self.b[-1] * self.dT[-1]).clip(0)
+        dT = poisson.rvs(lambda_T)
+        self.upper_CI.append(poisson.ppf(    self.CI, lambda_T))
+        self.lower_CI.append(poisson.ppf(1 - self.CI, lambda_T))
 
-        S -= S_ratios * num_cases
-        I += S_ratios * num_cases
+        S = S - (S_ratios * dT[:, None])
+        I = I + (S_ratios * dT[:, None])
 
-        num_dead  = poisson.rvs(    self.m  * self.gamma * (I + I_vn), size = (num_sims, self.num_age_bins))
-        D        += num_dead
-
-        num_recov = poisson.rvs((1- self.m) * self.gamma * (I + I_vn), size = (num_sims, self.num_age_bins))
-        R        += num_recov
-
-        I = (I - (num_dead + num_recov)).clip(0)
+        dD = poisson.rvs(    self.m  * self.gamma * (I + I_vn), size = (num_sims, self.num_age_bins))
+        dR = poisson.rvs((1- self.m) * self.gamma * (I + I_vn), size = (num_sims, self.num_age_bins))
+        
+        D  += dD
+        R  += dR
+        I = (I - (dD + dR)).clip(0)
 
         N = S + I + R
 
-        beta = (num_cases * N)/(b * (S + S_vn) * (I + I_vn))
+        # beta = dT[:, None] * N/(b * (S + S_vn) * (I + I_vn))
 
         # vaccination updates 
-        dS_vm = S/N * (    self.ve) * dV[:, 0]
-        dS_vn = S/N * (1 - self.ve) * dV[:, 0] - S_vn/(S + S_vn) * (S_ratios * num_cases)
+        dS_vm = fillna(S/N) * (    self.ve) * dV
+        dS_vn = fillna(S/N) * (1 - self.ve) * dV - fillna(S_vn/(S + S_vn)) * (S_ratios * dT[:, None])
 
-        dI_vn = I/N * dV[:, 0] + S_vn/(S + S_vn) * (S_ratios * num_cases)
-        dR_vm = R/N * dV[:, 0]
+        dI_vn = fillna(I/N) * dV + fillna(S_vn/(S + S_vn)) * (S_ratios * dT[:, None])
+        dR_vm = fillna(R/N) * dV
 
-        dR_vn = fillna(I_vn/(I + I_vn) * num_recov)
-        dD_vn = fillna(I_vn/(I + I_vn) * num_dead)
+        dR_vn = fillna(I_vn/(I + I_vn) * dR)
+        dD_vn = fillna(I_vn/(I + I_vn) * dD)
 
-        S_vm += dS_vm
-        R_vm += dR_vm
+        S_vm  = S_vm + dS_vm
+        R_vm  = R_vm + dR_vm
 
-        R_vn += dR_vn
-        D_vn += dD_vn
+        R_vn  = R_vn + dR_vn
+        D_vn  = D_vn + dD_vn
         
-        S_vn += dS_vn
+        S_vn  = S_vn + dS_vn
         I_vn = (I_vn + (dI_vn - dR_vn - dD_vn)).clip(0)
         
         S = (S - (dS_vm + dS_vn)).clip(0)
@@ -326,11 +324,11 @@ class Age_SIRVD(SIR):
         D = (D - (dD_vn)).clip(0)
 
         # calculate vax policy metrics 
-        N_v  = S_vm + S_vn + I_vn + D_vn + R_vn + R_vm 
+        N_v  = np.clip((S_vm + S_vn + I_vn + D_vn + R_vn + R_vm), a_min = 0, a_max = self.N[0])
         N_nv = self.N[0] - N_v
         pi   = N_v/self.N[0]
         q1   = fillna((N_v -  (D_vn         ))/N_v)
-        q0   = fillna((N_nv - (D - self.D[0]))/N_nv)
+        q0   = fillna((N_nv - (D - self.D[0]))/N_nv).clip(0)
 
         # update state vectors 
         self.Rt.append(Rt)
@@ -345,11 +343,11 @@ class Age_SIRVD(SIR):
         self.R_vn.append(R_vn)
         self.D.append(D)
         self.D_vn.append(D_vn)
-        self.dR.append(num_recov)
-        self.dD.append(num_dead)
+        self.dR.append(dR)
+        self.dD.append(dD)
         self.N.append(N)
-        self.beta.append(beta)
-        self.dT.append(num_cases)
+        # self.beta.append(beta)
+        self.dT.append(dT)
         self.total_cases.append(I + R + D)
         
         self.N_v.append(N_v)

@@ -39,7 +39,7 @@ with (data/'timeseries.json').open("rb") as fp:
     df = flat_table.normalize(pd.read_json(fp)).fillna(0)
 df.columns = df.columns.str.split('.', expand = True)
 dates = np.squeeze(df["index"][None].values)
-df = df.drop(columns = "index").set_index(dates).stack([1, 2]).drop("UN", axis = 1)
+df = df.drop(columns = "index", level = 0).set_index(dates).stack([1, 2]).drop("UN", axis = 1)
 
 
 print(":: loading admin data")
@@ -251,6 +251,3 @@ T_conf_smooth = dT_conf_smooth.cumsum().astype(int)
 T = T_conf_smooth[date]
 T_sero = (N * seropos)
 T_ratio = T_sero/T
-
-(state, date, seropos, sero_breakdown) = ("TN", "October 23, 2020", TN_seropos, TN_sero_breakdown)
-N = india_pop[state_code_lookup[state].replace("&", "and")]

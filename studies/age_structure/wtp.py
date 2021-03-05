@@ -88,7 +88,7 @@ def coeff_label(suffix, dropped):
 def coeff_value(column, dropped):
     return lambda _: coeffs.loc[_[column].apply(lambda i: str(i) + ("b" if i == dropped else "") + "." + column)].value.values
 
-def estimate_consumption_decline(district, dI_pc, dD_pc):
+def estimate_consumption_decline(district, dI_pc, dD_pc, force_natl_zero = False):
     district_code = str(district_codes[district])
     district_coeff_label = district_code + ("b" if district_code == "92" else "") + ".districtnum"
     constant = coeffs.loc["_cons"].value + coeffs.loc[district_coeff_label].value
@@ -101,7 +101,7 @@ def estimate_consumption_decline(district, dI_pc, dD_pc):
     }).assign(
         D_cat          = lambda _: _.D_cat.fillna(0).astype(int),
         month          = lambda _: _.date.dt.month,
-        I_cat_national = lambda _: _.date.apply(date_to_I_cat_natl)
+        I_cat_national = lambda _: _.date.apply(date_to_I_cat_natl if not force_natl_zero else lambda _: 0)
     )
 
     # index categoricals into coefficients and sum
@@ -206,175 +206,176 @@ def avg_monthly_WTP(wtp):
 def latex_table_row(rowname, items):
     return " & ".join([rowname] + list(items.values.round(2).astype(str))) + " \\\\ "
 
-# run calculations and then print out each aggregation
-# daily_WTP_calcs = {district: daily_WTP(district) for district in district_codes.keys()}
-wtp_daily  = defaultdict(lambda: 0)
-wtp_total  = defaultdict(lambda: 0)
-wtp_range  = defaultdict(lambda: 0)
-wtp_percentiles  = defaultdict(lambda: 0)
-wtp_income  = defaultdict(lambda: 0)
-wtp_health  = defaultdict(lambda: 0)
+if __name__ == "__main__":
+    # run calculations and then print out each aggregation
+    # daily_WTP_calcs = {district: daily_WTP(district) for district in district_codes.keys()}
+    wtp_daily  = defaultdict(lambda: 0)
+    wtp_total  = defaultdict(lambda: 0)
+    wtp_range  = defaultdict(lambda: 0)
+    wtp_percentiles  = defaultdict(lambda: 0)
+    wtp_income  = defaultdict(lambda: 0)
+    wtp_health  = defaultdict(lambda: 0)
 
-ve = 0.7
-for phi in (.25, .50):
-    for district in ["Chennai"]:
-        if district == "Perambalur":
-                continue
-        print(district)
-        N_district = district_populations[district]
-        dI_pc_range_nv = pd.read_csv(f"data/clean_sims/dT_TN_{district}_novaccination.csv")\
-            .rename(columns = {"Unnamed: 0": "t"})\
-            .set_index("t")/N_district
-        dD_pc_range_nv = pd.read_csv(f"data/clean_sims/dD_TN_{district}_novaccination.csv")\
-            .rename(columns = {"Unnamed: 0": "t"})\
-            .set_index("t")/N_district
-        Dx_nv = pd.read_csv(f"data/clean_sims/Dx_TN_{district}_novaccination.csv")\
-            .drop(columns = ["Unnamed: 0"])\
-            .reindex(range(1 + 5 * 365)).fillna(method = "ffill")            
-        for policy in ["randomassignment", "mortalityprioritized", "contactrateprioritized"]:
-
-            Dx_v  = pd.read_csv(f"data/clean_sims/Dx_TN_{district}_{policy}_ve70_annualgoal{int(100*phi)}_Rt_threshold0.2.csv")\
+    ve = 0.7
+    for phi in (.25, .50):
+        for district in ["Chennai"]:
+            if district == "Perambalur":
+                    continue
+            print(district)
+            N_district = district_populations[district]
+            dI_pc_range_nv = pd.read_csv(f"data/clean_sims/dT_TN_{district}_novaccination.csv")\
+                .rename(columns = {"Unnamed: 0": "t"})\
+                .set_index("t")/N_district
+            dD_pc_range_nv = pd.read_csv(f"data/clean_sims/dD_TN_{district}_novaccination.csv")\
+                .rename(columns = {"Unnamed: 0": "t"})\
+                .set_index("t")/N_district
+            Dx_nv = pd.read_csv(f"data/clean_sims/Dx_TN_{district}_novaccination.csv")\
                 .drop(columns = ["Unnamed: 0"])\
-                .reindex(range(1 + 5 * 365)).fillna(method = "ffill")
- 
-            wtp_range[(phi, policy)] += np.array([
-                discounted_WTP(daily_WTP_old(district, N_district, dI_pc_range_nv.iloc[:, _], dD_pc_range_nv.iloc[:, _], Dx_v, Dx_nv)) 
-                for _ in range(100)
-            ])
-        # for district in ["Chennai"]:#, "Thiruvallur", "Vellore", "Viluppuram", "Tiruchirappalli", "Pudukkottai", "Thanjavur", "Dindigul", "Thiruvarur", "Theni"]:
-            
-            # dI_pc_range_v = pd.read_csv(f"data/clean_sims/dT_TN_{district}_{policy}_ve70_annualgoal{int(100*phi)}_Rt_threshold0.2.csv")\
-            #     .rename(columns = {"Unnamed: 0": "t"})\
-            #     .set_index("t")/N_district
-            # dD_pc_range_v = pd.read_csv(f"data/clean_sims/dD_TN_{district}_{policy}_ve70_annualgoal{int(100*phi)}_Rt_threshold0.2.csv")\
-            #     .rename(columns = {"Unnamed: 0": "t"})\
-            #     .set_index("t")/N_district
+                .reindex(range(1 + 5 * 365)).fillna(method = "ffill")            
+            for policy in ["randomassignment", "mortalityprioritized", "contactrateprioritized"]:
 
-    # wtp_daily[district] = daily_WTP(district, N_district, dI_pc_range.mean(axis = 1), dD_pc_range.mean(axis = 1), Dx_v, Dx_nv)
-    # wtp_total[district] = discounted_WTP(wtp_daily[district])
-    # wtp_range[district] = np.array([
-    #         discounted_WTP(daily_WTP(district, N_district, dI_pc_range.iloc[:, _], dD_pc_range.iloc[:, _], Dx_v, Dx_nv)) 
-    #         for _ in range(100)
-    #     ])
-    # wtp_percentiles[district] = np.percentile(wtp_range[district], [5, 50, 95], axis = 0)
+                Dx_v  = pd.read_csv(f"data/clean_sims/Dx_TN_{district}_{policy}_ve70_annualgoal{int(100*phi)}_Rt_threshold0.2.csv")\
+                    .drop(columns = ["Unnamed: 0"])\
+                    .reindex(range(1 + 5 * 365)).fillna(method = "ffill")
+    
+                wtp_range[(phi, policy)] += np.array([
+                    discounted_WTP(daily_WTP_old(district, N_district, dI_pc_range_nv.iloc[:, _], dD_pc_range_nv.iloc[:, _], Dx_v, Dx_nv)) 
+                    for _ in range(100)
+                ])
+            # for district in ["Chennai"]:#, "Thiruvallur", "Vellore", "Viluppuram", "Tiruchirappalli", "Pudukkottai", "Thanjavur", "Dindigul", "Thiruvarur", "Theni"]:
+                
+                # dI_pc_range_v = pd.read_csv(f"data/clean_sims/dT_TN_{district}_{policy}_ve70_annualgoal{int(100*phi)}_Rt_threshold0.2.csv")\
+                #     .rename(columns = {"Unnamed: 0": "t"})\
+                #     .set_index("t")/N_district
+                # dD_pc_range_v = pd.read_csv(f"data/clean_sims/dD_TN_{district}_{policy}_ve70_annualgoal{int(100*phi)}_Rt_threshold0.2.csv")\
+                #     .rename(columns = {"Unnamed: 0": "t"})\
+                #     .set_index("t")/N_district
 
-    # dI_pc_range_v = pd.read_csv(f"data/latest_simes/dT_TN_{district}_randomassignment_ve70_annualgoal50_Rt_threshold0.2.csv")\
-    #     .rename(columns = {"Unnamed: 0": "t"})\
-    #     .set_index("t")/N_district
-    # dD_pc_range_v = pd.read_csv(f"data/latest_simes/dD_TN_{district}_randomassignment_ve70_annualgoal50_Rt_threshold0.2.csv")\
-    #     .rename(columns = {"Unnamed: 0": "t"})\
-    #     .set_index("t")/N_district
-    # wtp_health[district] = discounted_WTP(daily_wtp_health(district, N_district, dI_pc_range["0"], dD_pc_range["0"], dI_pc_range_v["0"], dD_pc_range_v["0"], Dx_v))
+        # wtp_daily[district] = daily_WTP(district, N_district, dI_pc_range.mean(axis = 1), dD_pc_range.mean(axis = 1), Dx_v, Dx_nv)
+        # wtp_total[district] = discounted_WTP(wtp_daily[district])
+        # wtp_range[district] = np.array([
+        #         discounted_WTP(daily_WTP(district, N_district, dI_pc_range.iloc[:, _], dD_pc_range.iloc[:, _], Dx_v, Dx_nv)) 
+        #         for _ in range(100)
+        #     ])
+        # wtp_percentiles[district] = np.percentile(wtp_range[district], [5, 50, 95], axis = 0)
 
-wtp_percentiles = {k: np.percentile(np.sum(v, axis = 1), [5, 50, 95]) for (k, v) in wtp_range.items()}
+        # dI_pc_range_v = pd.read_csv(f"data/latest_simes/dT_TN_{district}_randomassignment_ve70_annualgoal50_Rt_threshold0.2.csv")\
+        #     .rename(columns = {"Unnamed: 0": "t"})\
+        #     .set_index("t")/N_district
+        # dD_pc_range_v = pd.read_csv(f"data/latest_simes/dD_TN_{district}_randomassignment_ve70_annualgoal50_Rt_threshold0.2.csv")\
+        #     .rename(columns = {"Unnamed: 0": "t"})\
+        #     .set_index("t")/N_district
+        # wtp_health[district] = discounted_WTP(daily_wtp_health(district, N_district, dI_pc_range["0"], dD_pc_range["0"], dI_pc_range_v["0"], dD_pc_range_v["0"], Dx_v))
 
-
-fig = plt.figure()
-for (i, phi) in ((0, 0.25), (1, 0.5)):
-    for (dx, policy) in enumerate(["randomassignment", "mortalityprioritized", "contactrateprioritized"]):
-        clr = [contactrate_vax_color,  mortality_vax_color, random_vax_color,][dx]
-        (lo, md, hi) = wtp_percentiles[(phi, policy)]
-        lo, md, hi = lo * USD, md * USD, hi * USD
-        *_, bars = plt.errorbar(
-            x = [i - 0.3* (1 - dx)], y = [md], yerr = [[md - lo], [hi - md]],
-            figure = fig, fmt = "o", color = clr, label = None if i > 0 else ["random assignment", "mortality prioritized", "contact rate prioritized"][dx],
-            ms = 12, elinewidth = 5
-        )
-        [_.set_alpha(0.5) for _ in bars]
-plt.legend(ncol = 3, fontsize = "20")
-plt.xticks([0, 1], ["$\phi = 25$%", "$\phi = 50$%"], fontsize = "20")
-plt.yticks(fontsize = "20")
-plt.PlotDevice().ylabel("WTP (USD)\n")
-# plt.ylim(top = 900)
-plt.show()
-
-# statewide aggregation
-summed_WTP = [v.sum(axis = 0) for v in wtp_range.values()] 
-state_percentiles = np.percentile(summed_WTP, [5, 50, 95], axis = 0)
-fig = plt.figure()
-for age in range(7):
-    plt.errorbar(
-        x = [age],
-        y = state_percentiles[1, age] * USD,
-        yerr = [
-            [(state_percentiles[1, age] - state_percentiles[0, age])*USD], 
-            [(state_percentiles[2, age] - state_percentiles[1, age])*USD], 
-        ], 
-        color = age_group_colors[age],
-        label = age_bin_labels[age],
-        fmt = "o",
-        figure = fig
-    )
-plt.legend(title = "age group", loc = "lower right")
-plt.xticks([])
-plt.PlotDevice().ylabel("WTP (USD)\n")
-plt.show()
+    wtp_percentiles = {k: np.percentile(np.sum(v, axis = 1), [5, 50, 95]) for (k, v) in wtp_range.items()}
 
 
-summed_wtp_health = sum(wtp_health.values()).round(2)
-summed_wtp_income = sum(wtp_income.values()).round(2)
+    fig = plt.figure()
+    for (i, phi) in ((0, 0.25), (1, 0.5)):
+        for (dx, policy) in enumerate(["randomassignment", "mortalityprioritized", "contactrateprioritized"]):
+            clr = [contactrate_vax_color,  mortality_vax_color, random_vax_color,][dx]
+            (lo, md, hi) = wtp_percentiles[(phi, policy)]
+            lo, md, hi = lo * USD, md * USD, hi * USD
+            *_, bars = plt.errorbar(
+                x = [i - 0.3* (1 - dx)], y = [md], yerr = [[md - lo], [hi - md]],
+                figure = fig, fmt = "o", color = clr, label = None if i > 0 else ["random assignment", "mortality prioritized", "contact rate prioritized"][dx],
+                ms = 12, elinewidth = 5
+            )
+            [_.set_alpha(0.5) for _ in bars]
+    plt.legend(ncol = 3, fontsize = "20")
+    plt.xticks([0, 1], ["$\phi = 25$%", "$\phi = 50$%"], fontsize = "20")
+    plt.yticks(fontsize = "20")
+    plt.PlotDevice().ylabel("WTP (USD)\n")
+    # plt.ylim(top = 900)
+    plt.show()
 
-fig, ax = plt.subplots()
-ax.bar(summed_wtp_income.keys(), summed_wtp_income.values * USD, bottom = summed_wtp_health.values * USD, color = "white",          edgecolor = age_group_colors, linewidth = 2)
-ax.bar(summed_wtp_health.keys(), summed_wtp_health.values * USD,                                          color = age_group_colors, edgecolor = age_group_colors, linewidth = 2)
-ax.bar([summed_wtp_income.keys()[0]], [0], label = "income", color = "white", edgecolor = "black", linewidth = 2)
-ax.bar([summed_wtp_income.keys()[0]], [0], label = "health", color = "black", edgecolor = "black", linewidth = 2)
-label = "health",
-plt.legend()
-# plt.ylim(4000, 14000)
-plt.PlotDevice().ylabel("WTP (USD)\n")
-plt.semilogy()
-plt.show()
-
-
-ordering_values = {k: v[1].max() for (k, v) in wtp_range.items()}
-district_ordering = sorted(ordering_values, key = ordering_values.get, reverse = True)
-
-
-# agg by district 
-fig = plt.figure()
-for (i, district) in enumerate(district_ordering):
-    wtps = wtp_percentiles[i]
-    for j in range(7):
+    # statewide aggregation
+    summed_WTP = [v.sum(axis = 0) for v in wtp_range.values()] 
+    state_percentiles = np.percentile(summed_WTP, [5, 50, 95], axis = 0)
+    fig = plt.figure()
+    for age in range(7):
         plt.errorbar(
-            x = [i + 0.1 * (j - 3)],
-            y = wtps[1, 6-j] * USD,
+            x = [age],
+            y = state_percentiles[1, age] * USD,
             yerr = [
-                [(wtps[1, 6-j] - wtps[0, 6-j]) * USD],
-                [(wtps[2, 6-j] - wtps[1, 6-j]) * USD]
+                [(state_percentiles[1, age] - state_percentiles[0, age])*USD], 
+                [(state_percentiles[2, age] - state_percentiles[1, age])*USD], 
             ], 
+            color = age_group_colors[age],
+            label = age_bin_labels[age],
             fmt = "o",
-            color = age_group_colors[6-j],
-            figure = fig,
-            label = None if i > 0 else age_bin_labels[6-j]
+            figure = fig
         )
-plt.xticks(
-    range(len(district_ordering)),
-    district_ordering,
-    rotation = 90
-)
-plt.legend(title = "age group")
-# plt.ylim(0, 10000)
-plt.xlim(-0.5, len(district_ordering) - 0.5)
-plt.PlotDevice().ylabel("WTP (USD)")
-plt.show()
+    plt.legend(title = "age group", loc = "lower right")
+    plt.xticks([])
+    plt.PlotDevice().ylabel("WTP (USD)\n")
+    plt.show()
 
 
-["30323d","3f414f","4d5061","55688f","5c80bc","7995be","95a9c0","b38d97","d5aca9"]
-# agg by age 
-fig = plt.figure()
-for age_index in range(7):
-    for (district, color) in zip(district_ordering[::3], ["30323d","b27c66","4d5061","5aaa95","5c80bc","86a873","95a9c0","5cab7d","b38d97"]):
-        plt.scatter(
-            y = age_index,
-            x = wtp_percentiles[district][1, age_index] * USD, 
-            color = "#" + color,
-            figure = fig,
-            marker = "D",
-            s = 100, 
-            label = None if age_index > 0 else district
-        )
-plt.yticks(range(7), age_bin_labels)
-plt.PlotDevice().xlabel("\nWTP (USD)").ylabel("age bin\n")
-plt.legend()
-plt.show()
+    summed_wtp_health = sum(wtp_health.values()).round(2)
+    summed_wtp_income = sum(wtp_income.values()).round(2)
+
+    fig, ax = plt.subplots()
+    ax.bar(summed_wtp_income.keys(), summed_wtp_income.values * USD, bottom = summed_wtp_health.values * USD, color = "white",          edgecolor = age_group_colors, linewidth = 2)
+    ax.bar(summed_wtp_health.keys(), summed_wtp_health.values * USD,                                          color = age_group_colors, edgecolor = age_group_colors, linewidth = 2)
+    ax.bar([summed_wtp_income.keys()[0]], [0], label = "income", color = "white", edgecolor = "black", linewidth = 2)
+    ax.bar([summed_wtp_income.keys()[0]], [0], label = "health", color = "black", edgecolor = "black", linewidth = 2)
+    label = "health",
+    plt.legend()
+    # plt.ylim(4000, 14000)
+    plt.PlotDevice().ylabel("WTP (USD)\n")
+    plt.semilogy()
+    plt.show()
+
+
+    ordering_values = {k: v[1].max() for (k, v) in wtp_range.items()}
+    district_ordering = sorted(ordering_values, key = ordering_values.get, reverse = True)
+
+
+    # agg by district 
+    fig = plt.figure()
+    for (i, district) in enumerate(district_ordering):
+        wtps = wtp_percentiles[i]
+        for j in range(7):
+            plt.errorbar(
+                x = [i + 0.1 * (j - 3)],
+                y = wtps[1, 6-j] * USD,
+                yerr = [
+                    [(wtps[1, 6-j] - wtps[0, 6-j]) * USD],
+                    [(wtps[2, 6-j] - wtps[1, 6-j]) * USD]
+                ], 
+                fmt = "o",
+                color = age_group_colors[6-j],
+                figure = fig,
+                label = None if i > 0 else age_bin_labels[6-j]
+            )
+    plt.xticks(
+        range(len(district_ordering)),
+        district_ordering,
+        rotation = 90
+    )
+    plt.legend(title = "age group")
+    # plt.ylim(0, 10000)
+    plt.xlim(-0.5, len(district_ordering) - 0.5)
+    plt.PlotDevice().ylabel("WTP (USD)")
+    plt.show()
+
+
+    ["30323d","3f414f","4d5061","55688f","5c80bc","7995be","95a9c0","b38d97","d5aca9"]
+    # agg by age 
+    fig = plt.figure()
+    for age_index in range(7):
+        for (district, color) in zip(district_ordering[::3], ["30323d","b27c66","4d5061","5aaa95","5c80bc","86a873","95a9c0","5cab7d","b38d97"]):
+            plt.scatter(
+                y = age_index,
+                x = wtp_percentiles[district][1, age_index] * USD, 
+                color = "#" + color,
+                figure = fig,
+                marker = "D",
+                s = 100, 
+                label = None if age_index > 0 else district
+            )
+    plt.yticks(range(7), age_bin_labels)
+    plt.PlotDevice().xlabel("\nWTP (USD)").ylabel("age bin\n")
+    plt.legend()
+    plt.show()
