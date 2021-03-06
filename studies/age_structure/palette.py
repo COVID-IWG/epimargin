@@ -1,7 +1,7 @@
 
 
 TN_color = "firebrick"
-IN_color = "slategrey"
+IN_color = "#292f36" #"slategrey"
 
 no_vax_color          = "black"
 contactrate_vax_color = "darkorange"

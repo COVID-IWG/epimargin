@@ -70,7 +70,7 @@ all_dT = sum(np.pad([np.mean(_) for _ in model.dT[1:]], (0, max_t - len(model.Rt
 prob_deathx = dDx/Sx
 prob_death  = dD /S
 
-sns.set_palette(sns.color_palette("hls", 7))
+sns.set_palette(age_group_colors)
 dt = [simulation_start + pd.Timedelta(n, "days") for n in range(max_t-1)]
 PrD = pd.DataFrame(prob_deathx).T\
     .rename(columns = dict(enumerate(IN_age_structure.keys())))\
@@ -97,14 +97,12 @@ plt.show()
 PrD = pd.DataFrame(prob_death).set_index(pd.date_range(start = simulation_start, freq = "D", periods = len(prob_death)))
 plt.plot(PrD, color = TN_color, linewidth = 2, label = "probability of death")
 plt.xlim(left = pd.Timestamp("Jan 01, 2021"), right = pd.Timestamp("Jan 01, 2022"))
-plt.PlotDevice()\
-    .xlabel("\ndate")\
-    .ylabel("probability\n")
-plt.subplots_adjust(left = 0.12, bottom = 0.12, right = 0.94, top = 0.96)
+plt.PlotDevice().ylabel("log-probability\n")    
+# plt.subplots_adjust(left = 0.12, bottom = 0.12, right = 0.94, top = 0.96)
 plt.gca().xaxis.set_minor_locator(mpl.ticker.NullLocator())
 plt.gca().xaxis.set_minor_formatter(mpl.ticker.NullFormatter())
 plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
-plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%b %y'))
 plt.xticks(fontsize = "20", rotation = 45)
 plt.yticks(fontsize = "20")
 plt.gca().xaxis.grid(True, which = "major")
