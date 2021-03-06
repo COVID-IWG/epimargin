@@ -1,10 +1,11 @@
+from tqdm.std import tqdm
 import adaptive.plots as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from adaptive.estimators import analytical_MPVS
 from adaptive.models import Age_SIRVD
-from adaptive.utils import normalize
+from adaptive.utils import normalize, years, percent, annually
 from scipy.stats import multinomial
 from studies.age_structure.commons import *
 from studies.age_structure.palette import *
@@ -12,11 +13,16 @@ from studies.age_structure.wtp import *
 
 sns.set(style = "whitegrid")
 
-num_sims = 100
+num_sims         = 1000
+simulation_range = 1 * years
+phi_points       = [_ * percent * annually for _ in (25, 50, 100)]
+# districts_to_run = district_IFR.filter(items = sorted(set(district_codes.keys()) - set(["Perambalur"])), axis = 0)
+districts_to_run   = district_IFR.filter(items = ["Chennai", "Cuddalore", "Salem"], axis = 0)
+
 def get_metrics(policy, counterfactual, district = "Chennai"):
     f_hat_p1v1 = estimate_consumption_decline(district, 
-        pd.Series(np.zeros(366)), 
-        pd.Series(np.zeros(366)), force_natl_zero = True)
+        pd.Series(np.zeros(simulation_range + 1)), 
+        pd.Series(np.zeros(simulation_range + 1)), force_natl_zero = True)
     c_p1v1 = (1 + f_hat_p1v1)[:, None] * consumption_2019.loc[district].values
 
     dI_pc_p1 = pd.DataFrame(np.sum(np.squeeze(policy.I) + np.squeeze(policy.I_vn), axis = 2)/N_district).diff().shift(-1).fillna(0)
@@ -38,12 +44,12 @@ def get_metrics(policy, counterfactual, district = "Chennai"):
     WTP_daily_0 = q_p0v0 * c_p0v0.T 
 
     beta = 1/(1 + 4.25/365)
-    s = np.arange(366)
+    s = np.arange(simulation_range + 1)
 
     dWTP_daily = WTP_daily_1 - WTP_daily_0
 
     WTPs   = [] 
-    for t in range(366):
+    for t in range(simulation_range + 1):
         wtp = np.sum(np.power(beta, s[t:] - t)[:, None, None] * dWTP_daily[t:, :], axis = 0)
         WTPs.append(wtp)
         # if t == 0:
@@ -60,7 +66,13 @@ def get_metrics(policy, counterfactual, district = "Chennai"):
     # # WTP 
     # WTP_percentiles = np.percentile(WTPs[0, :, :], [50, 5, 95], axis = 0)
     # return WTPs, WTP_percentiles, policy_death_percentiles, policy_YLL_percentiles, counterfactual_death_percentiles, counterfactual_YLL_percentiles
-    return WTPs, policy.D[-1].sum(axis = 1), policy.D[-1] @ YLLs, counterfactual.D[-1].sum(axis = 1), counterfactual.D[-1] @ YLLs
+    return (
+        WTPs,
+        (policy.D[-1] - policy.D[0]).sum(axis = 1),
+        (policy.D[-1] - policy.D[0]) @ YLLs,
+        (counterfactual.D[-1] - counterfactual.D[0]).sum(axis = 1),
+        (counterfactual.D[-1] - counterfactual.D[0]) @ YLLs,
+    )
 
 def prioritize(num_doses, S, prioritization):
     Sp = S[:, prioritization]
@@ -70,11 +82,6 @@ def prioritize(num_doses, S, prioritization):
 
 num_age_bins = 7
 
-
-across_bins = dict(axis = 0)
-across_time = dict(axis = 1)
-
-
 seed = 0
 
 evaluated_WTPs   = defaultdict(lambda: 0)
@@ -83,14 +90,14 @@ evaluated_YLLs   = defaultdict(lambda: 0)
 
 per_district_WTPs = {}
 
-age_district_percentiles = pd.DataFrame({
-    k: np.percentile(v[0, :, :], [50], axis = 0)[0]
-    for (k, v) in per_district_WTPs.items()
-}).T
-age_district_percentiles.columns = age_bin_labels
+# age_district_percentiles = pd.DataFrame({
+#     k: np.percentile(v[0, :, :], [50], axis = 0)[0]
+#     for (k, v) in per_district_WTPs.items()
+# }).T
+# age_district_percentiles.columns = age_bin_labels
 
-for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filter(items = sorted(set(district_codes.keys()) - set(["Perambalur"])), axis = 0).itertuples():
-    print(district)
+progress = tqdm(total = (simulation_range + 3) * len(districts_to_run) * len(phi_points))
+for (district, seroprevalence, N_district, _, IFR_sero, _) in districts_to_run.itertuples():
     dT_conf_district = ts.loc[district].dT
     dT_conf_district = dT_conf_district.reindex(pd.date_range(dT_conf_district.index.min(), dT_conf_district.index.max()), fill_value = 0)
     dT_conf_district_smooth = pd.Series(smooth(dT_conf_district), index = dT_conf_district.index).clip(0).astype(int)
@@ -122,26 +129,23 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filte
             mortality   = np.array(list(TN_IFRs.values())), #(ts.loc[district].dD.cumsum()[simulation_start]/T_scaled if I0 == 0 else dD0/(gamma * I0)),
             random_seed = seed
         )
-    for phi in (0.25/365, 0.5/365):
+    for phi in phi_points:
+        progress.set_description(f"{district:15s}(φ = {str(int(365 * 100 * phi)):>3s}%)")
         num_doses = phi * (S0 + I0 + R0)
         random_model, mortality_model, contact_model, no_vax_model = [get_model(seed) for _ in range(4)]
-        # dVs = {_:[] for _ in ("random", "mortality", "contact")}
-
-        for t in range(1 * 365):
+        for t in range(simulation_range):
             if t <= 1/phi:
                 dV_random    = multinomial.rvs(num_doses, normalize(random_model.N[-1], axis = 1)[0]).reshape((-1, 7))
                 dV_mortality = prioritize(num_doses, mortality_model.S[-1], [6, 5, 4, 3, 2, 1, 0]) 
-                dV_contact   = prioritize(num_doses, contact_model.S[-1], [1, 2, 3, 4, 0, 5, 6]) 
+                dV_contact   = prioritize(num_doses, contact_model.S[-1],   [1, 2, 3, 4, 0, 5, 6]) 
             else: 
                 dV_random, dV_mortality, dV_contact = np.zeros((num_sims, 7)), np.zeros((num_sims, 7)), np.zeros((num_sims, 7))
-            # dVs["random"].append(dV_random)
-            # dVs["mortality"].append(dV_mortality)
-            # dVs["contact"].append(dV_contact)
             
             random_model.parallel_forward_epi_step(dV_random, num_sims = num_sims)
             mortality_model.parallel_forward_epi_step(dV_mortality, num_sims = num_sims)
             contact_model.parallel_forward_epi_step(dV_contact, num_sims = num_sims)
             no_vax_model.parallel_forward_epi_step(dV = np.zeros((7, num_sims))[:, 0], num_sims = num_sims)
+            progress.update(1)
 
         random_wtps, random_deaths, random_ylls, no_vax_deaths, no_vax_ylls\
             = get_metrics(random_model, no_vax_model, district)
@@ -151,80 +155,91 @@ for (district, seroprevalence, N_district, _, IFR_sero, _) in district_IFR.filte
         evaluated_deaths[phi * 365, "random"] += random_deaths
         evaluated_YLLs[phi * 365, "random"] += random_ylls
         per_district_WTPs[district] = random_wtps
+        progress.update(1)
         
         mortality_wtps, mortality_deaths, mortality_ylls, *_\
             = get_metrics(mortality_model, no_vax_model, district)
         evaluated_WTPs[phi * 365, "mortality"] += mortality_wtps
         evaluated_deaths[phi * 365, "mortality"] += mortality_deaths
         evaluated_YLLs[phi * 365, "mortality"] += mortality_ylls
+        progress.update(1)
         
         contact_wtps, contact_deaths, contact_ylls, *_\
             = get_metrics(contact_model, no_vax_model, district)
         evaluated_WTPs[phi * 365, "contact"] += contact_wtps
         evaluated_deaths[phi * 365, "contact"] += contact_deaths
         evaluated_YLLs[phi * 365, "contact"] += contact_ylls
-        
-        # WTPs[phi * 365, "random"] = random_WTP_percentiles
-        # WTPs[phi * 365, "mortality"] = mortality_WTP_percentiles
-        # WTPs[phi * 365, "contact"] = contact_WTP_percentiles
+        progress.update(1)
 
-        # deaths[phi * 365, "random"] = random_death_percentiles
-        # deaths[phi * 365, "mortality"] = mortality_death_percentiles
-        # deaths[phi * 365, "contact"] = contact_death_percentiles
-        # deaths[phi * 365, "no_vax"] = no_vax_death_percentiles
+death_percentiles = {tag: np.percentile(metric, [50, 5, 95]) for (tag, metric) in evaluated_deaths.items()}
+YLL_percentiles    ={tag: np.percentile(metric, [50, 5, 95]) for (tag, metric) in evaluated_YLLs.items()}
+WTP_percentiles    ={tag: np.percentile(metric, [50, 5, 95]) for (tag, metric) in evaluated_WTPs.items()}
 
-        # YLLs[phi * 365, "random"] = random_YLL_percentiles
-        # YLLs[phi * 365, "mortality"] = mortality_YLL_percentiles
-        # YLLs[phi * 365, "contact"] = contact_YLL_percentiles
-        # YLLs[phi * 365, "no_vax"] = no_vax_YLL_percentiles
-
-death_percentiles ={tag: np.percentile(metric, [50, 5, 95]) for (tag, metric) in evaluated_deaths.items()}
-YLL_percentiles ={tag: np.percentile(metric, [50, 5, 95]) for (tag, metric) in evaluated_YLLs.items()}
-WTP_percentiles ={tag: np.percentile(metric, [50, 5, 95]) for (tag, metric) in evaluated_WTPs.items()}
 # death outcomes 
 #region
-# fig = plt.figure()
+fig = plt.gcf()
 
-# md, lo, hi = death_percentiles[(0.25, "no_vax")]
-# *_, bars = plt.errorbar(x = [0], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
-#     fmt = "o", color = no_vax_color, label = "no vaccination", ms = 12, elinewidth = 5)
-# [_.set_alpha(0.5) for _ in bars]
+md, lo, hi = death_percentiles[(0.25, "no_vax")]
+*_, bars = plt.errorbar(x = [0], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+    fmt = "o", color = no_vax_color, label = "no vaccination", ms = 12, elinewidth = 5)
+[_.set_alpha(0.5) for _ in bars]
 
-# md, lo, hi = death_percentiles[(0.25, "random")]
-# *_, bars = plt.errorbar(x = [1 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
-#     fmt = "o", color = random_vax_color, label = "random assignment", ms = 12, elinewidth = 5)
-# [_.set_alpha(0.5) for _ in bars]
+##################
 
-# md, lo, hi = death_percentiles[(0.25, "contact")]
-# *_, bars = plt.errorbar(x = [1], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
-#     fmt = "o", color = contactrate_vax_color, label = "contact rate prioritized", ms = 12, elinewidth = 5)
-# [_.set_alpha(0.5) for _ in bars]
+md, lo, hi = death_percentiles[(0.25, "random")]
+*_, bars = plt.errorbar(x = [1 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+    fmt = "o", color = random_vax_color, label = "random assignment", ms = 12, elinewidth = 5)
+[_.set_alpha(0.5) for _ in bars]
 
-# md, lo, hi = death_percentiles[(0.25, "mortality")]
-# *_, bars = plt.errorbar(x = [1 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
-#     fmt = "o", color = mortality_vax_color, label = "mortality rate prioritized", ms = 12, elinewidth = 5)
-# [_.set_alpha(0.5) for _ in bars]
+md, lo, hi = death_percentiles[(0.25, "contact")]
+*_, bars = plt.errorbar(x = [1], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+    fmt = "o", color = contactrate_vax_color, label = "contact rate prioritized", ms = 12, elinewidth = 5)
+[_.set_alpha(0.5) for _ in bars]
 
-# md, lo, hi = death_percentiles[(0.50, "random")]
-# *_, bars = plt.errorbar(x = [2 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
-#     fmt = "o", color = random_vax_color, ms = 12, elinewidth = 5)
-# [_.set_alpha(0.5) for _ in bars]
+md, lo, hi = death_percentiles[(0.25, "mortality")]
+*_, bars = plt.errorbar(x = [1 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+    fmt = "o", color = mortality_vax_color, label = "mortality rate prioritized", ms = 12, elinewidth = 5)
+[_.set_alpha(0.5) for _ in bars]
 
-# md, lo, hi = death_percentiles[(0.50, "contact")]
-# *_, bars = plt.errorbar(x = [2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
-#     fmt = "o", color = contactrate_vax_color, ms = 12, elinewidth = 5)
-# [_.set_alpha(0.5) for _ in bars]
+##################
 
-# md, lo, hi = death_percentiles[(0.50, "mortality")]
-# *_, bars = plt.errorbar(x = [2 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
-#     fmt = "o", color = mortality_vax_color, ms = 12, elinewidth = 5)
-# [_.set_alpha(0.5) for _ in bars]
+md, lo, hi = death_percentiles[(0.50, "random")]
+*_, bars = plt.errorbar(x = [2 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+    fmt = "o", color = random_vax_color, ms = 12, elinewidth = 5)
+[_.set_alpha(0.5) for _ in bars]
 
-# plt.legend(ncol = 4, fontsize = "20", loc = "lower center", bbox_to_anchor = (0.5, 1))
-# plt.xticks([0, 1, 2], ["$\phi = 0$%", "$\phi = 25$%", "$\phi = 50$%"], fontsize = "20")
-# plt.yticks(fontsize = "20")
-# plt.PlotDevice().ylabel("deaths\n")
-# plt.show()
+md, lo, hi = death_percentiles[(0.50, "contact")]
+*_, bars = plt.errorbar(x = [2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+    fmt = "o", color = contactrate_vax_color, ms = 12, elinewidth = 5)
+[_.set_alpha(0.5) for _ in bars]
+
+md, lo, hi = death_percentiles[(0.50, "mortality")]
+*_, bars = plt.errorbar(x = [2 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+    fmt = "o", color = mortality_vax_color, ms = 12, elinewidth = 5)
+[_.set_alpha(0.5) for _ in bars]
+
+##################
+
+md, lo, hi = death_percentiles[(1.0, "random")]
+*_, bars = plt.errorbar(x = [3 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+    fmt = "o", color = random_vax_color, ms = 12, elinewidth = 5)
+[_.set_alpha(0.5) for _ in bars]
+
+md, lo, hi = death_percentiles[(1.0, "contact")]
+*_, bars = plt.errorbar(x = [3], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+    fmt = "o", color = contactrate_vax_color, ms = 12, elinewidth = 5)
+[_.set_alpha(0.5) for _ in bars]
+
+md, lo, hi = death_percentiles[(1.0, "mortality")]
+*_, bars = plt.errorbar(x = [3 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+    fmt = "o", color = mortality_vax_color, ms = 12, elinewidth = 5)
+[_.set_alpha(0.5) for _ in bars]
+
+plt.legend(ncol = 4, fontsize = "20", loc = "lower center", bbox_to_anchor = (0.5, 1))
+plt.xticks([0, 1, 2, 3], ["$\phi = 0$%", "$\phi = 25$%", "$\phi = 50$%", "$\phi = 100$%"], fontsize = "20")
+plt.yticks(fontsize = "20")
+plt.PlotDevice().ylabel("deaths\n")
+plt.show()
 # #endregion
 
 # # YLL 
@@ -331,3 +346,5 @@ WTP_percentiles ={tag: np.percentile(metric, [50, 5, 95]) for (tag, metric) in e
 # plt.legend(title = "age bin", title_fontsize = "20", fontsize = "20")
 # plt.PlotDevice().ylabel("1-year aggregate WTP (USD)\n")
 # plt.show()
+
+print()
