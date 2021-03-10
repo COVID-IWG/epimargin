@@ -36,7 +36,7 @@ IN_simulated_percap = pd.read_csv("data/IN_simulated_percap.csv")\
 N_Chennai = np.array([1206512, 1065145, 822092, 646810, 442051, 273618, 183610])
 
 # bin cutoffs for prevalence categories
-infection_cutoffs = [
+infection_cutoffs = [0, 
     1.31359918148e-06,
     2.78728440853e-06,
     5.98520919658e-06,
@@ -45,10 +45,11 @@ infection_cutoffs = [
     .0000232067541053,
     .0000348692029503,
     .0000553322569194,
-    .0000837807402432
+    .0000837807402432, 
+    1
 ]
 
-death_cutoffs = [
+death_cutoffs = [0, 
     4.86518215364e-08,
     7.74357252506e-08,
     1.17110323077e-07,
@@ -57,7 +58,8 @@ death_cutoffs = [
     4.38650091191e-07,
     6.63577948309e-07,
     9.89375901681e-07,
-    1.52713164555e-06
+    1.52713164555e-06,
+    1
 ]
 
 def cut(column, cutoffs):
@@ -95,11 +97,10 @@ def estimate_consumption_decline(district, dI_pc, dD_pc, force_natl_zero = False
 
     # map values to categoricals 
     indicators = pd.DataFrame({
-        "I_cat": (1 + pd.cut(dI_pc, [0] + infection_cutoffs + [1], labels = False)).fillna(0).astype(int),
-        "D_cat": (1 + pd.cut(dD_pc, [0] +     death_cutoffs + [1], labels = False)).fillna(0).astype(int),
-        "date": [(simulation_start + pd.Timedelta(_, "days")) for _ in range(len(dI_pc))]
+        "I_cat": np.nan_to_num(1 + pd.cut(dI_pc, infection_cutoffs, labels = False)).astype(int),
+        "D_cat": np.nan_to_num(1 + pd.cut(dD_pc,     death_cutoffs, labels = False)).astype(int),
+        "date": pd.date_range(start = simulation_start, freq = "D", periods = len(dI_pc))
     }).assign(
-        D_cat          = lambda _: _.D_cat.fillna(0).astype(int),
         month          = lambda _: _.date.dt.month,
         I_cat_national = lambda _: _.date.apply(date_to_I_cat_natl if not force_natl_zero else lambda _: 0)
     )
@@ -111,38 +112,6 @@ def estimate_consumption_decline(district, dI_pc, dD_pc, force_natl_zero = False
         I_nat_coeff = coeff_value("I_cat_national", dropped = 0),
         month_coeff = coeff_value("month",          dropped = 1),
     )\
-    .set_index("date")\
-    .filter(like = "coeff", axis = 1)\
-    .sum(axis = 1) + constant
-
-def estimate_consumption_decline_monthly(district, dI_pc, dD_pc):
-    district_code = str(district_codes[district])
-    district_coeff_label = district_code + ("b" if district_code == "92" else "") + ".districtnum"
-    constant = coeffs.loc["_cons"].value + coeffs.loc[district_coeff_label].value
-
-    timeseries = pd.DataFrame({ 
-        "dI_pc": dI_pc, 
-        "dD_pc": dD_pc, 
-        "date": [(simulation_start + pd.Timedelta(_, "days")) for _ in range(len(dI_pc))]
-    }).assign(
-        month = lambda _: _.date.dt.strftime("%m_%Y")
-    ).groupby("month")\
-    .mean()
-
-    return timeseries.reset_index()\
-    .rename(columns = {"month": "month_code"})\
-    .assign(
-        I_cat = cut("dI_pc", infection_cutoffs),
-        D_cat = cut("dD_pc",     death_cutoffs),
-        month_timestamp = lambda _: pd.to_datetime(_.month_code, format = "%m_%Y"), 
-        I_cat_national = lambda _: _.month_timestamp.apply(date_to_I_cat_natl),
-        month = lambda _: _.month_code.str[:2].astype(int)
-    ).assign(
-        I_coeff     = coeff_value("I_cat",          dropped = 0),
-        D_coeff     = coeff_value("D_cat",          dropped = 0),
-        I_nat_coeff = coeff_value("I_cat_national", dropped = 0),
-        month_coeff = coeff_value("month",          dropped = 1)
-    ).rename(columns = {"month_code": "date"})\
     .set_index("date")\
     .filter(like = "coeff", axis = 1)\
     .sum(axis = 1) + constant

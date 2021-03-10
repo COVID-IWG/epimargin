@@ -241,7 +241,7 @@ class Age_SIRVD(SIR):
     ):
         super().__init__(name, population, dT0=dT0, Rt0=Rt0, I0=I0, R0=R0, D0=D0, infectious_period=infectious_period, introduction_rate=introduction_rate, mortality=mortality, mobility=mobility, upper_CI=upper_CI, lower_CI=lower_CI, CI=CI, random_seed=random_seed)
         self.N = [S0 + I0 + R0]
-        shape = S0.shape
+        shape = (sims, bins) = S0.shape
         
         self.num_age_bins = num_age_bins
         self.phi  = phi
@@ -264,6 +264,9 @@ class Age_SIRVD(SIR):
         self.pi   = [np.zeros(shape)]
         self.q1   = [np.zeros(shape)]
         self.q0   = [np.zeros(shape)]
+
+        self.dT_total = [np.zeros(sims)]
+        self.dD_total = [np.zeros(sims)]
 
     def parallel_forward_epi_step(self, dV: Optional[np.array], num_sims = 10000): 
         """
@@ -291,6 +294,9 @@ class Age_SIRVD(SIR):
         dD = poisson.rvs(    self.m  * self.gamma * (I + I_vn), size = (num_sims, self.num_age_bins))
         dR = poisson.rvs((1- self.m) * self.gamma * (I + I_vn), size = (num_sims, self.num_age_bins))
         
+        self.dT_total.append(dT)
+        self.dD_total.append(dD.sum(axis = 1))
+
         D  += dD
         R  += dR
         I = (I - (dD + dR)).clip(0)
@@ -355,7 +361,6 @@ class Age_SIRVD(SIR):
         self.pi.append(pi)
         self.q1.append(q1)
         self.q0.append(q0)
-
 
 class NetworkedSIR():
     """ implements cross-geography interactions between a set of SIR models """

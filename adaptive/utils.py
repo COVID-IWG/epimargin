@@ -7,9 +7,12 @@ from typing import Optional, Tuple
 import numpy as np
 import pandas as pd
 
-days    = 1
-weeks   = 7 
-million = 1e6
+days     = 1
+weeks    = 7 
+years    = 365
+percent  = 1/100
+annually = 1/years
+million  = 1e6
 
 def cwd() -> Path:
     argv0 = sys.argv[0]
