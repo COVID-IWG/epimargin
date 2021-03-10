@@ -1,8 +1,11 @@
+from collections import defaultdict
+
+import adaptive.plots as plt
 import pandas as pd
 from studies.age_structure.commons import *
+from studies.age_structure.epi_simulations import *
 from studies.age_structure.palette import *
-from collections import defaultdict
-import adaptive.plots as plt
+from tqdm.std import tqdm
 
 """ Calculate willingness to pay """ 
 
@@ -19,8 +22,18 @@ def month_idx(df: pd.DataFrame, name = "month"):
 # coefficients of consumption ~ prevalence regression
 coeffs = pd.read_stata(data/"reg_estimates.dta")\
     [["parm", "label", "estimate"]]\
-    .set_index("parm")\
-    .rename(columns = {"parm": "param", "estimate": "value"})
+    .rename(columns = {"parm": "param", "estimate": "value"})\
+    .set_index("param")
+
+I_cat_coeffs = dict(enumerate(coeffs.filter(regex = ".*I_cat$", axis = 0).value.values))
+D_cat_coeffs = dict(enumerate(coeffs.filter(regex = ".*D_cat$", axis = 0).value.values))
+month_coeffs = dict(enumerate(coeffs.filter(regex = ".*month$", axis = 0).value.values, start = 1))
+I_cat_natl_coeffs = coeffs\
+    .filter(regex = ".*I_cat_national$", axis = 0)\
+    .reset_index()\
+    .assign(param = lambda df: df["param"].apply(lambda s: s.split(".")[0].replace("b", "")).astype(int))\
+    .set_index("param")["value"]\
+    .to_dict()
 
 # per capita daily consumption levels 
 consumption_2019 = pd.read_stata("data/pcons_2019m6.dta")\
@@ -32,8 +45,6 @@ IN_simulated_percap = pd.read_csv("data/IN_simulated_percap.csv")\
     .assign(month = lambda _: _.month.str.zfill(7))\
     .set_index("month")\
     .sort_index()
-
-N_Chennai = np.array([1206512, 1065145, 822092, 646810, 442051, 273618, 183610])
 
 # bin cutoffs for prevalence categories
 infection_cutoffs = [0, 
@@ -62,6 +73,21 @@ death_cutoffs = [0,
     1
 ]
 
+I_cat_national_mapping = {
+    1: 10, 
+    2: 7,
+    3: 4,
+    4: 3,
+    5: 3,
+    6: 2,
+    7: 2,
+    8: 1, 
+    9: 1,
+    10: 1,
+    11: 1,
+    12: 0
+}
+
 def cut(column, cutoffs):
     return lambda _: (1 + pd.cut(_[column], [0] + cutoffs + [1], labels = False)).fillna(0).astype(int)
 
@@ -69,20 +95,7 @@ def cut(column, cutoffs):
 def date_to_I_cat_natl(date: pd.Timestamp):
     if date.year != 2021:
         return 0
-    return {
-         1: 10, 
-         2: 7,
-         3: 4,
-         4: 3,
-         5: 3,
-         6: 2,
-         7: 2,
-         8: 1, 
-         9: 1,
-        10: 1,
-        11: 1,
-        12: 0
-    }[date.month]
+    return I_cat_national_mapping[date.month]
 
 def coeff_label(suffix, dropped):
     return lambda i: str(i) + ("b" if i == dropped else "") + "." + suffix
@@ -115,6 +128,30 @@ def estimate_consumption_decline(district, dI_pc, dD_pc, force_natl_zero = False
     .set_index("date")\
     .filter(like = "coeff", axis = 1)\
     .sum(axis = 1) + constant
+
+def dict_map(arr, mapping): 
+    # from https://stackoverflow.com/questions/55949809/efficiently-replace-elements-in-array-based-on-dictionary-numpy-python
+    k = np.array(list(mapping.keys()))
+    v = np.array(list(mapping.values()))
+
+    mapping_ar = np.zeros(k.max()+1, dtype = v.dtype) #k,v from approach #1
+    mapping_ar[k] = v
+    return mapping_ar[arr]
+
+def fhat(district, dI_pc, dD_pc, force_natl_zero = False):
+    district_code = str(district_codes[district])
+    district_coeff_label = district_code + ("b" if district_code == "92" else "") + ".districtnum"
+    constant = coeffs.loc["_cons"].value + coeffs.loc[district_coeff_label].value
+
+    I_cat = np.nan_to_num(np.apply_along_axis(lambda _: 1 + pd.cut(_, infection_cutoffs, labels = False), 0, dI_pc)).astype(int)
+    D_cat = np.nan_to_num(np.apply_along_axis(lambda _: 1 + pd.cut(_,     death_cutoffs, labels = False), 0, dD_pc)).astype(int)
+    month = pd.date_range(start = simulation_start, periods = len(dI_pc), freq = "D").month.values
+    I_cat_national = np.where(np.arange(len(dI_pc)) >= 365, 0, dict_map(month, I_cat_national_mapping))
+
+    I_cat_coeff_values = dict_map(I_cat, I_cat_coeffs)
+    D_cat_coeff_values = dict_map(D_cat, D_cat_coeffs)
+    month_coeff_values = dict_map(month, month_coeffs)
+    I_cat_national_coeff_values = dict_map(I_cat_national, I_cat_natl_coeffs)
 
 def daily_WTP_old(district, N_district, dI_pc, dD_pc, Dx_v, Dx_nv, ve = 0.7):
     f_hat_nv = estimate_consumption_decline(district, dI_pc, dD_pc)
@@ -168,150 +205,439 @@ def discounted_WTP(wtp, rate = (4.25/100), period = "daily"):
         rate /= 12 
     return (wtp * ((1 + rate) ** -np.arange(len(wtp)))[:, None]).sum(axis = 0)
 
-# alice's method
-def avg_monthly_WTP(wtp):
-    return 30 * wtp.groupby(wtp.index.month.astype(str).str.zfill(2) + "_" + wtp.index.year.astype(str)).mean().mean()
-
 def latex_table_row(rowname, items):
     return " & ".join([rowname] + list(items.values.round(2).astype(str))) + " \\\\ "
 
+def get_metrics(
+    pi, 
+    q_p1v1, q_p1v0, q_p0v0, 
+    c_p1v1, c_p1v0, c_p0v0 
+):  
+    dWTP_daily = \
+        (1 - pi) * q_p1v0 * c_p1v0.T +\
+             pi  * q_p1v1 * c_p1v1[:, None] - q_p0v0 * c_p0v0.T 
+
+    dWTP_health_daily = \
+        (1 - pi) * (q_p1v0 - q_p0v0.mean(axis = 1)[:, None, :]) * c_p1v0.T +\
+             pi  * (q_p1v1 - q_p0v0.mean(axis = 1)[:, None, :]) * c_p1v1[:, None]
+
+    dWTP_income_daily = \
+        (1 - pi) * q_p0v0.mean(axis = 1)[:, None, :] * (c_p1v0 - c_p0v0.mean(axis = 1)[:, None, :]).T +\
+             pi  * q_p1v1.mean(axis = 1)[:, None, :] * (c_p1v1 - c_p0v0.mean(axis = 1).T)[:, None, :]
+
+    dWTP_private_daily = \
+        q_p1v1 * c_p1v1[:, None] - q_p1v0 * c_p1v0.T
+
+    VSLY_daily_1 = ((1 - pi) * q_p1v0 + pi * q_p1v1) * np.mean(c_p1v0, axis = 1).T[:, None, :]
+    VSLY_daily_0 = q_p0v0 * np.mean(c_p0v0, axis = 1).T[:, None, :]
+    dVLSY_daily = VSLY_daily_1 - VSLY_daily_0
+
+    beta = 1/(1 + 4.25/365)
+    s = np.arange(simulation_range + 1)
+
+    WTP      = [] 
+    VSLY     = []
+    WTP_private = None
+    WTP_health = None
+    WTP_income = None
+    for t in range(simulation_range + 1):
+        wtp = np.sum(np.power(beta, s[t:] - t)[:, None, None] * dWTP_daily[t:, :], axis = 0)
+        WTP.append(wtp)
+
+        vsly = np.sum(np.power(beta, s[t:])[:, None, None] * dVLSY_daily[t:, :], axis = 0)
+        VSLY.append(vsly)
+
+        if t == 0:
+            WTP_health  = np.sum(np.power(beta, s[t:])[:, None, None] * dWTP_health_daily [t:, :], axis = 0)
+            WTP_income  = np.sum(np.power(beta, s[t:])[:, None, None] * dWTP_income_daily [t:, :], axis = 0)
+            WTP_private = np.sum(np.power(beta, s[t:])[:, None, None] * dWTP_private_daily[t:, :], axis = 0) 
+
+    return (
+        WTP,
+        WTP_health, 
+        WTP_income,
+        WTP_private,
+        VSLY,
+    )
+
 if __name__ == "__main__":
-    # run calculations and then print out each aggregation
-    # daily_WTP_calcs = {district: daily_WTP(district) for district in district_codes.keys()}
-    wtp_daily  = defaultdict(lambda: 0)
-    wtp_total  = defaultdict(lambda: 0)
-    wtp_range  = defaultdict(lambda: 0)
-    wtp_percentiles  = defaultdict(lambda: 0)
-    wtp_income  = defaultdict(lambda: 0)
-    wtp_health  = defaultdict(lambda: 0)
+    evaluated_deaths = defaultdict(lambda: np.zeros(num_sims))
+    evaluated_YLL    = defaultdict(lambda: np.zeros(num_sims))
+    evaluated_WTP    = defaultdict(lambda: np.zeros((simulation_range + 1, num_sims, num_age_bins)))
+    evaluated_WTP_h  = defaultdict(lambda: np.zeros((simulation_range + 1, num_sims, num_age_bins)))
+    evaluated_WTP_i  = defaultdict(lambda: np.zeros((simulation_range + 1, num_sims, num_age_bins)))
+    evaluated_WTP_p  = defaultdict(lambda: np.zeros((simulation_range + 1, num_sims, num_age_bins)))
+    evaluated_VSLY   = defaultdict(lambda: np.zeros((simulation_range + 1, num_sims, num_age_bins)))
+    district_WTP     = defaultdict(lambda: np.zeros((simulation_range + 1, num_sims, num_age_bins)))
 
-    ve = 0.7
-    for phi in (.25, .50):
-        for district in ["Chennai"]:
-            if district == "Perambalur":
-                    continue
-            print(district)
-            N_district = district_populations[district]
-            dI_pc_range_nv = pd.read_csv(f"data/clean_sims/dT_TN_{district}_novaccination.csv")\
-                .rename(columns = {"Unnamed: 0": "t"})\
-                .set_index("t")/N_district
-            dD_pc_range_nv = pd.read_csv(f"data/clean_sims/dD_TN_{district}_novaccination.csv")\
-                .rename(columns = {"Unnamed: 0": "t"})\
-                .set_index("t")/N_district
-            Dx_nv = pd.read_csv(f"data/clean_sims/Dx_TN_{district}_novaccination.csv")\
-                .drop(columns = ["Unnamed: 0"])\
-                .reindex(range(1 + 5 * 365)).fillna(method = "ffill")            
-            for policy in ["randomassignment", "mortalityprioritized", "contactrateprioritized"]:
+    progress = tqdm(total = len(districts_to_run) * 4)
+    for (district, _, N_district, *_) in districts_to_run.itertuples():
+        progress.set_description(f"{district:15s}|    no vax|         ")
+        f_hat_p1v1 = estimate_consumption_decline(district, 
+            pd.Series(np.zeros(simulation_range + 1)), 
+            pd.Series(np.zeros(simulation_range + 1)), force_natl_zero = True)
+        c_p1v1 = (1 + f_hat_p1v1)[:, None] * consumption_2019.loc[district].values
 
-                Dx_v  = pd.read_csv(f"data/clean_sims/Dx_TN_{district}_{policy}_ve70_annualgoal{int(100*phi)}_Rt_threshold0.2.csv")\
-                    .drop(columns = ["Unnamed: 0"])\
-                    .reindex(range(1 + 5 * 365)).fillna(method = "ffill")
-    
-                wtp_range[(phi, policy)] += np.array([
-                    discounted_WTP(daily_WTP_old(district, N_district, dI_pc_range_nv.iloc[:, _], dD_pc_range_nv.iloc[:, _], Dx_v, Dx_nv)) 
-                    for _ in range(100)
-                ])
-            # for district in ["Chennai"]:#, "Thiruvallur", "Vellore", "Viluppuram", "Tiruchirappalli", "Pudukkottai", "Thanjavur", "Dindigul", "Thiruvarur", "Theni"]:
+        with np.load(data/f"sim_metrics/{state}_{district}_phi25_novax.npz") as counterfactual:
+            dI_pc_p0 = counterfactual['dT']/N_district
+            dD_pc_p0 = counterfactual['dD']/N_district
+            q_p0v0   = counterfactual["q0"]
+            D_p0     = counterfactual["Dj"]
+        f_hat_p0v0 = np.array([estimate_consumption_decline(district, dI_pc_p0[:, _], dD_pc_p0[:, _]) for _ in range(num_sims)])
+        c_p0v0 = (1 + f_hat_p0v0) * consumption_2019.loc[district].values[:, None, None]
+
+        evaluated_deaths[25, "no_vax"] += (D_p0[-1] - D_p0[0]).sum(axis = 1)
+        evaluated_YLL   [25, "no_vax"] += (D_p0[-1] - D_p0[0]) @ YLLs
+
+        progress.update(1)
+        
+        for _phi in phi_points:
+            phi = int(_phi * 365 * 100)
+
+            for vax_policy in ["random", "contact", "mortality"]:
+                progress.set_description(f"{district:15s}| {vax_policy:>9s}| φ = {str(int(phi)):>3s}%")
+                with np.load(data/f"sim_metrics/{state}_{district}_phi{phi}_{vax_policy}.npz") as policy:
+                    dI_pc_p1 = policy['dT']/N_district
+                    dD_pc_p1 = policy['dD']/N_district
+                    pi       = policy['pi'] 
+                    q_p1v1   = policy['q1']
+                    q_p1v0   = policy['q0']
+                    D_p1     = policy["Dj"]
+
+                f_hat_p1v0 = np.array([estimate_consumption_decline(district, dI_pc_p1[:, _], dD_pc_p1[:, _]) for _ in range(num_sims)])
+                c_p1v0 = (1 + f_hat_p1v0) * consumption_2019.loc[district].values[:, None, None]
+
+                wtp, wtp_health, wtp_income, wtp_private, vsly = get_metrics(pi, q_p1v1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0)
                 
-                # dI_pc_range_v = pd.read_csv(f"data/clean_sims/dT_TN_{district}_{policy}_ve70_annualgoal{int(100*phi)}_Rt_threshold0.2.csv")\
-                #     .rename(columns = {"Unnamed: 0": "t"})\
-                #     .set_index("t")/N_district
-                # dD_pc_range_v = pd.read_csv(f"data/clean_sims/dD_TN_{district}_{policy}_ve70_annualgoal{int(100*phi)}_Rt_threshold0.2.csv")\
-                #     .rename(columns = {"Unnamed: 0": "t"})\
-                #     .set_index("t")/N_district
+                evaluated_deaths[phi, vax_policy] += (D_p1[-1] - D_p1[0]).sum(axis = 1)
+                evaluated_YLL   [phi, vax_policy] += (D_p1[-1] - D_p1[0]) @ YLLs
+                evaluated_WTP   [phi, vax_policy] += wtp
+                evaluated_WTP_h [phi, vax_policy] += wtp_health
+                evaluated_WTP_i [phi, vax_policy] += wtp_income
+                evaluated_WTP_p [phi, vax_policy] += wtp_private
+                evaluated_VSLY  [phi, vax_policy] += vsly
+                if phi == 50 and vax_policy == "random":
+                    district_WTP[district] = wtp
+                progress.update(1)
 
-        # wtp_daily[district] = daily_WTP(district, N_district, dI_pc_range.mean(axis = 1), dD_pc_range.mean(axis = 1), Dx_v, Dx_nv)
-        # wtp_total[district] = discounted_WTP(wtp_daily[district])
-        # wtp_range[district] = np.array([
-        #         discounted_WTP(daily_WTP(district, N_district, dI_pc_range.iloc[:, _], dD_pc_range.iloc[:, _], Dx_v, Dx_nv)) 
-        #         for _ in range(100)
-        #     ])
-        # wtp_percentiles[district] = np.percentile(wtp_range[district], [5, 50, 95], axis = 0)
+    death_percentiles = {tag: np.percentile(metric, [50, 5, 95]) for (tag, metric) in evaluated_deaths.items()}
+    YLL_percentiles   = {tag: np.percentile(metric, [50, 5, 95]) for (tag, metric) in evaluated_YLL.items()}
+    VSLY_percentiles  = {tag: np.percentile(metric, [50, 5, 95]) for (tag, metric) in evaluated_VSLY.items()}
+    WTP_percentiles   = {tag: np.percentile(metric, [50, 5, 95]) for (tag, metric) in evaluated_WTP.items()}
 
-        # dI_pc_range_v = pd.read_csv(f"data/latest_simes/dT_TN_{district}_randomassignment_ve70_annualgoal50_Rt_threshold0.2.csv")\
-        #     .rename(columns = {"Unnamed: 0": "t"})\
-        #     .set_index("t")/N_district
-        # dD_pc_range_v = pd.read_csv(f"data/latest_simes/dD_TN_{district}_randomassignment_ve70_annualgoal50_Rt_threshold0.2.csv")\
-        #     .rename(columns = {"Unnamed: 0": "t"})\
-        #     .set_index("t")/N_district
-        # wtp_health[district] = discounted_WTP(daily_wtp_health(district, N_district, dI_pc_range["0"], dD_pc_range["0"], dI_pc_range_v["0"], dD_pc_range_v["0"], Dx_v))
+    # death outcomes 
+    #region
+    fig = plt.gcf()
 
-    wtp_percentiles = {k: np.percentile(np.sum(v, axis = 1), [5, 50, 95]) for (k, v) in wtp_range.items()}
+    md, lo, hi = death_percentiles[(25, "no_vax")]
+    *_, bars = plt.errorbar(x = [0], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = no_vax_color, label = "no vaccination", ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
 
+    ##################
 
+    md, lo, hi = death_percentiles[(25, "random")]
+    *_, bars = plt.errorbar(x = [1 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = random_vax_color, label = "random assignment", ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = death_percentiles[(25, "contact")]
+    *_, bars = plt.errorbar(x = [1], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = contactrate_vax_color, label = "contact rate prioritized", ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = death_percentiles[(25, "mortality")]
+    *_, bars = plt.errorbar(x = [1 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = mortality_vax_color, label = "mortality rate prioritized", ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    ##################
+
+    md, lo, hi = death_percentiles[(50, "random")]
+    *_, bars = plt.errorbar(x = [2 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = random_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = death_percentiles[(50, "contact")]
+    *_, bars = plt.errorbar(x = [2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = contactrate_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = death_percentiles[(50, "mortality")]
+    *_, bars = plt.errorbar(x = [2 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = mortality_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    ##################
+
+    md, lo, hi = death_percentiles[(100, "random")]
+    *_, bars = plt.errorbar(x = [3 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = random_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = death_percentiles[(100, "contact")]
+    *_, bars = plt.errorbar(x = [3], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = contactrate_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = death_percentiles[(100, "mortality")]
+    *_, bars = plt.errorbar(x = [3 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = mortality_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    plt.legend(ncol = 4, fontsize = "25", loc = "lower center", bbox_to_anchor = (0.5, 1))
+    plt.xticks([0, 1, 2, 3], ["$\phi = 0$%", "$\phi = 25$%", "$\phi = 50$%", "$\phi = 100$%"], fontsize = "25")
+    plt.yticks(fontsize = "25")
+    plt.PlotDevice().ylabel("deaths\n")
+    plt.show()
+    # #endregion
+
+    # # YLL 
+    # #region
     fig = plt.figure()
-    for (i, phi) in ((0, 0.25), (1, 0.5)):
-        for (dx, policy) in enumerate(["randomassignment", "mortalityprioritized", "contactrateprioritized"]):
-            clr = [contactrate_vax_color,  mortality_vax_color, random_vax_color,][dx]
-            (lo, md, hi) = wtp_percentiles[(phi, policy)]
-            lo, md, hi = lo * USD, md * USD, hi * USD
-            *_, bars = plt.errorbar(
-                x = [i - 0.3* (1 - dx)], y = [md], yerr = [[md - lo], [hi - md]],
-                figure = fig, fmt = "o", color = clr, label = None if i > 0 else ["random assignment", "mortality prioritized", "contact rate prioritized"][dx],
-                ms = 12, elinewidth = 5
-            )
-            [_.set_alpha(0.5) for _ in bars]
-    plt.legend(ncol = 3, fontsize = "20")
-    plt.xticks([0, 1], ["$\phi = 25$%", "$\phi = 50$%"], fontsize = "20")
-    plt.yticks(fontsize = "20")
+
+    md, lo, hi = YLL_percentiles[(25, "no_vax")]
+    *_, bars = plt.errorbar(x = [0], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = no_vax_color, label = "no vaccination", ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = YLL_percentiles[(25, "random")]
+    *_, bars = plt.errorbar(x = [1 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = random_vax_color, label = "random assignment", ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = YLL_percentiles[(25, "contact")]
+    *_, bars = plt.errorbar(x = [1], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = contactrate_vax_color, label = "contact rate prioritized", ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = YLL_percentiles[(25, "mortality")]
+    *_, bars = plt.errorbar(x = [1 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = mortality_vax_color, label = "mortality rate prioritized", ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = YLL_percentiles[(50, "random")]
+    *_, bars = plt.errorbar(x = [2 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = random_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = YLL_percentiles[(50, "contact")]
+    *_, bars = plt.errorbar(x = [2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = contactrate_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = YLL_percentiles[(50, "mortality")]
+    *_, bars = plt.errorbar(x = [2 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = mortality_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+
+    md, lo, hi = YLL_percentiles[(100, "random")]
+    *_, bars = plt.errorbar(x = [3 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = random_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = YLL_percentiles[(100, "contact")]
+    *_, bars = plt.errorbar(x = [3], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = contactrate_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = YLL_percentiles[(100, "mortality")]
+    *_, bars = plt.errorbar(x = [3 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = mortality_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    plt.legend(ncol = 4, fontsize = "25", loc = "lower center", bbox_to_anchor = (0.5, 1))
+    plt.xticks([0, 1, 2, 3], ["$\phi = 0$%", "$\phi = 25$%", "$\phi = 50$%", "$\phi = 100$%"], fontsize = "25")
+    plt.yticks(fontsize = "25")
+    plt.PlotDevice().ylabel("YLLs\n")
+    plt.show()
+    #endregion
+
+    # WTP
+    #region
+    fig = plt.figure()
+
+    # md, lo, hi = WTP_percentiles[(25, "no_vax")]
+    # *_, bars = plt.errorbar(x = [0], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+    #     fmt = "D", color = no_vax_color, label = "no vaccination", ms = 12, elinewidth = 5)
+    # [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = WTP_percentiles[(25, "random")] * USD
+    *_, bars = plt.errorbar(x = [1 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "D", color = random_vax_color, label = "random assignment", ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = WTP_percentiles[(25, "contact")] * USD
+    *_, bars = plt.errorbar(x = [1], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "D", color = contactrate_vax_color, label = "contact rate prioritized", ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = WTP_percentiles[(25, "mortality")] * USD
+    *_, bars = plt.errorbar(x = [1 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "D", color = mortality_vax_color, label = "mortality rate prioritized", ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = WTP_percentiles[(50, "random")] * USD
+    *_, bars = plt.errorbar(x = [2 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "D", color = random_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = WTP_percentiles[(50, "contact")] * USD
+    *_, bars = plt.errorbar(x = [2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "D", color = contactrate_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = WTP_percentiles[(50, "mortality")] * USD
+    *_, bars = plt.errorbar(x = [2 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "D", color = mortality_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = WTP_percentiles[(100, "random")] * USD
+    *_, bars = plt.errorbar(x = [3 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "D", color = random_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = WTP_percentiles[(100, "contact")] * USD
+    *_, bars = plt.errorbar(x = [3], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "D", color = contactrate_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = WTP_percentiles[(100, "mortality")] * USD
+    *_, bars = plt.errorbar(x = [3 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "D", color = mortality_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    plt.legend(ncol = 4, fontsize = "25", loc = "lower center", bbox_to_anchor = (0.5, 1))
+    plt.xticks([1, 2, 3], ["$\phi = 25$%", "$\phi = 50$%", "$\phi = 100$%"], fontsize = "25")
+    plt.yticks(fontsize = "25")
     plt.PlotDevice().ylabel("WTP (USD)\n")
-    # plt.ylim(top = 900)
+    plt.show()
+    #endregion
+
+    # VSLY 
+    #region
+    fig = plt.figure()
+
+    # md, lo, hi = WTP_percentiles[(25, "no_vax")]
+    # *_, bars = plt.errorbar(x = [0], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+    #     fmt = "D", color = no_vax_color, label = "no vaccination", ms = 12, elinewidth = 5)
+    # [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = VSLY_percentiles[(25, "random")] * USD
+    *_, bars = plt.errorbar(x = [1 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "D", color = random_vax_color, label = "random assignment", ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = VSLY_percentiles[(25, "contact")] * USD
+    *_, bars = plt.errorbar(x = [1], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "D", color = contactrate_vax_color, label = "contact rate prioritized", ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = VSLY_percentiles[(25, "mortality")] * USD
+    *_, bars = plt.errorbar(x = [1 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "D", color = mortality_vax_color, label = "mortality rate prioritized", ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = VSLY_percentiles[(50, "random")] * USD
+    *_, bars = plt.errorbar(x = [2 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "D", color = random_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = VSLY_percentiles[(50, "contact")] * USD
+    *_, bars = plt.errorbar(x = [2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "D", color = contactrate_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = VSLY_percentiles[(50, "mortality")] * USD
+    *_, bars = plt.errorbar(x = [2 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "D", color = mortality_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = VSLY_percentiles[(100, "random")] * USD
+    *_, bars = plt.errorbar(x = [3 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "D", color = random_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = VSLY_percentiles[(100, "contact")] * USD
+    *_, bars = plt.errorbar(x = [3], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "D", color = contactrate_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = VSLY_percentiles[(100, "mortality")] * USD
+    *_, bars = plt.errorbar(x = [3 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "D", color = mortality_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    plt.legend(ncol = 4, fontsize = "25", loc = "lower center", bbox_to_anchor = (0.5, 1))
+    plt.xticks([1, 2, 3], ["$\phi = 25$%", "$\phi = 50$%", "$\phi = 100$%"], fontsize = "25")
+    plt.yticks(fontsize = "25")
+    plt.PlotDevice().ylabel("VSLY (USD)\n")
+    plt.show()
+    #endregion
+
+    # aggregate WTP by age
+    WTP_random_50_percentile = np.percentile(evaluated_WTP[0.5, "random"][0, :, :], [50, 5, 95], axis = 0) * USD
+    fig = plt.figure()
+    for (i, (md, lo, hi)) in enumerate(WTP_random_50_percentile.T):
+        *_, bars = plt.errorbar(x = [i], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "D", color = age_group_colors[i], ms = 12, elinewidth = 5, label = age_bin_labels[i])
+        [_.set_alpha(0.5) for _ in bars]
+    plt.xticks([0, 1, 2, 3, 4, 5, 6], age_bin_labels, fontsize = "25")
+    plt.yticks(fontsize = "25")
+    plt.legend(title = "age bin", title_fontsize = "25", fontsize = "25")
+    plt.PlotDevice().ylabel("aggregate WTP (USD)\n")
     plt.show()
 
-    # statewide aggregation
-    summed_WTP = [v.sum(axis = 0) for v in wtp_range.values()] 
-    state_percentiles = np.percentile(summed_WTP, [5, 50, 95], axis = 0)
-    fig = plt.figure()
-    for age in range(7):
-        plt.errorbar(
-            x = [age],
-            y = state_percentiles[1, age] * USD,
-            yerr = [
-                [(state_percentiles[1, age] - state_percentiles[0, age])*USD], 
-                [(state_percentiles[2, age] - state_percentiles[1, age])*USD], 
-            ], 
-            color = age_group_colors[age],
-            label = age_bin_labels[age],
-            fmt = "o",
-            figure = fig
-        )
-    plt.legend(title = "age group", loc = "lower right")
-    plt.xticks([])
-    plt.PlotDevice().ylabel("WTP (USD)\n")
-    plt.show()
+    print("")
 
-
-    summed_wtp_health = sum(wtp_health.values()).round(2)
-    summed_wtp_income = sum(wtp_income.values()).round(2)
-
+    # health/consumption
+    summed_wtp_health = np.median(np.sum([np.array(_) for _ in evaluated_WTP_h.values()], axis = 0), axis = 0)
+    summed_wtp_income = np.median(np.sum([np.array(_) for _ in evaluated_WTP_i.values()], axis = 0), axis = 0)
     fig, ax = plt.subplots()
-    ax.bar(summed_wtp_income.keys(), summed_wtp_income.values * USD, bottom = summed_wtp_health.values * USD, color = "white",          edgecolor = age_group_colors, linewidth = 2)
-    ax.bar(summed_wtp_health.keys(), summed_wtp_health.values * USD,                                          color = age_group_colors, edgecolor = age_group_colors, linewidth = 2)
-    ax.bar([summed_wtp_income.keys()[0]], [0], label = "income", color = "white", edgecolor = "black", linewidth = 2)
-    ax.bar([summed_wtp_income.keys()[0]], [0], label = "health", color = "black", edgecolor = "black", linewidth = 2)
-    label = "health",
-    plt.legend()
-    # plt.ylim(4000, 14000)
+    ax.bar(range(7), summed_wtp_income * USD, bottom = summed_wtp_health * USD, color = "white",          edgecolor = age_group_colors, linewidth = 2)
+    ax.bar(range(7), summed_wtp_health * USD,                                   color = age_group_colors, edgecolor = age_group_colors, linewidth = 2)
+    ax.bar(range(7), [0], label = "income", color = "white", edgecolor = "black", linewidth = 2)
+    ax.bar(range(7), [0], label = "health", color = "black", edgecolor = "black", linewidth = 2)
+    plt.xticks(range(7), age_bin_labels, fontsize = "25")
+    plt.yticks(fontsize = "25")
+    plt.legend(ncol = 4, fontsize = "25", loc = "lower center", bbox_to_anchor = (0.5, 1))
     plt.PlotDevice().ylabel("WTP (USD)\n")
     plt.semilogy()
     plt.show()
 
+    # social/private 
+    summed_wtp_priv = np.median(np.sum([np.array(_) for _ in evaluated_WTP_p.values()], axis = 0), axis = 0)
+    summed_wtp_tot  = np.median(np.sum([np.array(_) for _ in district_WTP.values()], axis = 0)[0, :, :], axis = 0)
+    # summed_wtp      = np.median(np.sum([np.array(_) for _ in evaluated_WTP  .values()], axis = 0)[0, :, :], axis = 0)
+    summed_wtp_soc  = summed_wtp_tot - summed_wtp_priv
+    fig, ax = plt.subplots()
+    ax.bar(range(7), summed_wtp_priv * USD, bottom = summed_wtp_soc * USD, color = "white",          edgecolor = age_group_colors, linewidth = 2)
+    ax.bar(range(7), summed_wtp_soc  * USD,                                color = age_group_colors, edgecolor = age_group_colors, linewidth = 2)
+    ax.bar(range(7), [0], label = "social",  color = "white", edgecolor = "black", linewidth = 2)
+    ax.bar(range(7), [0], label = "private", color = "black", edgecolor = "black", linewidth = 2)
 
-    ordering_values = {k: v[1].max() for (k, v) in wtp_range.items()}
-    district_ordering = sorted(ordering_values, key = ordering_values.get, reverse = True)
+    plt.xticks(range(7), age_bin_labels, fontsize = "25")
+    plt.yticks(fontsize = "25")
+    plt.legend(ncol = 4, fontsize = "25", loc = "lower center", bbox_to_anchor = (0.5, 1))
+    plt.PlotDevice().ylabel("WTP (USD)\n")
+    plt.semilogy()
+    plt.show()
 
+    # dist x age 
+    per_district_percentiles = {district: np.percentile(wtp[0, :, :], [50, 5, 95], axis = 0) for (district, wtp) in per_district_WTPs.items()}
 
-    # agg by district 
     fig = plt.figure()
+    district_ordering = list(per_district_percentiles.keys())[:5]
     for (i, district) in enumerate(district_ordering):
-        wtps = wtp_percentiles[i]
+        wtps = per_district_percentiles[district]
         for j in range(7):
             plt.errorbar(
                 x = [i + 0.1 * (j - 3)],
-                y = wtps[1, 6-j] * USD,
+                y = wtps[0, 6-j] * USD,
                 yerr = [
-                    [(wtps[1, 6-j] - wtps[0, 6-j]) * USD],
-                    [(wtps[2, 6-j] - wtps[1, 6-j]) * USD]
+                    [(wtps[0, 6-j] - wtps[1, 6-j]) * USD],
+                    [(wtps[2, 6-j] - wtps[0, 6-j]) * USD]
                 ], 
                 fmt = "o",
                 color = age_group_colors[6-j],
@@ -321,30 +647,12 @@ if __name__ == "__main__":
     plt.xticks(
         range(len(district_ordering)),
         district_ordering,
-        rotation = 90
+        rotation = 45,
+        fontsize = "25"
     )
-    plt.legend(title = "age group")
+    plt.yticks(fontsize = "25")
+    plt.legend(title = "age bin", title_fontsize = "25", fontsize = "25")
     # plt.ylim(0, 10000)
     plt.xlim(-0.5, len(district_ordering) - 0.5)
-    plt.PlotDevice().ylabel("WTP (USD)")
-    plt.show()
-
-
-    ["30323d","3f414f","4d5061","55688f","5c80bc","7995be","95a9c0","b38d97","d5aca9"]
-    # agg by age 
-    fig = plt.figure()
-    for age_index in range(7):
-        for (district, color) in zip(district_ordering[::3], ["30323d","b27c66","4d5061","5aaa95","5c80bc","86a873","95a9c0","5cab7d","b38d97"]):
-            plt.scatter(
-                y = age_index,
-                x = wtp_percentiles[district][1, age_index] * USD, 
-                color = "#" + color,
-                figure = fig,
-                marker = "D",
-                s = 100, 
-                label = None if age_index > 0 else district
-            )
-    plt.yticks(range(7), age_bin_labels)
-    plt.PlotDevice().xlabel("\nWTP (USD)").ylabel("age bin\n")
-    plt.legend()
+    plt.PlotDevice().ylabel("WTP (USD)\n")
     plt.show()
