@@ -88,46 +88,11 @@ I_cat_national_mapping = {
     12: 0
 }
 
-def cut(column, cutoffs):
-    return lambda _: (1 + pd.cut(_[column], [0] + cutoffs + [1], labels = False)).fillna(0).astype(int)
-
 # national prevalence categories are sparse and easily mapped as a function of time
 def date_to_I_cat_natl(date: pd.Timestamp):
     if date.year != 2021:
         return 0
     return I_cat_national_mapping[date.month]
-
-def coeff_label(suffix, dropped):
-    return lambda i: str(i) + ("b" if i == dropped else "") + "." + suffix
-
-def coeff_value(column, dropped):
-    return lambda _: coeffs.loc[_[column].apply(lambda i: str(i) + ("b" if i == dropped else "") + "." + column)].value.values
-
-def estimate_consumption_decline(district, dI_pc, dD_pc, force_natl_zero = False):
-    district_code = str(district_codes[district])
-    district_coeff_label = district_code + ("b" if district_code == "92" else "") + ".districtnum"
-    constant = coeffs.loc["_cons"].value + coeffs.loc[district_coeff_label].value
-
-    # map values to categoricals 
-    indicators = pd.DataFrame({
-        "I_cat": np.nan_to_num(1 + pd.cut(dI_pc, infection_cutoffs, labels = False)).astype(int),
-        "D_cat": np.nan_to_num(1 + pd.cut(dD_pc,     death_cutoffs, labels = False)).astype(int),
-        "date": pd.date_range(start = simulation_start, freq = "D", periods = len(dI_pc))
-    }).assign(
-        month          = lambda _: _.date.dt.month,
-        I_cat_national = lambda _: _.date.apply(date_to_I_cat_natl if not force_natl_zero else lambda _: 0)
-    )
-
-    # index categoricals into coefficients and sum
-    return indicators.assign(
-        I_coeff     = coeff_value("I_cat",          dropped = 0),
-        D_coeff     = coeff_value("D_cat",          dropped = 0),
-        I_nat_coeff = coeff_value("I_cat_national", dropped = 0),
-        month_coeff = coeff_value("month",          dropped = 1),
-    )\
-    .set_index("date")\
-    .filter(like = "coeff", axis = 1)\
-    .sum(axis = 1) + constant
 
 def dict_map(arr, mapping): 
     # from https://stackoverflow.com/questions/55949809/efficiently-replace-elements-in-array-based-on-dictionary-numpy-python
@@ -138,7 +103,7 @@ def dict_map(arr, mapping):
     mapping_ar[k] = v
     return mapping_ar[arr]
 
-def fhat(district, dI_pc, dD_pc, force_natl_zero = False):
+def income_decline(district, dI_pc, dD_pc, force_natl_zero = False):
     district_code = str(district_codes[district])
     district_coeff_label = district_code + ("b" if district_code == "92" else "") + ".districtnum"
     constant = coeffs.loc["_cons"].value + coeffs.loc[district_coeff_label].value
@@ -146,58 +111,18 @@ def fhat(district, dI_pc, dD_pc, force_natl_zero = False):
     I_cat = np.nan_to_num(np.apply_along_axis(lambda _: 1 + pd.cut(_, infection_cutoffs, labels = False), 0, dI_pc)).astype(int)
     D_cat = np.nan_to_num(np.apply_along_axis(lambda _: 1 + pd.cut(_,     death_cutoffs, labels = False), 0, dD_pc)).astype(int)
     month = pd.date_range(start = simulation_start, periods = len(dI_pc), freq = "D").month.values
-    I_cat_national = np.where(np.arange(len(dI_pc)) >= 365, 0, dict_map(month, I_cat_national_mapping))
+    if force_natl_zero: 
+        I_cat_national = np.zeros(month.shape).astype(int)
+    else:
+        I_cat_national = np.where(np.arange(len(dI_pc)) >= 365, 0, dict_map(month, I_cat_national_mapping))
 
     I_cat_coeff_values = dict_map(I_cat, I_cat_coeffs)
     D_cat_coeff_values = dict_map(D_cat, D_cat_coeffs)
     month_coeff_values = dict_map(month, month_coeffs)
     I_cat_national_coeff_values = dict_map(I_cat_national, I_cat_natl_coeffs)
 
-def daily_WTP_old(district, N_district, dI_pc, dD_pc, Dx_v, Dx_nv, ve = 0.7):
-    f_hat_nv = estimate_consumption_decline(district, dI_pc, dD_pc)
-    consumption_nv = (1 + f_hat_nv)[:, None] * consumption_2019.loc[district].values
+    return ((I_cat_coeff_values + D_cat_coeff_values) + (month_coeff_values + I_cat_national_coeff_values)[:, None] + constant).T
 
-    P_death_nv = Dx_nv.diff().shift(-1).fillna(0).cumsum()/split_by_age(N_district) 
-    WTP_nv = ((1 - P_death_nv) * consumption_nv).set_index(f_hat_nv.index)
-
-    # vaccination 
-    f_hat_v = estimate_consumption_decline(district, pd.Series([0]*len(dI_pc)), pd.Series([0]*len(dI_pc)))
-    consumption_v = (1 + f_hat_v)[:, None] * consumption_2019.loc[district].values
-
-    P_death_v = Dx_v.diff().shift(-1).fillna(0).cumsum()/split_by_age(N_district) 
-    WTP_v = ((ve + (1-ve)*(1 - P_death_v)) * consumption_v)\
-        .set_index(pd.date_range(start = simulation_start,  end = simulation_start + pd.Timedelta(len(Dx_v) - 1, "days")))
-
-    # where vaccination time series is longer than no vax timeseries, we assume consumption is identical 
-    return (WTP_v - WTP_nv).fillna(0) 
-
-def daily_WTP_health(district, N_district, dI_pc_v, dD_pc_v, Dx_v, Dx_nv, ve = 0.7):
-    P_death_v  = Dx_v.diff().shift(-1).fillna(0).cumsum()/split_by_age(N_district) 
-    q_v = 1 - P_death_v
-
-    P_death_nv = Dx_nv.diff().shift(-1).fillna(0).cumsum()/split_by_age(N_district) 
-    q_nv = 1 - P_death_nv 
-
-    v_consumption_v  = (1 + estimate_consumption_decline(district, pd.Series([0] * (1 + 5 * 365)), pd.Series([0] * (1 + 5 * 365))) )[:, None] * consumption_2019.loc[district].values
-    v_consumption_nv = (1 + estimate_consumption_decline(district, dI_pc_v.reindex(range(1826), fill_value = 0),  dD_pc_v.reindex(range(1826), fill_value = 0)))[:, None] * consumption_2019.loc[district].values
-
-    P_vax = (0.5/365 * np.arange(5 * 365 + 1)).clip(0, 1)[:, None]
-
-    return (1 - P_vax) * (q_v - q_nv) * v_consumption_nv +  P_vax * (1 - q_nv) * v_consumption_v
-
-def daily_WTP_income(district, N_district, dI_pc_nv, dD_pc_nv, dI_pc_v, dD_pc_v, Dx_nv, ve = 0.7):
-    P_death_nv = Dx_nv.diff().shift(-1).fillna(0).cumsum()/split_by_age(N_district) 
-    q_nv = 1 - P_death_nv 
-
-    v_consumption_v  = (1 + estimate_consumption_decline(district, pd.Series([0] * (1 + 5 * 365)), pd.Series([0] * (1 + 5 * 365))))[:, None] * consumption_2019.loc[district].values
-    v_consumption_nv = (1 + estimate_consumption_decline(district, dI_pc_v.reindex(range(1826), fill_value = 0),  dD_pc_v.reindex(range(1826), fill_value = 0)) )[:, None] * consumption_2019.loc[district].values
-    nv_consumption   = (1 + estimate_consumption_decline(district, dI_pc_nv, dD_pc_nv) )[:, None] * consumption_2019.loc[district].values
-
-    P_vax = (0.5/365 * np.arange(5 * 365 + 1)).clip(0, 1)[:, None]
-
-    return (1 - P_vax) * q_nv * (v_consumption_nv - nv_consumption) +  P_vax * q_nv * (v_consumption_v - nv_consumption)
-
-# satej's method
 def discounted_WTP(wtp, rate = (4.25/100), period = "daily"):
     if period == "daily":
         rate /= 365
@@ -215,18 +140,18 @@ def get_metrics(
 ):  
     dWTP_daily = \
         (1 - pi) * q_p1v0 * c_p1v0.T +\
-             pi  * q_p1v1 * c_p1v1[:, None] - q_p0v0 * c_p0v0.T 
+             pi  * q_p1v1 * c_p1v1 - q_p0v0 * c_p0v0.T 
 
     dWTP_health_daily = \
         (1 - pi) * (q_p1v0 - q_p0v0.mean(axis = 1)[:, None, :]) * c_p1v0.T +\
-             pi  * (q_p1v1 - q_p0v0.mean(axis = 1)[:, None, :]) * c_p1v1[:, None]
+             pi  * (q_p1v1 - q_p0v0.mean(axis = 1)[:, None, :]) * c_p1v1
 
     dWTP_income_daily = \
         (1 - pi) * q_p0v0.mean(axis = 1)[:, None, :] * (c_p1v0 - c_p0v0.mean(axis = 1)[:, None, :]).T +\
-             pi  * q_p1v1.mean(axis = 1)[:, None, :] * (c_p1v1 - c_p0v0.mean(axis = 1).T)[:, None, :]
+             pi  * q_p1v1.mean(axis = 1)[:, None, :] * (c_p1v1 - c_p0v0.mean(axis = 1)[:, None, :].T)
 
     dWTP_private_daily = \
-        q_p1v1 * c_p1v1[:, None] - q_p1v0 * c_p1v0.T
+        q_p1v1 * c_p1v1 - q_p1v0 * c_p1v0.T
 
     VSLY_daily_1 = ((1 - pi) * q_p1v0 + pi * q_p1v1) * np.mean(c_p1v0, axis = 1).T[:, None, :]
     VSLY_daily_0 = q_p0v0 * np.mean(c_p0v0, axis = 1).T[:, None, :]
@@ -268,22 +193,24 @@ if __name__ == "__main__":
     evaluated_WTP_i  = defaultdict(lambda: np.zeros((simulation_range + 1, num_sims, num_age_bins)))
     evaluated_WTP_p  = defaultdict(lambda: np.zeros((simulation_range + 1, num_sims, num_age_bins)))
     evaluated_VSLY   = defaultdict(lambda: np.zeros((simulation_range + 1, num_sims, num_age_bins)))
+    VSLY_0           = defaultdict(lambda: np.zeros((simulation_range + 1, num_sims, num_age_bins)))
     district_WTP     = defaultdict(lambda: np.zeros((simulation_range + 1, num_sims, num_age_bins)))
 
-    progress = tqdm(total = len(districts_to_run) * 4)
+    progress = tqdm(total = len(districts_to_run) * 12)
     for (district, _, N_district, *_) in districts_to_run.itertuples():
         progress.set_description(f"{district:15s}|    no vax|         ")
-        f_hat_p1v1 = estimate_consumption_decline(district, 
-            pd.Series(np.zeros(simulation_range + 1)), 
-            pd.Series(np.zeros(simulation_range + 1)), force_natl_zero = True)
-        c_p1v1 = (1 + f_hat_p1v1)[:, None] * consumption_2019.loc[district].values
+        f_hat_p1v1 = income_decline(district, np.zeros((simulation_range + 1, 1)), np.zeros((simulation_range + 1, 1)), force_natl_zero = True)
+        c_p1v1 = np.transpose(
+            (1 + f_hat_p1v1)[:, None] * consumption_2019.loc[district].values[:, None],
+            [2, 0, 1]
+        )
 
-        with np.load(data/f"sim_metrics/{state}_{district}_phi25_novax.npz") as counterfactual:
+        with np.load(data/f"sim_metrics_100/{state}_{district}_phi25_novax.npz") as counterfactual:
             dI_pc_p0 = counterfactual['dT']/N_district
             dD_pc_p0 = counterfactual['dD']/N_district
             q_p0v0   = counterfactual["q0"]
             D_p0     = counterfactual["Dj"]
-        f_hat_p0v0 = np.array([estimate_consumption_decline(district, dI_pc_p0[:, _], dD_pc_p0[:, _]) for _ in range(num_sims)])
+        f_hat_p0v0 = income_decline(district, dI_pc_p0, dD_pc_p0)
         c_p0v0 = (1 + f_hat_p0v0) * consumption_2019.loc[district].values[:, None, None]
 
         evaluated_deaths[25, "no_vax"] += (D_p0[-1] - D_p0[0]).sum(axis = 1)
@@ -296,7 +223,7 @@ if __name__ == "__main__":
 
             for vax_policy in ["random", "contact", "mortality"]:
                 progress.set_description(f"{district:15s}| {vax_policy:>9s}| φ = {str(int(phi)):>3s}%")
-                with np.load(data/f"sim_metrics/{state}_{district}_phi{phi}_{vax_policy}.npz") as policy:
+                with np.load(data/f"sim_metrics_100/{state}_{district}_phi{phi}_{vax_policy}.npz") as policy:
                     dI_pc_p1 = policy['dT']/N_district
                     dD_pc_p1 = policy['dD']/N_district
                     pi       = policy['pi'] 
@@ -304,7 +231,7 @@ if __name__ == "__main__":
                     q_p1v0   = policy['q0']
                     D_p1     = policy["Dj"]
 
-                f_hat_p1v0 = np.array([estimate_consumption_decline(district, dI_pc_p1[:, _], dD_pc_p1[:, _]) for _ in range(num_sims)])
+                f_hat_p1v0 = income_decline(district, dI_pc_p0, dD_pc_p0)
                 c_p1v0 = (1 + f_hat_p1v0) * consumption_2019.loc[district].values[:, None, None]
 
                 wtp, wtp_health, wtp_income, wtp_private, vsly = get_metrics(pi, q_p1v1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0)
@@ -454,6 +381,124 @@ if __name__ == "__main__":
     plt.show()
     #endregion
 
+
+    # death outcomes - min/mean/max
+    #region
+    fig = plt.gcf()
+
+    md, lo, hi = death_percentiles[(25, "no_vax")]
+    md, lo, hi = [op(evaluated_deaths[25, "no_vax"]) for op in (np.mean, np.min, np.max)]
+    *_, bars = plt.errorbar(x = [0], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = no_vax_color, label = "no vaccination", ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    ##################
+
+    md, lo, hi = death_percentiles[(25, "random")]
+    md, lo, hi = [op(evaluated_deaths[25, "random"]) for op in (np.mean, np.min, np.max)]
+    *_, bars = plt.errorbar(x = [1 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = random_vax_color, label = "random assignment", ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = death_percentiles[(25, "contact")]
+    md, lo, hi = [op(evaluated_deaths[25, "contact"]) for op in (np.mean, np.min, np.max)]
+    *_, bars = plt.errorbar(x = [1], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = contactrate_vax_color, label = "contact rate prioritized", ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = death_percentiles[(25, "mortality")]
+    md, lo, hi = [op(evaluated_deaths[25, "mortality"]) for op in (np.mean, np.min, np.max)]
+    *_, bars = plt.errorbar(x = [1 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = mortality_vax_color, label = "mortality rate prioritized", ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    ##################
+
+    md, lo, hi = death_percentiles[(50, "random")]
+    md, lo, hi = [op(evaluated_deaths[50, "random"]) for op in (np.mean, np.min, np.max)]
+    *_, bars = plt.errorbar(x = [2 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = random_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = death_percentiles[(50, "contact")]
+    md, lo, hi = [op(evaluated_deaths[50, "contact"]) for op in (np.mean, np.min, np.max)]
+    *_, bars = plt.errorbar(x = [2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = contactrate_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = death_percentiles[(50, "mortality")]
+    md, lo, hi = [op(evaluated_deaths[50, "mortality"]) for op in (np.mean, np.min, np.max)]
+    *_, bars = plt.errorbar(x = [2 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = mortality_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    ##################
+
+    md, lo, hi = death_percentiles[(100, "random")]
+    md, lo, hi = [op(evaluated_deaths[100, "random"]) for op in (np.mean, np.min, np.max)]
+    *_, bars = plt.errorbar(x = [3 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = random_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = death_percentiles[(100, "contact")]
+    md, lo, hi = [op(evaluated_deaths[100, "contact"]) for op in (np.mean, np.min, np.max)]
+    *_, bars = plt.errorbar(x = [3], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = contactrate_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = death_percentiles[(100, "mortality")]
+    md, lo, hi = [op(evaluated_deaths[100, "mortality"]) for op in (np.mean, np.min, np.max)]
+    *_, bars = plt.errorbar(x = [3 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = mortality_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    ##################
+
+    md, lo, hi = death_percentiles[(200, "random")]
+    md, lo, hi = [op(evaluated_deaths[200, "random"]) for op in (np.mean, np.min, np.max)]
+    *_, bars = plt.errorbar(x = [4 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = random_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = death_percentiles[(200, "contact")]
+    md, lo, hi = [op(evaluated_deaths[200, "contact"]) for op in (np.mean, np.min, np.max)]
+    *_, bars = plt.errorbar(x = [4], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = contactrate_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = death_percentiles[(200, "mortality")]
+    md, lo, hi = [op(evaluated_deaths[200, "mortality"]) for op in (np.mean, np.min, np.max)]
+    *_, bars = plt.errorbar(x = [4 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = mortality_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    ##################
+
+    # md, lo, hi = death_percentiles[(500, "random")]
+    # md, lo, hi = [op(evaluated_deaths[500, "random"]) for op in (np.mean, np.min, np.max)]
+    # *_, bars = plt.errorbar(x = [5 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+    #     fmt = "o", color = random_vax_color, ms = 12, elinewidth = 5)
+    # [_.set_alpha(0.5) for _ in bars]
+
+    # md, lo, hi = death_percentiles[(500, "contact")]
+    # md, lo, hi = [op(evaluated_deaths[500, "contact"]) for op in (np.mean, np.min, np.max)]
+    # *_, bars = plt.errorbar(x = [5], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+    #     fmt = "o", color = contactrate_vax_color, ms = 12, elinewidth = 5)
+    # [_.set_alpha(0.5) for _ in bars]
+
+    # md, lo, hi = death_percentiles[(500, "mortality")]
+    # md, lo, hi = [op(evaluated_deaths[500, "mortality"]) for op in (np.mean, np.min, np.max)]
+    # *_, bars = plt.errorbar(x = [5 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+    #     fmt = "o", color = mortality_vax_color, ms = 12, elinewidth = 5)
+    # [_.set_alpha(0.5) for _ in bars]
+
+    plt.legend(ncol = 4, fontsize = "25", loc = "lower center", bbox_to_anchor = (0.5, 1))
+    plt.xticks([0, 1, 2, 3, 4], ["$\phi = 0$%", "$\phi = 25$%", "$\phi = 50$%", "$\phi = 100$%", "$\phi = 200$%"], fontsize = "25")
+    plt.yticks(fontsize = "25")
+    plt.PlotDevice().ylabel("deaths\n")
+    plt.show()
+    # #endregion
+
     # WTP
     #region
     fig = plt.figure()
@@ -519,7 +564,7 @@ if __name__ == "__main__":
     #region
     fig = plt.figure()
 
-    # md, lo, hi = WTP_percentiles[(25, "no_vax")]
+    # md, lo, hi = np.percentile(np.sum(list(VSLY_0.values())), [50, 5, 95], axis = 1)
     # *_, bars = plt.errorbar(x = [0], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
     #     fmt = "D", color = no_vax_color, label = "no vaccination", ms = 12, elinewidth = 5)
     # [_.set_alpha(0.5) for _ in bars]
@@ -577,9 +622,9 @@ if __name__ == "__main__":
     #endregion
 
     # aggregate WTP by age
-    WTP_random_50_percentile = np.percentile(evaluated_WTP[0.5, "random"][0, :, :], [50, 5, 95], axis = 0) * USD
+    # WTP_random_50_percentile = np.percentile(evaluated_WTP[50, "random"][0, :, :], [50, 5, 95], axis = 0) * USD
     fig = plt.figure()
-    for (i, (md, lo, hi)) in enumerate(WTP_random_50_percentile.T):
+    for (i, (md, lo, hi)) in enumerate(zip(*np.percentile(np.sum([v[0] for v in district_WTP.values()], axis = 0), [50, 5, 95], axis = 0))):
         *_, bars = plt.errorbar(x = [i], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
         fmt = "D", color = age_group_colors[i], ms = 12, elinewidth = 5, label = age_bin_labels[i])
         [_.set_alpha(0.5) for _ in bars]
@@ -587,6 +632,7 @@ if __name__ == "__main__":
     plt.yticks(fontsize = "25")
     plt.legend(title = "age bin", title_fontsize = "25", fontsize = "25")
     plt.PlotDevice().ylabel("aggregate WTP (USD)\n")
+    plt.semilogy()
     plt.show()
 
     print("")
@@ -625,7 +671,7 @@ if __name__ == "__main__":
     plt.show()
 
     # dist x age 
-    per_district_percentiles = {district: np.percentile(wtp[0, :, :], [50, 5, 95], axis = 0) for (district, wtp) in per_district_WTPs.items()}
+    per_district_percentiles = {district: np.percentile(wtp[0, :, :], [50, 5, 95], axis = 0) for (district, wtp) in district_WTP.items()}
 
     fig = plt.figure()
     district_ordering = list(per_district_percentiles.keys())[:5]

@@ -1,7 +1,8 @@
+from collections import defaultdict
+
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from adaptive.estimators import analytical_MPVS
 from adaptive.models import Age_SIRVD
 from adaptive.utils import annually, normalize, percent, years
 from scipy.stats import multinomial
@@ -12,17 +13,20 @@ from tqdm.std import tqdm
 
 sns.set(style = "whitegrid")
 
-num_sims         = 1000
+num_sims         = 500
 simulation_range = 1 * years
-phi_points       = [_ * percent * annually for _ in (25, 50, 100)]
-districts_to_run = district_IFR.filter(items = sorted(set(district_codes.keys()) - set(["Perambalur"])), axis = 0)
+phi_points       = [_ * percent * annually for _ in (25, 50, 100, 200)]
+simulation_initial_conditions = pd.read_csv(data/"simulation_initial_conditions.csv").set_index("district")
+districts_to_run = simulation_initial_conditions
 # districts_to_run = district_IFR.filter(items = ["Chennai", "Cuddalore", "Salem"], axis = 0)
 num_age_bins     = 7
 seed             = 0
 
+dst = data/"sim_metrics_100"
+dst.mkdir(exist_ok = True)
+
 def save_metrics(policy, tag):
-    np.savez(
-        data/f"sim_metrics/{tag}.npz", 
+    np.savez(dst/f"{tag}.npz", 
         dT = policy.dT_total,
         dD = policy.dD_total,
         pi = policy.pi,
@@ -38,34 +42,16 @@ def prioritize(num_doses, S, prioritization):
     return dV[:, [i for (i, _) in sorted(enumerate(prioritization), key = lambda t: t[1])]]
 
 if __name__ == "__main__":
-    progress = tqdm(total = (simulation_range + 4) * len(districts_to_run) * len(phi_points))
-    for (district, seroprevalence, N_district, _, IFR_sero, _) in districts_to_run.itertuples():
-        dT_conf_district = ts.loc[district].dT
-        dT_conf_district = dT_conf_district.reindex(pd.date_range(dT_conf_district.index.min(), dT_conf_district.index.max()), fill_value = 0)
-        dT_conf_district_smooth = pd.Series(smooth(dT_conf_district), index = dT_conf_district.index).clip(0).astype(int)
-        T_conf_smooth = dT_conf_district_smooth.cumsum().astype(int)
-        T = T_conf_smooth[date]
-        T_sero = (N_district * seroprevalence)
-        T_ratio = T_sero/T
-        D0, R0 = ts.loc[district][["dD", "dR"]].sum()
-        R0 *= T_ratio
-
-        T_scaled = dT_conf_district_smooth.cumsum()[simulation_start] * T_ratio
-        S0 = N_district - T_scaled
-        dD0 = ts.loc[district].dD.loc[simulation_start]
-        dT0 = ts.loc[district].dT.loc[simulation_start] * T_ratio
-        I0 = max(0, (T_scaled - R0 - D0))
-
-        (Rt_dates, Rt_est, *_) = analytical_MPVS(T_ratio * dT_conf_district_smooth, CI = CI, smoothing = lambda _:_, totals = False)
-        Rt = dict(zip(Rt_dates, Rt_est))
-
+    progress = tqdm(total = (simulation_range + 4) * len(districts_to_run) * len(phi_points), leave = False)
+    for (district, sero_0, N_0, sero_1, N_1, sero_2, N_2, sero_3, N_3, sero_4, N_4, sero_5, N_5, sero_6, N_6, N_tot, Rt, S0, I0, R0, D0, dT0, dD0) in districts_to_run.itertuples():
+        Sj0 = np.array([(1 - sj) * Nj for (sj, Nj) in zip([sero_0, sero_1, sero_2, sero_3, sero_4, sero_5, sero_6], [N_0, N_1, N_2, N_3, N_4, N_5, N_6])])
         def get_model(seed = 104):
             model = Age_SIRVD(
                 name        = district, 
-                population  = N_district - D0, 
-                dT0         = np.ones(num_sims) * (dT_conf_district_smooth[simulation_start] * T_ratio).astype(int), 
-                Rt0         = Rt[simulation_start],
-                S0          = np.tile((fS * S0).T, num_sims).reshape((num_sims, -1)),
+                population  = N_tot - D0, 
+                dT0         = np.ones(num_sims) * (dT0).astype(int), 
+                Rt0         = Rt,
+                S0          = np.tile(Sj0,         num_sims).reshape((num_sims, -1)),
                 I0          = np.tile((fI * I0).T, num_sims).reshape((num_sims, -1)),
                 R0          = np.tile((fR * R0).T, num_sims).reshape((num_sims, -1)),
                 D0          = np.tile((fD * D0).T, num_sims).reshape((num_sims, -1)),
@@ -102,3 +88,14 @@ if __name__ == "__main__":
             progress.update(1)
             save_metrics(contact_model,   f"{state}_{district}_phi{int(phi * 365 * 100)}_contact")
             progress.update(1)
+
+            # D_diff_contact[int(phi * 100 * 365)]   = np.squeeze(contact_model.D)   - np.squeeze(no_vax_model.D)
+            # D_diff_random[int(phi * 100 * 365)]    = np.squeeze(random_model.D)    - np.squeeze(no_vax_model.D)
+            # D_diff_mortality[int(phi * 100 * 365)] = np.squeeze(mortality_model.D) - np.squeeze(no_vax_model.D)
+
+            # {k: (v.sum(axis = 2)[-1] > 0).sum() for (k, v) in D_diff_contact.items()}
+            # {k: (v.sum(axis = 2)[-1] > 0).sum() for (k, v) in D_diff_random.items()}
+            # {k: (v.sum(axis = 2)[-1] > 0).sum() for (k, v) in D_diff_mortality.items()}
+
+            # for (model, modelname) in zip((random_model, contact_model, mortality_model, no_vax_model), ("random", "contact", "mortality", "no vax")):
+            #     print(int(phi * 100 * 365), modelname, [op(np.sum(model.D, axis = 2)[-1]) for op in [np.min, np.mean, np.max]])

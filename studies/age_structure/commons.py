@@ -3,6 +3,7 @@ from pathlib import Path
 import flat_table
 import numpy as np
 import pandas as pd
+from adaptive.estimators import analytical_MPVS
 from adaptive.etl.commons import download_data
 from adaptive.etl.covid19india import (data_path, get_time_series,
                                        load_all_data, state_code_lookup)
@@ -29,17 +30,23 @@ num_sims = 10000
 immunity_threshold = 0.75
 Rt_threshold = 0.2
 
+# misc
+state = "TN"
+survey_date = "October 23, 2020"
+
 #################################################################
 
 
 # load covid19 india data 
-print(":: loading case timeseries data")
-# download_data(data, 'timeseries.json', "https://api.covid19india.org/v3/")
-with (data/'timeseries.json').open("rb") as fp:
-    df = flat_table.normalize(pd.read_json(fp)).fillna(0)
-df.columns = df.columns.str.split('.', expand = True)
-dates = np.squeeze(df["index"][None].values)
-df = df.drop(columns = "index", level = 0).set_index(dates).stack([1, 2]).drop("UN", axis = 1)
+def load_national_timeseries(download: bool = False) -> pd.DataFrame:
+    print(":: loading case timeseries data")
+    if download:
+        download_data(data, 'timeseries.json', "https://api.covid19india.org/v3/")
+    with (data/'timeseries.json').open("rb") as fp:
+        df = flat_table.normalize(pd.read_json(fp)).fillna(0)
+    df.columns = df.columns.str.split('.', expand = True)
+    dates = np.squeeze(df["index"][None].values)
+    return df.drop(columns = "index", level = 0).set_index(dates).stack([1, 2]).drop("UN", axis = 1)
 
 
 print(":: loading admin data")
@@ -224,30 +231,64 @@ COVID_age_ratios = np.array([0.01618736, 0.07107746, 0.23314877, 0.22946212, 0.1
 india_pop = pd.read_csv(data/"india_pop.csv", names = ["state", "population"], index_col = "state").to_dict()["population"]
 
 # download district-level data 
-paths = {"v3": [data_path(i) for i in (1, 2)], "v4": [data_path(i) for i in range(3, 22)]}
-# for target in paths['v3'] + paths['v4']: download_data(data, target)
-ts = load_all_data(v3_paths = [data/filepath for filepath in paths['v3']],  v4_paths = [data/filepath for filepath in paths['v4']])\
-    .query("detected_state == 'Tamil Nadu'")\
-    .pipe(lambda _: get_time_series(_, "detected_district"))\
-    .drop(columns = ["date", "time", "delta", "logdelta"])\
-    .rename(columns = {
-        "Deceased":     "dD",
-        "Hospitalized": "dT",
-        "Recovered":    "dR"
-    })
+def get_TN_timeseries(download: bool = False) -> pd.DataFrame:
+    paths = {"v3": [data_path(i) for i in (1, 2)], "v4": [data_path(i) for i in range(3, 22)]}
+    if download:
+        for target in paths['v3'] + paths['v4']: 
+            download_data(data, target)
+    return load_all_data(v3_paths = [data/filepath for filepath in paths['v3']],  v4_paths = [data/filepath for filepath in paths['v4']])\
+        .query("detected_state == 'Tamil Nadu'")\
+        .pipe(lambda _: get_time_series(_, "detected_district"))\
+        .drop(columns = ["date", "time", "delta", "logdelta"])\
+        .rename(columns = {
+            "Deceased":     "dD",
+            "Hospitalized": "dT",
+            "Recovered":    "dR"
+        })
 
-print(":: seroprevalence scaling")
-TN_sero_breakdown = np.array([0.311, 0.311, 0.320, 0.333, 0.320, 0.272, 0.253]) # from TN sero, assume 0-18 sero = 18-30 sero
-TN_pop = india_pop["Tamil Nadu"]
-TN_seropos = split_by_age(TN_pop) @ TN_sero_breakdown/TN_pop
+def get_TN_scaling_ratio(df, state = "TN", survey_date = "October 23, 2020"):
+    print(":: seroprevalence scaling")
+    TN_pop = india_pop["Tamil Nadu"]
+    TN_sero_breakdown = np.array([0.311, 0.311, 0.320, 0.333, 0.320, 0.272, 0.253]) # from TN sero, assume 0-18 sero = 18-30 sero
+    TN_seropos = split_by_age(TN_pop) @ TN_sero_breakdown/TN_pop
 
-(state, date, seropos, sero_breakdown) = ("TN", "October 23, 2020", TN_seropos, TN_sero_breakdown)
-N = india_pop[state_code_lookup[state].replace("&", "and")]
+    # scaling
+    dT_conf = df[state].loc[:, "delta", "confirmed"] 
+    dT_conf_smooth = pd.Series(smooth(dT_conf), index = dT_conf.index)
+    T_conf_smooth = dT_conf_smooth.cumsum().astype(int)
+    T = T_conf_smooth[survey_date]
+    T_sero = (TN_pop * TN_seropos)
+    T_ratio = T_sero/T
+    return T_ratio
 
-# scaling
-dT_conf = df[state].loc[:, "delta", "confirmed"] 
-dT_conf_smooth = pd.Series(smooth(dT_conf), index = dT_conf.index)
-T_conf_smooth = dT_conf_smooth.cumsum().astype(int)
-T = T_conf_smooth[date]
-T_sero = (N * seropos)
-T_ratio = T_sero/T
+def assemble_simulation_initial_conditions():
+    ts = get_time_series()
+    rows = []
+    district_age_pop = pd.read_csv(data/"district_age_estimates_padded.csv").dropna().set_index("district")
+    for (district, sero_0, N_0, sero_1, N_1, sero_2, N_2, sero_3, N_3, sero_4, N_4, sero_5, N_5, sero_6, N_6, N_tot) in district_age_pop.filter(items = list(district_codes.keys()), axis = 0).itertuples():
+        dT_conf_district = ts.loc[district].dT
+        dT_conf_district = dT_conf_district.reindex(pd.date_range(dT_conf_district.index.min(), dT_conf_district.index.max()), fill_value = 0)
+        dT_conf_district_smooth = pd.Series(smooth(dT_conf_district), index = dT_conf_district.index).clip(0).astype(int)
+        T_conf_smooth = dT_conf_district_smooth.cumsum().astype(int)
+        T = T_conf_smooth[survey_date]
+        
+        T_sero  = (sero_0*N_0 + sero_1*N_1 + sero_2*N_2 + sero_3*N_3 + sero_4*N_4 + sero_5*N_5 + sero_6*N_6)
+        T_ratio = T_sero/T
+        D0, R0  = ts.loc[district][["dD", "dR"]].sum()
+        R0 *= T_ratio
+
+        T_scaled = dT_conf_district_smooth.cumsum()[simulation_start] * T_ratio
+        S0 = N_tot - T_scaled
+        dD0 = ts.loc[district].dD.loc[simulation_start]
+        dT0 = dT_conf_district_smooth[simulation_start] * T_ratio
+        I0 = max(0, (T_scaled - R0 - D0))
+
+        (Rt_dates, Rt_est, *_) = analytical_MPVS(T_ratio * dT_conf_district_smooth, CI = CI, smoothing = lambda _:_, totals = False)
+        Rt = dict(zip(Rt_dates, Rt_est))
+
+        rows.append((district, sero_0, N_0, sero_1, N_1, sero_2, N_2, sero_3, N_3, sero_4, N_4, sero_5, N_5, sero_6, N_6, N_tot, Rt[simulation_start], S0, I0, R0, D0, dT0, dD0))
+    
+    pd.DataFrame(
+        rows, 
+        columns = ["district", "sero_0", "N_0", "sero_1", "N_1", "sero_2", "N_2", "sero_3", "N_3", "sero_4", "N_4", "sero_5", "N_5", "sero_6", "N_6", "N_tot", "Rt", "S0", "I0", "R0", "D0", "dT0", "dD0"]
+    ).to_csv(data/"simulation_initial_conditions.csv")
