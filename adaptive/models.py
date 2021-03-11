@@ -267,6 +267,9 @@ class Age_SIRVD(SIR):
 
         self.dT_total = [np.zeros(sims)]
         self.dD_total = [np.zeros(sims)]
+        self.dV = []
+
+        self.rng = np.random.default_rng(random_seed)
 
     def parallel_forward_epi_step(self, dV: Optional[np.array], num_sims = 10000): 
         """
@@ -280,19 +283,19 @@ class Age_SIRVD(SIR):
         S_ratios = normalize(S + S_vn, axis = 1)
 
         # core epi update
-        Rt = self.Rt0 * (S + S_vn).sum()/(N + S_vn).sum()
+        Rt = self.Rt0 * (S + S_vn).sum(axis = 1)/(N + S_vn).sum(axis = 1)
         b  = np.exp(self.gamma * (Rt - 1))
 
         lambda_T = (self.b[-1] * self.dT[-1]).clip(0)
-        dT = poisson.rvs(lambda_T)
+        dT = self.rng.poisson(lambda_T)
         self.upper_CI.append(poisson.ppf(    self.CI, lambda_T))
         self.lower_CI.append(poisson.ppf(1 - self.CI, lambda_T))
 
-        S = S - (S_ratios * dT[:, None])
-        I = I + (S_ratios * dT[:, None])
+        S = (S - (S_ratios * dT[:, None])).clip(0)
+        I = (I + (S_ratios * dT[:, None])).clip(0)
 
-        dD = poisson.rvs(    self.m  * self.gamma * (I + I_vn), size = (num_sims, self.num_age_bins))
-        dR = poisson.rvs((1- self.m) * self.gamma * (I + I_vn), size = (num_sims, self.num_age_bins))
+        dD = self.rng.poisson(   self.m  * self.gamma * (I + I_vn), size = (num_sims, self.num_age_bins))
+        dR = self.rng.poisson((1-self.m) * self.gamma * (I + I_vn), size = (num_sims, self.num_age_bins))
         
         self.dT_total.append(dT)
         self.dD_total.append(dD.sum(axis = 1))
@@ -306,8 +309,8 @@ class Age_SIRVD(SIR):
         # beta = dT[:, None] * N/(b * (S + S_vn) * (I + I_vn))
 
         # vaccination updates 
-        dS_vm = fillna(S/N) * (    self.ve) * dV
-        dS_vn = fillna(S/N) * (1 - self.ve) * dV - fillna(S_vn/(S + S_vn)) * (S_ratios * dT[:, None])
+        dS_vm = (fillna(S/N) * (    self.ve) * dV).clip(0)
+        dS_vn = (fillna(S/N) * (1 - self.ve) * dV - fillna(S_vn/(S + S_vn)) * (S_ratios * dT[:, None])).clip(0)
 
         dI_vn = fillna(I/N) * dV + fillna(S_vn/(S + S_vn)) * (S_ratios * dT[:, None])
         dR_vm = fillna(R/N) * dV
@@ -361,6 +364,8 @@ class Age_SIRVD(SIR):
         self.pi.append(pi)
         self.q1.append(q1)
         self.q0.append(q0)
+
+        self.dV.append(dV)
 
 class NetworkedSIR():
     """ implements cross-geography interactions between a set of SIR models """
