@@ -123,14 +123,39 @@ def discounted_WTP(wtp, rate = (4.25/100), period = "daily"):
 def latex_table_row(rowname, items):
     return " & ".join([rowname] + list(items.values.round(2).astype(str))) + " \\\\ "
 
+def policy_metrics():
+    dWTP_daily = (1 - pi) * q_p1v0 * c_p1v0.T +\
+                      pi  * q_p1v1 * c_p1v1
+
+    dVLSY_daily = ((1 - pi) * q_p1v0 + pi * q_p1v1) * np.mean(c_p1v0, axis = 1).T[:, None, :]
+
+    beta = 1/(1 + 4.25/365)
+    s = np.arange(simulation_range + 1)
+
+    WTP_NPV  = [] 
+    VSLY_NPV = []
+
+    for t in range(simulation_range + 1):
+        WTP_NPV .append(np.sum(np.power(beta, s[t:] - t)[:, None, None] * dWTP_daily[t:, :], axis = 0))
+        VSLY_NPV.append(np.sum(np.power(beta, s[t:])[:, None, None] * dVLSY_daily[t:, :], axis = 0))
+
+    return WTP_NPV,VSLY_NPV
+
+def counterfactual_metrics():
+    pass 
+
+def health_income_breakdown():
+    pass 
+
 def get_metrics(
     pi, 
     q_p1v1, q_p1v0, q_p0v0, 
     c_p1v1, c_p1v0, c_p0v0 
 ):  
-    dWTP_daily = \
-        (1 - pi) * q_p1v0 * c_p1v0.T +\
-             pi  * q_p1v1 * c_p1v1 - q_p0v0 * c_p0v0.T 
+
+    WTP_daily_1 = (1 - pi) * q_p1v0 * c_p1v0.T + pi * q_p1v1 * c_p1v1 
+    WTP_daily_0 = q_p0v0 * c_p0v0.T 
+    dWTP_daily = WTP_daily_1 - WTP_daily_0 
 
     dWTP_health_daily = \
         (1 - pi) * (q_p1v0 - q_p0v0.mean(axis = 1)[:, None, :]) * c_p1v0.T +\
@@ -150,29 +175,29 @@ def get_metrics(
     beta = 1/(1 + 4.25/365)
     s = np.arange(simulation_range + 1)
 
-    WTP      = [] 
-    VSLY     = []
-    WTP_private = None
-    WTP_health = None
-    WTP_income = None
+    WTP_NPV  = [] 
+    VSLY_NPV = []
+    WTP_health_NPV0 = None
+    WTP_income_NPV0 = None
+    WTP_private_NPV0 = None
     for t in range(simulation_range + 1):
         wtp = np.sum(np.power(beta, s[t:] - t)[:, None, None] * dWTP_daily[t:, :], axis = 0)
-        WTP.append(wtp)
+        WTP_NPV.append(wtp)
 
         vsly = np.sum(np.power(beta, s[t:])[:, None, None] * dVLSY_daily[t:, :], axis = 0)
-        VSLY.append(vsly)
+        VSLY_NPV.append(vsly)
 
         if t == 0:
-            WTP_health  = np.sum(np.power(beta, s[t:])[:, None, None] * dWTP_health_daily [t:, :], axis = 0)
-            WTP_income  = np.sum(np.power(beta, s[t:])[:, None, None] * dWTP_income_daily [t:, :], axis = 0)
-            WTP_private = np.sum(np.power(beta, s[t:])[:, None, None] * dWTP_private_daily[t:, :], axis = 0) 
+            WTP_health_NPV0  = np.sum(np.power(beta, s[t:])[:, None, None] * dWTP_health_daily [t:, :], axis = 0)
+            WTP_income_NPV0  = np.sum(np.power(beta, s[t:])[:, None, None] * dWTP_income_daily [t:, :], axis = 0)
+            WTP_private_NPV0 = np.sum(np.power(beta, s[t:])[:, None, None] * dWTP_private_daily[t:, :], axis = 0) 
 
     return (
-        WTP,
-        WTP_health, 
-        WTP_income,
-        WTP_private,
-        VSLY,
+        WTP_NPV,
+        WTP_health_NPV0, 
+        WTP_income_NPV0,
+        WTP_private_NPV0,
+        VSLY_NPV,
     )
 
 if __name__ == "__main__":
@@ -195,7 +220,7 @@ if __name__ == "__main__":
             [2, 0, 1]
         )
 
-        with np.load(data/f"sim_metrics_100/{state}_{district}_phi25_novax.npz") as counterfactual:
+        with np.load(data/f"sim_metrics/{state}_{district}_phi25_novax.npz") as counterfactual:
             dI_pc_p0 = counterfactual['dT']/N_district
             dD_pc_p0 = counterfactual['dD']/N_district
             q_p0v0   = counterfactual["q0"]
@@ -213,7 +238,7 @@ if __name__ == "__main__":
 
             for vax_policy in ["random", "contact", "mortality"]:
                 progress.set_description(f"{district:15s}| {vax_policy:>9s}| φ = {str(int(phi)):>3s}%")
-                with np.load(data/f"sim_metrics_100/{state}_{district}_phi{phi}_{vax_policy}.npz") as policy:
+                with np.load(data/f"sim_metrics/{state}_{district}_phi{phi}_{vax_policy}.npz") as policy:
                     dI_pc_p1 = policy['dT']/N_district
                     dD_pc_p1 = policy['dD']/N_district
                     pi       = policy['pi'] 
@@ -302,7 +327,7 @@ if __name__ == "__main__":
         fmt = "o", color = mortality_vax_color, ms = 12, elinewidth = 5)
     [_.set_alpha(0.5) for _ in bars]
 
-    ##################
+    # ##################
 
     md, lo, hi = death_percentiles[(200, "random")]
     *_, bars = plt.errorbar(x = [4 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
@@ -319,43 +344,43 @@ if __name__ == "__main__":
         fmt = "o", color = mortality_vax_color, ms = 12, elinewidth = 5)
     [_.set_alpha(0.5) for _ in bars]
 
+    # ##################
+
+    # md, lo, hi = death_percentiles[(500, "random")]
+    # *_, bars = plt.errorbar(x = [5 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+    #     fmt = "o", color = random_vax_color, ms = 12, elinewidth = 5)
+    # [_.set_alpha(0.5) for _ in bars]
+
+    # md, lo, hi = death_percentiles[(500, "contact")]
+    # *_, bars = plt.errorbar(x = [5], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+    #     fmt = "o", color = contactrate_vax_color, ms = 12, elinewidth = 5)
+    # [_.set_alpha(0.5) for _ in bars]
+
+    # md, lo, hi = death_percentiles[(500, "mortality")]
+    # *_, bars = plt.errorbar(x = [5 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+    #     fmt = "o", color = mortality_vax_color, ms = 12, elinewidth = 5)
+    # [_.set_alpha(0.5) for _ in bars]
+
+
     ##################
 
-    md, lo, hi = death_percentiles[(500, "random")]
-    *_, bars = plt.errorbar(x = [5 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
-        fmt = "o", color = random_vax_color, ms = 12, elinewidth = 5)
-    [_.set_alpha(0.5) for _ in bars]
+    # md, lo, hi = death_percentiles[(10000, "random")]
+    # *_, bars = plt.errorbar(x = [0.75 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+    #     fmt = "o", color = random_vax_color, ms = 12, elinewidth = 5)
+    # [_.set_alpha(0.5) for _ in bars]
 
-    md, lo, hi = death_percentiles[(500, "contact")]
-    *_, bars = plt.errorbar(x = [5], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
-        fmt = "o", color = contactrate_vax_color, ms = 12, elinewidth = 5)
-    [_.set_alpha(0.5) for _ in bars]
+    # md, lo, hi = death_percentiles[(10000, "contact")]
+    # *_, bars = plt.errorbar(x = [0.75], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+    #     fmt = "o", color = contactrate_vax_color, ms = 12, elinewidth = 5)
+    # [_.set_alpha(0.5) for _ in bars]
 
-    md, lo, hi = death_percentiles[(500, "mortality")]
-    *_, bars = plt.errorbar(x = [5 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
-        fmt = "o", color = mortality_vax_color, ms = 12, elinewidth = 5)
-    [_.set_alpha(0.5) for _ in bars]
-
-
-    ##################
-
-    md, lo, hi = death_percentiles[(1000, "random")]
-    *_, bars = plt.errorbar(x = [6 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
-        fmt = "o", color = random_vax_color, ms = 12, elinewidth = 5)
-    [_.set_alpha(0.5) for _ in bars]
-
-    md, lo, hi = death_percentiles[(1000, "contact")]
-    *_, bars = plt.errorbar(x = [6], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
-        fmt = "o", color = contactrate_vax_color, ms = 12, elinewidth = 5)
-    [_.set_alpha(0.5) for _ in bars]
-
-    md, lo, hi = death_percentiles[(1000, "mortality")]
-    *_, bars = plt.errorbar(x = [6 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
-        fmt = "o", color = mortality_vax_color, ms = 12, elinewidth = 5)
-    [_.set_alpha(0.5) for _ in bars]
+    # md, lo, hi = death_percentiles[(10000, "mortality")]
+    # *_, bars = plt.errorbar(x = [0.75 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+    #     fmt = "o", color = mortality_vax_color, ms = 12, elinewidth = 5)
+    # [_.set_alpha(0.5) for _ in bars]
 
     plt.legend(ncol = 4, fontsize = "20", loc = "lower center", bbox_to_anchor = (0.5, 1))
-    plt.xticks([0, 1, 2, 3, 4, 5, 6], ["$\phi = 0$%", "$\phi = 25$%", "$\phi = 50$%", "$\phi = 100$%", "$\phi = 200$%", "$\phi = 500$%", "$\phi = 1000$%"], fontsize = "20")
+    plt.xticks([0, 1, 2, 3, 4], ["$\phi = 0$%", "$\phi = 25$%", "$\phi = 50$%", "$\phi = 100$%", "$\phi = 200$%"], fontsize = "20")
     plt.yticks(fontsize = "20")
     plt.PlotDevice().ylabel("deaths\n")
     plt.show()
@@ -416,8 +441,24 @@ if __name__ == "__main__":
         fmt = "o", color = mortality_vax_color, ms = 12, elinewidth = 5)
     [_.set_alpha(0.5) for _ in bars]
 
+
+    md, lo, hi = YLL_percentiles[(200, "random")]
+    *_, bars = plt.errorbar(x = [4 - 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = random_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = YLL_percentiles[(200, "contact")]
+    *_, bars = plt.errorbar(x = [4], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = contactrate_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
+    md, lo, hi = YLL_percentiles[(200, "mortality")]
+    *_, bars = plt.errorbar(x = [4 + 0.2], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
+        fmt = "o", color = mortality_vax_color, ms = 12, elinewidth = 5)
+    [_.set_alpha(0.5) for _ in bars]
+
     plt.legend(ncol = 4, fontsize = "20", loc = "lower center", bbox_to_anchor = (0.5, 1))
-    plt.xticks([0, 1, 2, 3], ["$\phi = 0$%", "$\phi = 25$%", "$\phi = 50$%", "$\phi = 100$%"], fontsize = "20")
+    plt.xticks([0, 1, 2, 3, 4], ["$\phi = 0$%", "$\phi = 25$%", "$\phi = 50$%", "$\phi = 100$%", "$\phi = 200$%"], fontsize = "20")
     plt.yticks(fontsize = "20")
     plt.PlotDevice().ylabel("YLLs\n")
     plt.show()

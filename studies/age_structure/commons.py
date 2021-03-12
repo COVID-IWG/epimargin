@@ -262,28 +262,41 @@ def get_TN_scaling_ratio(df, state = "TN", survey_date = "October 23, 2020"):
     return T_ratio
 
 def assemble_simulation_initial_conditions():
-    ts = get_time_series()
+    ts = get_TN_timeseries()
     rows = []
     district_age_pop = pd.read_csv(data/"district_age_estimates_padded.csv").dropna().set_index("district")
     for (district, sero_0, N_0, sero_1, N_1, sero_2, N_2, sero_3, N_3, sero_4, N_4, sero_5, N_5, sero_6, N_6, N_tot) in district_age_pop.filter(items = list(district_codes.keys()), axis = 0).itertuples():
-        dT_conf_district = ts.loc[district].dT
-        dT_conf_district = dT_conf_district.reindex(pd.date_range(dT_conf_district.index.min(), dT_conf_district.index.max()), fill_value = 0)
-        dT_conf_district_smooth = pd.Series(smooth(dT_conf_district), index = dT_conf_district.index).clip(0).astype(int)
-        T_conf_smooth = dT_conf_district_smooth.cumsum().astype(int)
-        T = T_conf_smooth[survey_date]
+        dT_conf = ts.loc[district].dT
+        dT_conf = dT_conf.reindex(pd.date_range(dT_conf.index.min(), dT_conf.index.max()), fill_value = 0)
+        dT_conf_smooth = pd.Series(smooth(dT_conf), index = dT_conf.index).clip(0).astype(int)
+        T_conf_smooth  = dT_conf_smooth.cumsum().astype(int)
+        T_conf = T_conf_smooth[survey_date]
         
-        T_sero  = (sero_0*N_0 + sero_1*N_1 + sero_2*N_2 + sero_3*N_3 + sero_4*N_4 + sero_5*N_5 + sero_6*N_6)
-        T_ratio = T_sero/T
-        D0, R0  = ts.loc[district][["dD", "dR"]].sum()
-        R0 *= T_ratio
+        dR_conf = ts.loc[district].dR
+        dR_conf = dR_conf.reindex(pd.date_range(dR_conf.index.min(), dR_conf.index.max()), fill_value = 0)
+        dR_conf_smooth = pd.Series(smooth(dR_conf), index = dR_conf.index).clip(0).astype(int)
+        R_conf_smooth  = dR_conf_smooth.cumsum().astype(int)
+        R_conf = R_conf_smooth[survey_date]
+        R_sero = (sero_0*N_0 + sero_1*N_1 + sero_2*N_2 + sero_3*N_3 + sero_4*N_4 + sero_5*N_5 + sero_6*N_6)
+        R_ratio = R_sero/R_conf 
+        R0 = R_conf_smooth[simulation_start] * R_ratio
 
-        T_scaled = dT_conf_district_smooth.cumsum()[simulation_start] * T_ratio
-        S0 = N_tot - T_scaled
-        dD0 = ts.loc[district].dD.loc[simulation_start]
-        dT0 = dT_conf_district_smooth[simulation_start] * T_ratio
-        I0 = max(0, (T_scaled - R0 - D0))
+        dD_conf = ts.loc[district].dD
+        dD_conf = dD_conf.reindex(pd.date_range(dD_conf.index.min(), dD_conf.index.max()), fill_value = 0)
+        dD_conf_smooth = pd.Series(smooth(dD_conf), index = dD_conf.index).clip(0).astype(int)
+        D_conf_smooth  = dD_conf_smooth.cumsum().astype(int)
+        D0 = D_conf_smooth[simulation_start]
+        
+        T_sero = R_sero + D0 
+        T_ratio = T_sero/T_conf
+        T0 = T_conf_smooth[simulation_start] * T_ratio
 
-        (Rt_dates, Rt_est, *_) = analytical_MPVS(T_ratio * dT_conf_district_smooth, CI = CI, smoothing = lambda _:_, totals = False)
+        S0 = N_tot - T0
+        dD0 = dD_conf_smooth[simulation_start]
+        dT0 = dT_conf_smooth[simulation_start] * T_ratio
+        I0 = max(0, (T0 - R0 - D0))
+
+        (Rt_dates, Rt_est, *_) = analytical_MPVS(T_ratio * dT_conf_smooth, CI = CI, smoothing = lambda _:_, totals = False)
         Rt = dict(zip(Rt_dates, Rt_est))
 
         rows.append((district, sero_0, N_0, sero_1, N_1, sero_2, N_2, sero_3, N_3, sero_4, N_4, sero_5, N_5, sero_6, N_6, N_tot, Rt[simulation_start], S0, I0, R0, D0, dT0, dD0))
