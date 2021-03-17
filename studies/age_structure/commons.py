@@ -5,9 +5,10 @@ import numpy as np
 import pandas as pd
 from adaptive.estimators import analytical_MPVS
 from adaptive.etl.commons import download_data
-from adaptive.etl.covid19india import (data_path, get_time_series,
-                                       load_all_data, state_code_lookup)
+from adaptive.etl.covid19india import data_path, get_time_series, load_all_data
 from adaptive.smoothing import notched_smoothing
+
+""" Common data loading/cleaning functions and constants """
 
 data = Path("./data").resolve()
 
@@ -33,6 +34,19 @@ Rt_threshold = 0.2
 # misc
 state = "TN"
 survey_date = "October 23, 2020"
+
+# palette 
+TN_color = "firebrick"
+IN_color = "#292f36" #"slategrey"
+
+no_vax_color          = "black"
+contactrate_vax_color = "darkorange"
+random_vax_color      = "royalblue"
+mortality_vax_color   = "forestgreen"
+
+# age_group_colors = ["cb3bbf","7b4edc","3984db","3ccaa6","5dca49","cabd49","ca444b"]
+# age_group_colors = ["db57c0","956edf","579bdb","59dbab","75db57","dbd057","db5f57"]
+age_group_colors = [ "#05668d", "#427aa1", "#679436", "#a5be00", "#ffcb77", "#d0393b", "#7a306c"]
 
 #################################################################
 
@@ -70,6 +84,8 @@ TN_age_structure = {
     "60-69":  4650978,
     "70+":    2858780,
 }
+
+N_j = np.array([20504724, 15674833, 11875848, 9777265, 6804602, 4650978, 2858780])
 
 TN_IFRs = { 
     "0-17" : 0.00003,
@@ -222,11 +238,6 @@ fS = pd.Series(TN_age_ratios)[:, None]
 fD = (TN_death_structure     / TN_death_structure    .sum())[:, None]
 fR = (TN_recovery_structure  / TN_recovery_structure .sum())[:, None]
 fI = (TN_infection_structure / TN_infection_structure.sum())[:, None]
-
-mu_TN = 0.000517534
-
-# from Karnataka
-COVID_age_ratios = np.array([0.01618736, 0.07107746, 0.23314877, 0.22946212, 0.18180406, 0.1882451 , 0.05852026, 0.02155489])
 
 india_pop = pd.read_csv(data/"india_pop.csv", names = ["state", "population"], index_col = "state").to_dict()["population"]
 

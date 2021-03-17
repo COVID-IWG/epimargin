@@ -2,6 +2,9 @@ import numpy as np
 import pandas as pd
 from studies.age_structure.commons import *
 
+ts = get_TN_timeseries()
+df = load_national_timeseries()
+
 # per-capita cases, deaths
 ## state level 
 date_index = pd.date_range(ts.index.get_level_values(1).min(), ts.index.get_level_values(1).max())

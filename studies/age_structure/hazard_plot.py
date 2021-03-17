@@ -10,7 +10,6 @@ from adaptive.etl.covid19india import state_code_lookup
 from adaptive.models import SIR
 from matplotlib import dates as mdates
 from studies.age_structure.commons import *
-from studies.age_structure.palette import *
 
 sns.set(style = "whitegrid")
 data = Path("./data").resolve()

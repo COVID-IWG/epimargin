@@ -8,7 +8,6 @@ from adaptive.estimators import analytical_MPVS
 from adaptive.models import SIR
 from adaptive.policy import PrioritizedAssignment, RandomVaccineAssignment, VaccinationPolicy
 from studies.age_structure.commons import *
-from studies.age_structure.palette import *
 
 sns.set(style = "whitegrid")
 
