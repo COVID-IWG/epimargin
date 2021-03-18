@@ -1,8 +1,9 @@
-import adaptive.plots as plt 
+import adaptive.plots as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
 from adaptive.smoothing import notched_smoothing
-import pandas as pd 
 
-import seaborn as sns 
 sns.set_style("whitegrid", {'axes.grid' : False})
 
 smoothed = notched_smoothing(window = 7)
@@ -37,35 +38,36 @@ def plot_mobility(series, label, stringency = None, until = None, annotation = "
     plt.fill_betweenx((-100, 60), pd.to_datetime("March 24, 2020"), pd.to_datetime("June 1, 2020"), color = "black", alpha = 0.05, zorder = -1)
     plt.text(s = "national lockdown", x = pd.to_datetime("April 27, 2020"), y = -90, fontdict = plt.note_font, ha = "center", va = "top")
     plt.PlotDevice()\
-        .title(f"\n{label}: Mobility & Lockdown Trends")\
-        .annotate(annotation)\
         .xlabel("\ndate")\
         .ylabel("% change in mobility\n")
+        # .title(f"\n{label}: Mobility & Lockdown Trends")\
+        # .annotate(annotation)\
     plt.ylim(-100, 60)
 
     plt.xlim(left = series.date.iloc[0], right = right)
 
-for state in ["Bihar", "Maharashtra", "Tamil Nadu", "Punjab", "Delhi"][1:]:
-    plot_mobility(mobility[(mobility.sub_region_1 == state) & (mobility.sub_region_2.isna())], state)
+# for state in ["Bihar", "Maharashtra", "Tamil Nadu", "Punjab", "Delhi"][1:]:
+#     plot_mobility(mobility[(mobility.sub_region_1 == state) & (mobility.sub_region_2.isna())], state)
 
 # for city in ["Mumbai", "Bangalore Urban", "Hyderabad"]:
 #     plot_mobility(mobility[mobility.sub_region_2 == city], city)
 
-# plot_mobility(mobility[mobility.sub_region_1.isna()], "India")
+plot_mobility(mobility[mobility.sub_region_1.isna()], "India")
 
 plot_mobility(
     mobility[mobility.sub_region_1.isna()], 
     "India", 
     stringency = stringency, 
     annotation = "Google Mobility Data (baseline mobility measured from Jan 3 - Feb 6) + Oxford COVID Policy Tracker",
-    until = "June 1, 2020")
+    until = "Oct 10, 2020")
 plt.show()
 
 # mobility vs cases 
 
+from pathlib import Path
+
 import flat_table
 from adaptive.etl.commons import download_data
-from pathlib import Path 
 
 data = Path("./data")
 download_data(data, 'timeseries.json', "https://api.covid19india.org/v3/")
@@ -148,9 +150,10 @@ plt.legend(loc = 'upper right')
 plt.PlotDevice().ylabel("new cases", rotation = -90, labelpad = 50)
 plt.ylim(bottom = 0)
 plt.sca(lax)
-plt.PlotDevice().title("\nIndia Case Count and Death Trends")\
-    .annotate("Covid19India.org")\
+plt.PlotDevice()\
     .xlabel("\ndate")\
     .ylabel("new deaths\n")
+    # .title("\nIndia Case Count and Death Trends")\
+    # .annotate("Covid19India.org")\
 plt.fill_betweenx(plt.ylim(), pd.to_datetime("March 24, 2020"), pd.to_datetime("June 1, 2020"), color = "black", alpha = 0.05, zorder = -1)
 plt.show()

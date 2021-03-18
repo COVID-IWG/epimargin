@@ -344,8 +344,21 @@ class Age_SIRVD(SIR):
         N_v  = np.clip((S_vm + S_vn + I_vn + D_vn + R_vn + R_vm), a_min = 0, a_max = self.N[0])
         N_nv = self.N[0] - N_v
         pi   = N_v/self.N[0]
-        q1   = fillna((N_v -  (D_vn         ))/N_v)
-        q0   = fillna((N_nv - (D - self.D[0]))/N_nv).clip(0)
+        q1 = np.nan_to_num(1 - np.nan_to_num((D_vn - self.D_vn[0])/(N_v .clip(0)), nan = 0, posinf = np.inf), posinf = 1)
+        q0 = np.nan_to_num(1 - np.nan_to_num((D    - self.D   [0])/(N_nv.clip(0)), nan = 0, posinf = np.inf), posinf = 1)
+        # q1   = fillna((N_v -  (D_vn - self.D_vn[0]))/N_v)
+        # q0   = fillna((N_nv - (D    - self.D   [0]))/N_nv.clip(0))
+
+        
+
+        #q_inf = np.nan_to_num((D - D[0])/(N_nv.clip(0)), nan = 0, posinf = np.inf) 
+        #z[:, :, np.isfinite(z).argmin(axis = 2) - 1] 
+
+        def inf_ffill(arr):
+            idx = np.where(~np.isinf(arr), np.arange(arr.shape[1]), 0)
+            np.maximum.accumulate(idx, axis=1, out=idx)
+            out = arr[np.arange(idx.shape[0])[:,None], idx]
+
 
         # update state vectors 
         self.Rt.append(Rt)

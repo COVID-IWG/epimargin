@@ -8,7 +8,7 @@ from tqdm.std import tqdm
 import adaptive.plots as plt
 
 sns.set(style = "whitegrid")
-num_sims         = 100
+num_sims         = 1000
 simulation_range = 1 * years
 phi_points       = [_ * percent * annually for _ in (25, 50, 100, 200)]
 simulation_initial_conditions = pd.read_csv(data/"simulation_initial_conditions.csv")\

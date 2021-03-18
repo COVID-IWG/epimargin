@@ -1,7 +1,5 @@
 from collections import defaultdict
-from itertools import chain
 
-import adaptive.plots as plt
 import pandas as pd
 from studies.age_structure.commons import *
 from studies.age_structure.epi_simulations import *
@@ -129,11 +127,9 @@ def get_metrics(pi, q_p1v1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0):
 
     WTP_NPV  = [] 
     VSLY_NPV = []
-    # cons_benefit = []
     WTP_health_NPV0  = None
     WTP_income_NPV0  = None
     WTP_private_NPV0 = None
-    # WTP_social_NPV0  = None
     for t in range(simulation_range + 1):
         wtp = np.sum(np.power(beta, s[t:] - t)[:, None, None] * WTP_daily_1[t:, :], axis = 0)
         WTP_NPV.append(wtp)
@@ -141,25 +137,17 @@ def get_metrics(pi, q_p1v1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0):
         vsly = np.sum(np.power(beta, s[t:] - t)[:, None, None] * VSLY_daily_1[t:, :], axis = 0)
         VSLY_NPV.append(vsly)
 
-        # cb = np.sum(np.power(beta, s[t:] - t)[:, None, None] * cb_daily_1[t:, :], axis = 0)
-        # cons_benefit.append(cb)
-
         if t == 1:
             WTP_health_NPV0  = np.sum(np.power(beta, s - t)[:, None, None] * dWTP_health_daily , axis = 0)
             WTP_income_NPV0  = np.sum(np.power(beta, s - t)[:, None, None] * dWTP_income_daily , axis = 0)
             WTP_private_NPV0 = np.sum(np.power(beta, s - t)[:, None, None] * dWTP_private_daily, axis = 0) 
-            # WTP_social_NPV0  = wtp - np.sum( 
-            #     np.power(beta, s[:-1])[:, None, None] * np.nan_to_num(np.diff(pi, axis = 0) * N_jk/N_district) * WTP_private_NPV0
-            # )
 
     return (
         WTP_NPV,
         WTP_health_NPV0, 
         WTP_income_NPV0,
         WTP_private_NPV0,
-        # WTP_social_NPV0,
         VSLY_NPV,
-        # cons_benefit
     )
 
 def save_metrics(metrics, name):
@@ -183,7 +171,7 @@ if __name__ == "__main__":
     evaluated_deaths = defaultdict(lambda: np.zeros(num_sims))
     evaluated_YLL    = defaultdict(lambda: np.zeros(num_sims))
 
-    progress = tqdm(total = len(districts_to_run) * (1 + len(phi_points) * 3) + 14)
+    progress = tqdm(total = len(districts_to_run) * (1 + len(phi_points) * 3) + 13)
     for (district, N_district, N_0, N_1, N_2, N_3, N_4, N_5, N_6) in districts_to_run[["N_tot", 'N_0', 'N_1', 'N_2', 'N_3', 'N_4', 'N_5', 'N_6']].itertuples():
         progress.set_description(f"{district:15s}|    no vax|         ")
         district_code = district_codes[district]
@@ -259,11 +247,6 @@ if __name__ == "__main__":
                 district_YLL[district, phi, vax_policy] = (D_p1[-1] - D_p1[0]) * YLLs.values
                 progress.update(1)
 
-    death_percentiles = {tag: np.percentile(metric,                  [50, 5, 95])           for (tag, metric) in evaluated_deaths.items()}
-    YLL_percentiles   = {tag: np.percentile(metric,                  [50, 5, 95])           for (tag, metric) in evaluated_YLL.items()}
-    VSLY_percentiles  = {tag: np.percentile(metric[0].sum(axis = 1), [50, 5, 95], axis = 0) for (tag, metric) in evaluated_VSLY.items()}
-    WTP_percentiles   = {tag: np.percentile(metric[0].sum(axis = 1), [50, 5, 95], axis = 0) for (tag, metric) in evaluated_WTP.items()}
-
     metric_names = {
         "evaluated_deaths": evaluated_deaths,
         "evaluated_YLL"   : evaluated_YLL,
@@ -272,7 +255,6 @@ if __name__ == "__main__":
         "evaluated_WTP_h" : evaluated_WTP_h,
         "evaluated_WTP_i" : evaluated_WTP_i,
         "evaluated_WTP_p" : evaluated_WTP_p,
-        # "evaluated_WTP_s" : evaluated_WTP_s,
         "evaluated_WTP_pc": evaluated_WTP_pc,
         "total_Dj"        : total_Dj,
         "total_consp1v1"  : total_consp1v1,
