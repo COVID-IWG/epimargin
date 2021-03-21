@@ -242,20 +242,33 @@ fI = (TN_infection_structure / TN_infection_structure.sum())[:, None]
 india_pop = pd.read_csv(data/"india_pop.csv", names = ["state", "population"], index_col = "state").to_dict()["population"]
 
 # download district-level data 
-def get_TN_timeseries(download: bool = False) -> pd.DataFrame:
-    paths = {"v3": [data_path(i) for i in (1, 2)], "v4": [data_path(i) for i in range(3, 22)]}
+def get_state_timeseries(states = ["Tamil Nadu"], download: bool = False) -> pd.DataFrame:
+    paths = {"v3": [data_path(i) for i in (1, 2)], "v4": [data_path(i) for i in range(3, 25)]}
     if download:
         for target in paths['v3'] + paths['v4']: 
             download_data(data, target)
     return load_all_data(v3_paths = [data/filepath for filepath in paths['v3']],  v4_paths = [data/filepath for filepath in paths['v4']])\
-        .query("detected_state == 'Tamil Nadu'")\
-        .pipe(lambda _: get_time_series(_, "detected_district"))\
+        .query("detected_state in @states" if states != "*" else "detected_state != 'NULL'", engine = "python")\
+        .pipe(lambda _: get_time_series(_, ["detected_state", "detected_district"]))\
         .drop(columns = ["date", "time", "delta", "logdelta"])\
         .rename(columns = {
             "Deceased":     "dD",
             "Hospitalized": "dT",
             "Recovered":    "dR"
         })
+
+
+def case_death_timeseries(states = ["Tamil Nadu", "Punjab", "Maharashtra", "Bihar", "Assam"], download = False):
+    ts = get_state_timeseries(states, download)
+    ts_index = pd.date_range(start = ts.index.get_level_values(-1).min(), end = ts.index.get_level_values(-1).max(), freq = "D")
+
+    return ts.unstack(-1)\
+        .fillna(0)\
+        .stack()\
+        .swaplevel(-1, 0)\
+        .reindex(ts_index, level = 0, fill_value = 0)\
+        .swaplevel(-1, 0)
+
 
 def get_TN_scaling_ratio(df, state = "TN", survey_date = "October 23, 2020"):
     print(":: seroprevalence scaling")
@@ -272,8 +285,8 @@ def get_TN_scaling_ratio(df, state = "TN", survey_date = "October 23, 2020"):
     T_ratio = T_sero/T
     return T_ratio
 
-def assemble_simulation_initial_conditions():
-    ts = get_TN_timeseries()
+def assemble_TN_simulation_initial_conditions():
+    ts = get_state_timeseries()
     rows = []
     district_age_pop = pd.read_csv(data/"district_age_estimates_padded.csv").dropna().set_index("district")
     for (district, sero_0, N_0, sero_1, N_1, sero_2, N_2, sero_3, N_3, sero_4, N_4, sero_5, N_5, sero_6, N_6, N_tot) in district_age_pop.filter(items = list(district_codes.keys()), axis = 0).itertuples():
