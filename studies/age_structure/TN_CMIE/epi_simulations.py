@@ -21,7 +21,7 @@ seed             = 0
 dst = mkdir(data/f"sim_metrics{num_sims}")
 
 def save_metrics(policy, tag):
-    np.savez_compressed(dst/f"{tag}.npz", 
+    np.savez(dst/f"{tag}.npz", 
         dT = policy.dT_total,
         dD = policy.dD_total,
         pi = policy.pi,

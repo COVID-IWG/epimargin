@@ -151,7 +151,7 @@ def get_metrics(pi, q_p1v1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0):
     )
 
 def save_metrics(metrics, name):
-    np.savez_compressed(dst/f"{name}.npz", **{"_".join(map(str, k)): v for (k, v) in metrics.items()})
+    np.savez(dst/f"{name}.npz", **{"_".join(map(str, k)): v for (k, v) in metrics.items()})
 
 
 if __name__ == "__main__":
