@@ -7,52 +7,73 @@ from tqdm.std import tqdm
 
 """ Calculate WTP, VSLY, and other policy evaluation metrics """ 
 
-src = mkdir(data/f"sim_metrics{num_sims}")
-dst = mkdir(data/f"wtp_metrics{num_sims}")
+src = mkdir(data/f"focus_sim_metrics{num_sims}")
+dst = mkdir(data/f"focus_wtp_metrics{num_sims}")
 
 # coefficients of consumption ~ prevalence regression
-coeffs = pd.read_stata(data/"reg_estimates_full.dta")\
-    [["parm", "label", "estimate"]]\
-    .rename(columns = {"parm": "param"})\
+coeffs = pd.read_stata(data/"reg_estimates_full_ALL.dta")\
+    [["parm", "estimate", "state_api", "district_api"]]\
+    .rename(columns = {"parm": "param", "state_api": "state", "district_api": "district"})\
     .set_index("param")
 
-I_cat_coeffs = dict(enumerate(coeffs.filter(regex = ".*I_cat$", axis = 0).estimate.values))
-D_cat_coeffs = dict(enumerate(coeffs.filter(regex = ".*D_cat$", axis = 0).estimate.values))
-month_coeffs = dict(enumerate(coeffs.filter(regex = ".*month$", axis = 0).estimate.values, start = 1))
-district_coeffs = coeffs.filter(regex = ".*districtnum$", axis = 0)\
-    .estimate.reset_index()\
-    .assign(param = lambda df: df["param"].str[:3].str.replace("b", "").astype(int))\
-    .set_index("param").to_dict()["estimate"]
+def nest_dict(paramkey, coeffs):
+    return {
+        k: v.to_dict() for (k, v) in coeffs\
+        .filter(regex = f".*{paramkey}$", axis = 0)\
+        .reset_index()\
+        .assign(quantile = lambda _: _["param"]\
+            .str.split(".")\
+            .str[0]\
+            .str.replace("b", "")\
+            .str.replace("o", "")\
+            .astype(int))\
+        .set_index("quantile")\
+        .groupby("state")\
+        ["estimate"]
+    } 
+I_cat_coeffs = nest_dict("I_cat", coeffs)
+D_cat_coeffs = nest_dict("D_cat", coeffs)
+month_coeffs = nest_dict("month", coeffs)
+
+district_coeffs = coeffs.set_index(["state", "district"])["estimate"].to_dict()
+constant_coeffs = coeffs.loc["_cons"].set_index("state") ["estimate"].to_dict()
+
+# life expectancy per state
+YLLs = pd.read_stata(data/"life_expectancy_2009_2013_collapsed.dta")\
+    .set_index("state")\
+    .rename(columns = {f"life_expectancy{i+1}": agebin_labels[i] for i in range(7)})
 
 # per capita daily consumption levels 
-consumption_2019 = pd.read_stata("data/pcons_2019m6.dta")\
-    .set_index("districtnum")\
-    .rename(index = {"Kanniyakumari": "Kanyakumari"})
+consumption_2019 = pd.read_stata("data/pcons_2019.dta")\
+    .rename(columns = lambda _: _.replace("_api", ""))\
+    .set_index(["state", "district"])
 
 # bin cutoffs for prevalence categories
-infection_cutoffs = [0, 
-    1.31359918148e-06,
-    2.78728440853e-06,
-    5.98520919658e-06,
-    9.01749487694e-06,
-    .0000138806432497,
-    .0000232067541053,
-    .0000348692029503,
-    .0000553322569194,
-    .0000837807402432, 
+infection_cutoffs = [
+    0, 
+    3.32402467922e-07,
+    9.92239659409e-07,
+    2.13133272235e-06,
+    3.92613963159e-06,
+    6.71275268205e-06,
+    0.0000109327946918,
+    0.000018186142392,
+    0.0000315942104186,
+    0.0000635257453881,    
     1
 ]
 
-death_cutoffs = [0, 
-    4.86518215364e-08,
-    7.74357252506e-08,
-    1.17110323077e-07,
-    1.79850716711e-07,
-    3.08246710742e-07,
-    4.38650091191e-07,
-    6.63577948309e-07,
-    9.89375901681e-07,
-    1.52713164555e-06,
+death_cutoffs = [
+    0, 
+    2.41533752857e-08,
+    4.25654050437e-08,
+    6.65281624245e-08,
+    1.01670598749e-07,
+    1.48801428152e-07,
+    2.27536067026e-07,
+    3.57383124060e-07,
+    5.86270552056e-07,
+    1.04866321656e-06,
     1
 ]
 
@@ -65,18 +86,18 @@ def dict_map(arr, mapping):
     mapping_ar[k] = v
     return mapping_ar[arr]
 
-def income_decline(district_code, dI_pc, dD_pc):
-    constant = coeffs.loc["_cons"].estimate + district_coeffs[district_code]
-
-    I_cat = np.nan_to_num(np.apply_along_axis(lambda _: 1 + pd.cut(_, infection_cutoffs, labels = False), 0, dI_pc)).astype(int)
-    D_cat = np.nan_to_num(np.apply_along_axis(lambda _: 1 + pd.cut(_,     death_cutoffs, labels = False), 0, dD_pc)).astype(int)
+def income_decline(state, district, dI_pc, dD_pc):
+    I_cat = np.nan_to_num(np.apply_along_axis(lambda _: pd.cut(_, infection_cutoffs, labels = False), 0, dI_pc)).astype(int)
+    D_cat = np.nan_to_num(np.apply_along_axis(lambda _: pd.cut(_,     death_cutoffs, labels = False), 0, dD_pc)).astype(int)
     month = pd.date_range(start = simulation_start, periods = len(dI_pc), freq = "D").month.values
 
     return (
-        dict_map(I_cat, I_cat_coeffs)          + 
-        dict_map(D_cat, D_cat_coeffs)          + 
-        dict_map(month, month_coeffs)[:, None] + 
-        constant
+        dict_map(I_cat, I_cat_coeffs[state])          + 
+        dict_map(D_cat, D_cat_coeffs[state])          + 
+        dict_map(month, month_coeffs[state])[:, None] + 
+        district_coeffs.get((state, district), 0)     + 
+        district_coeffs[state, ""]                    +
+        constant_coeffs[state] 
     )
 
 def discounted_WTP(wtp, rate = (4.25/100), period = "daily"):
@@ -172,37 +193,36 @@ if __name__ == "__main__":
     evaluated_YLL    = defaultdict(lambda: np.zeros(num_sims))
 
     progress = tqdm(total = len(districts_to_run) * (1 + len(phi_points) * 3) + 13)
-    for (district, N_district, N_0, N_1, N_2, N_3, N_4, N_5, N_6) in districts_to_run[["N_tot", 'N_0', 'N_1', 'N_2', 'N_3', 'N_4', 'N_5', 'N_6']].itertuples():
+    for ((state, district), state_code, N_district, N_0, N_1, N_2, N_3, N_4, N_5, N_6) in districts_to_run[["state_code", "N_tot", 'N_0', 'N_1', 'N_2', 'N_3', 'N_4', 'N_5', 'N_6']].itertuples():
         progress.set_description(f"{district:15s}|    no vax|         ")
-        district_code = district_codes[district]
         N_jk = np.array([N_0, N_1, N_2, N_3, N_4, N_5, N_6])
         age_weight = N_jk/(N_j)
         pop_weight = N_jk/(N_j.sum())
-        f_hat_p1v1 = income_decline(district_code, np.zeros((simulation_range + 1, 1)), np.zeros((simulation_range + 1, 1)))
+        f_hat_p1v1 = income_decline(state, district, np.zeros((simulation_range + 1, 1)), np.zeros((simulation_range + 1, 1)))
         c_p1v1 = np.transpose(
-            (1 + f_hat_p1v1)[:, None] * consumption_2019.loc[district].values[:, None],
+            (1 + f_hat_p1v1)[:, None] * consumption_2019.loc[state, district].values[:, None],
             [0, 2, 1]
         )
 
-        with np.load(src/f"{state}_{district}_phi25_novax.npz") as counterfactual:
+        with np.load(src/f"{state_code}_{district}_phi25_novax.npz") as counterfactual:
             dI_pc_p0 = counterfactual['dT']/N_district
             dD_pc_p0 = counterfactual['dD']/N_district
             q_p0v0   = counterfactual["q0"]
             D_p0     = counterfactual["Dj"]
-        f_hat_p0v0 = income_decline(district_code, dI_pc_p0, dD_pc_p0)
+        f_hat_p0v0 = income_decline(state, district, dI_pc_p0, dD_pc_p0)
         c_p0v0 = np.transpose(
-            (1 + f_hat_p0v0) * consumption_2019.loc[district].values[:, None, None],
+            (1 + f_hat_p0v0) * consumption_2019.loc[state, district].values[:, None, None],
             [1, 2, 0]
         )
 
-        evaluated_deaths[25, "no_vax"] += (D_p0[-1] - D_p0[0]).sum(axis = 1)
-        evaluated_YLL   [25, "no_vax"] += (D_p0[-1] - D_p0[0]) @ YLLs
+        evaluated_deaths[state, 25, "no_vax"] += (D_p0[-1] - D_p0[0]).sum(axis = 1)
+        evaluated_YLL   [state, 25, "no_vax"] += (D_p0[-1] - D_p0[0]) @ YLLs.loc[state]
 
         wtp_nv, vsly_nv = counterfactual_metrics(q_p0v0, c_p0v0)
-        evaluated_WTP   [25, "no_vax"] += N_jk * wtp_nv
-        evaluated_VSLY  [25, "no_vax"] += N_jk * vsly_nv
-        total_Dj        [25, "no_vax"] += D_p0 
-        total_consp0v0  [25, "no_vax"] += (age_weight[:, None, None] * c_p0v0.T).T
+        evaluated_WTP   [state, 25, "no_vax"] += N_jk * wtp_nv
+        evaluated_VSLY  [state, 25, "no_vax"] += N_jk * vsly_nv
+        total_Dj        [state, 25, "no_vax"] += D_p0 
+        total_consp0v0  [state, 25, "no_vax"] += (age_weight[:, None, None] * c_p0v0.T).T
 
         progress.update(1)
         
@@ -211,7 +231,7 @@ if __name__ == "__main__":
 
             for vax_policy in ["random", "contact", "mortality"]:
                 progress.set_description(f"{district:15s}| {vax_policy:>9s}| φ = {str(int(phi)):>3s}%")
-                with np.load(src/f"{state}_{district}_phi{phi}_{vax_policy}.npz") as policy:
+                with np.load(src/f"{state_code}_{district}_phi{phi}_{vax_policy}.npz") as policy:
                     dI_pc_p1 = policy['dT']/N_district
                     dD_pc_p1 = policy['dD']/N_district
                     pi       = policy['pi'] 
@@ -219,32 +239,32 @@ if __name__ == "__main__":
                     q_p1v0   = policy['q0']
                     D_p1     = policy["Dj"]
 
-                f_hat_p1v0 = income_decline(district_code, dI_pc_p0, dD_pc_p0)
+                f_hat_p1v0 = income_decline(state, district, dI_pc_p0, dD_pc_p0)
                 c_p1v0 = np.transpose(
-                    (1 + f_hat_p1v0) * consumption_2019.loc[district].values[:, None, None], 
+                    (1 + f_hat_p1v0) * consumption_2019.loc[state, district].values[:, None, None], 
                     [1, 2, 0]
                 )
 
                 wtp, wtp_health, wtp_income, wtp_private, vsly = get_metrics(pi, q_p1v1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0)
                 
-                evaluated_deaths[phi, vax_policy] += (D_p1[-1] - D_p1[0]).sum(axis = 1)
-                evaluated_YLL   [phi, vax_policy] += (D_p1[-1] - D_p1[0]) @ YLLs.values
+                evaluated_deaths[state, phi, vax_policy] += (D_p1[-1] - D_p1[0]).sum(axis = 1)
+                evaluated_YLL   [state, phi, vax_policy] += (D_p1[-1] - D_p1[0]) @ YLLs.loc[state]
                 
-                evaluated_WTP   [phi, vax_policy] += N_jk * wtp
-                evaluated_VSLY  [phi, vax_policy] += N_jk * vsly
+                evaluated_WTP   [state, phi, vax_policy] += N_jk * wtp
+                evaluated_VSLY  [state, phi, vax_policy] += N_jk * vsly
                 
-                evaluated_WTP_h  [phi, vax_policy] += age_weight * wtp_health
-                evaluated_WTP_i  [phi, vax_policy] += age_weight * wtp_income
-                evaluated_WTP_p  [phi, vax_policy] += age_weight * wtp_private
+                evaluated_WTP_h  [state, phi, vax_policy] += age_weight * wtp_health
+                evaluated_WTP_i  [state, phi, vax_policy] += age_weight * wtp_income
+                evaluated_WTP_p  [state, phi, vax_policy] += age_weight * wtp_private
                 # evaluated_WTP_s  [phi, vax_policy] += age_weight * wtp_social
-                evaluated_WTP_pc [phi, vax_policy] += age_weight * wtp[0]
+                evaluated_WTP_pc [state, phi, vax_policy] += age_weight * wtp[0]
 
-                total_Dj[phi, vax_policy] += D_p1
-                total_consp1v1[phi, vax_policy] += age_weight * c_p1v1
-                total_consp1v0[phi, vax_policy] += (age_weight[:, None, None] * c_p1v0.T).T
+                total_Dj[state, phi, vax_policy] += D_p1
+                total_consp1v1[state, phi, vax_policy] += age_weight * c_p1v1
+                total_consp1v0[state, phi, vax_policy] += (age_weight[:, None, None] * c_p1v0.T).T
                 
-                district_WTP[district, phi, vax_policy] = N_jk * wtp
-                district_YLL[district, phi, vax_policy] = (D_p1[-1] - D_p1[0]) * YLLs.values
+                district_WTP[state, district, phi, vax_policy] = N_jk * wtp
+                district_YLL[state, district, phi, vax_policy] = (D_p1[-1] - D_p1[0]) @ YLLs.loc[state]
                 progress.update(1)
 
     metric_names = {

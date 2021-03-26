@@ -1,8 +1,8 @@
 from collections import defaultdict
 
 import pandas as pd
-from studies.age_structure.commons import *
-from studies.age_structure.epi_simulations import *
+from studies.age_structure.TN_CMIE.commons import *
+from studies.age_structure.TN_CMIE.epi_simulations import *
 from tqdm.std import tqdm
 
 """ Calculate WTP, VSLY, and other policy evaluation metrics """ 

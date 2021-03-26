@@ -10,7 +10,8 @@ from adaptive.smoothing import notched_smoothing
 
 """ Common data loading/cleaning functions and constants """
 
-data = Path("../data").resolve()
+data = (Path(__file__).parent/"../data").resolve()
+print(data)
 
 USD = 1/72
 

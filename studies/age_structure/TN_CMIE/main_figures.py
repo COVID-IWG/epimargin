@@ -1,8 +1,8 @@
 from itertools import chain, product
-
+from functools import lru_cache
 import adaptive.plots as plt
-from studies.age_structure.commons import *
-from studies.age_structure.epi_simulations import *
+from studies.age_structure.TN_CMIE.commons import *
+from studies.age_structure.TN_CMIE.epi_simulations import *
 
 # data loading
 N_jk_dicts = districts_to_run.filter(like = "N_", axis = 1).to_dict()
@@ -18,7 +18,15 @@ def map_pop_dict(agebin, district):
     i = age_bin_labels.index(agebin)
     return N_jk_dicts[f"N_{i}"][district]
 
+def export_WB():
+    TN_pop_df = districts_to_run.filter(regex = "N_[0-6]", axis = 1)
+    age_dist_wtp = {k1: v * USD/TN_pop_df.loc[k1].values for ((k1, k2, k3), v) in per_district_WTP_percentiles.items() if (k2, k3) == (50, "random")}
+    age_dist_wtp_flat = list(chain([k, op, *v[i]] for (i, op) in enumerate(["median", "lo", "hi"]) for (k, v) in age_dist_wtp.items()))
+
+    pd.DataFrame(age_dist_wtp_flat).rename(columns = dict(enumerate(["district", "metric"] + age_bin_labels)))
+
 # calculations
+@lru_cache
 def get_wtp_ranking(district_WTP, phi, vax_policy = "random"):
     all_wtp = pd.concat([
         pd.DataFrame(np.median(v, axis = 1))\
@@ -108,10 +116,10 @@ def plot_district_age_distribution(percentiles, ylabel, fmt, phi = 50, vax_polic
         for j in range(7):
             plt.errorbar(
                 x = [district_spacing * i + age_spacing * (j - 3)],
-                y = ylls[0, 6-j] * USD/(N_jk[f"N_{6-j}"][district] if N_jk else 1),
+                y = ylls[1, 6-j] * USD/(N_jk[f"N_{6-j}"][district] if N_jk else 1),
                 yerr = [
-                    [(ylls[0, 6-j] - ylls[1, 6-j]) * USD/(N_jk[f"N_{6-j}"][district] if N_jk else 1)],
-                    [(ylls[2, 6-j] - ylls[0, 6-j]) * USD/(N_jk[f"N_{6-j}"][district] if N_jk else 1)]
+                    [(ylls[1, 6-j] - ylls[0, 6-j]) * USD/(N_jk[f"N_{6-j}"][district] if N_jk else 1)],
+                    [(ylls[2, 6-j] - ylls[1, 6-j]) * USD/(N_jk[f"N_{6-j}"][district] if N_jk else 1)]
                 ], 
                 fmt = fmt,
                 color = age_group_colors[6-j],
@@ -177,14 +185,15 @@ if __name__ == "__main__":
     # plt.show()
 
     # # health/consumption
-    # summed_wtp_health = np.median(evaluated_WTP_h[50, "random"], axis = 0)
+    summed_wtp_health = np.median(evaluated_WTP_h[50, "random"], axis = 0)
+    summed_wtp_income = np.median(evaluated_WTP_pc[50, "random"] - evaluated_WTP_h[50, "random"], axis = 0)
     # summed_wtp_income = np.median(evaluated_WTP_i[50, "random"], axis = 0)
     # plot_component_breakdowns(summed_wtp_health, summed_wtp_income, "health", "consumption", semilogy = True)
     # plt.show()
 
     # # social/private 
-    # summed_wtp_priv = np.median(evaluated_WTP_p[50, "random"], axis = 0)
-    # summed_wtp_soc  = np.median(evaluated_WTP_pc[50, "random"] - evaluated_WTP_p[50, "random"], axis = 0)
+    summed_wtp_priv = np.median(evaluated_WTP_p[50, "random"], axis = 0)
+    summed_wtp_soc  = np.median(evaluated_WTP_pc[50, "random"] - evaluated_WTP_p[50, "random"], axis = 0)
     # plot_component_breakdowns(summed_wtp_soc, summed_wtp_priv, "social", "private", semilogy = False)
     # plt.show()
 
@@ -198,6 +207,51 @@ if __name__ == "__main__":
     # plt.show()
 
     # demand curves
+    N_TN = districts_to_run.N_tot.sum()
+    def demand_curves(district_WTP, vax_policy, phis = [25, 50, 100, 200], phi_benchmark = 25):
+        wtp_rankings = {phi: get_wtp_ranking(district_WTP, phi, vax_policy) for phi in phis}
+
+        figure = plt.figure()
+        lines = []
+        
+        # benchmark 
+        benchmark = wtp_rankings[phi_benchmark]
+        x_pop = list(chain(*zip(benchmark.loc[0]["num_vax"].shift(1).fillna(0), benchmark.loc[0]["num_vax"])))
+        y_wtp = list(chain(*zip(benchmark.loc[0]["wtp_pc_usd"], benchmark.loc[0]["wtp_pc_usd"])))
+        lines.append(plt.plot(x_pop, y_wtp, figure = figure, color = "black", linewidth = 2)[0])
+        lines.append(plt.plot(0, 0, color = "white")[0])
+
+        # plot dynamic curve 
+        for (phi, all_wtp) in wtp_rankings.items():
+            daily_doses = phi * percent * annually * N_TN
+            distributed_doses = 0
+            x_pop = []
+            y_wtp = []
+            t_vax = []
+            ranking = 0
+            for t in range(simulation_range):
+                wtp = all_wtp.loc[t].reset_index()
+                ranking = wtp[(wtp.index >= ranking) & (wtp.num_vax > distributed_doses)].index.min()
+                if np.isnan(ranking):
+                    break
+                x_pop += [distributed_doses, distributed_doses + daily_doses]
+                t_vax += [t, t+1]
+                y_wtp += [wtp.iloc[ranking].wtp_pc_usd]*2
+                distributed_doses += daily_doses
+            lines.append(
+                plt.plot(x_pop, y_wtp, label = f"dynamic, {vax_policy}, $\phi = ${phi}%", figure = figure)[0]
+            )
+        plt.legend(
+            lines,
+            ["static, t = 0, $\phi = ${phi_benchmark}%", ""]  + [f"dynamic, {vax_policy}, $\phi = ${phi}%" for phi in phis],
+            title = "allocation", title_fontsize = "24", fontsize = "20")
+        plt.xticks(fontsize = "20")
+        plt.yticks(fontsize = "20")
+        plt.PlotDevice().ylabel("WTP (USD)\n").xlabel("\nnumber vaccinated")
+        plt.ylim(0, 350)
+        plt.xlim(left = 0, right = N_TN)
+        plt.show()
+        
 
     # calculate WTP rankings
     phis = [25, 200]
@@ -206,14 +260,13 @@ if __name__ == "__main__":
         for (phi, vax_policy) in product(phis, ["random", "mortality"])
     }
 
-    N_TN = districts_to_run.N_tot.sum()
+    
 
     lines = []
 
     # plot static benchmark
     figure = plt.figure()
     x_pop = list(chain(*zip(wtp_rankings[25, "random"].loc[0]["num_vax"].shift(1).fillna(0), wtp_rankings[25, "random"].loc[0]["num_vax"])))
-    t_vax = list(chain(*range))
     y_wtp = list(chain(*zip(wtp_rankings[25, "random"].loc[0]["wtp_pc_usd"], wtp_rankings[25, "random"].loc[0]["wtp_pc_usd"])))
     lines.append(plt.plot(x_pop, y_wtp, figure = figure, color = "black", linewidth = 2)[0])
     lines.append(plt.plot(0, 0, color = "white")[0])

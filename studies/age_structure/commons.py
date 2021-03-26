@@ -1,13 +1,12 @@
 from pathlib import Path
 
-import flat_table
 import numpy as np
 import pandas as pd
-import tqdm
 from adaptive.estimators import analytical_MPVS
 from adaptive.etl.commons import download_data
-from adaptive.etl.covid19india import data_path, get_time_series, load_all_data
+from adaptive.etl.covid19india import data_path, get_time_series, load_all_data, state_name_lookup
 from adaptive.smoothing import notched_smoothing
+from tqdm import tqdm
 
 """ Common data loading/cleaning functions and constants """
 
@@ -27,7 +26,7 @@ smooth = notched_smoothing(window)
 # simulation parameters
 simulation_start = pd.Timestamp("Jan 1, 2021")
 num_sims = 100
-focus_states = ["Tamil Nadu", "Punjab", "Maharashtra", "Bihar", "Assam"]
+focus_states = ["Tamil Nadu", "Punjab", "Maharashtra", "Bihar", "West Bengal"]
 
 # common vaccination parameters
 immunity_threshold = 0.75
@@ -48,18 +47,6 @@ mortality_vax_color   = "forestgreen"
 agebin_colors = [ "#05668d", "#427aa1", "#679436", "#a5be00", "#ffcb77", "#d0393b", "#7a306c"]
 
 #################################################################
-
-# load covid19 india data 
-def load_national_timeseries(download: bool = False) -> pd.DataFrame:
-    print(":: loading case timeseries data")
-    if download:
-        download_data(data, 'timeseries.json', "https://api.covid19india.org/v3/")
-    with (data/'timeseries.json').open("rb") as fp:
-        df = flat_table.normalize(pd.read_json(fp)).fillna(0)
-    df.columns = df.columns.str.split('.', expand = True)
-    dates = np.squeeze(df["index"][None].values)
-    return df.drop(columns = "index", level = 0).set_index(dates).stack([1, 2]).drop("UN", axis = 1)
-
 
 print(":: loading admin data")
 # load admin data on population
@@ -105,14 +92,9 @@ median_ages = {
     "70+"  : 85,
 }
 
-age_bins = list(median_ages.keys())
-
 district_IFR = pd.read_csv(data/"district_estimates.csv").set_index("district")
 district_IFR.drop(columns = [_ for _ in district_IFR.columns if "Unnamed" in _], inplace = True)
 
-YLLs = pd.read_stata(data/"life_expectancy_2009_2013_collapsed.dta")\
-    .set_index("state").loc["Tamil Nadu"]\
-    .rename(lambda row: age_bins[int(row[-1]) - 1])
 
 # normalize
 IN_age_structure_norm = sum(IN_age_structure.values())
@@ -156,8 +138,8 @@ fI = (TN_infection_structure / TN_infection_structure.sum())[:, None]
 
 india_pop = pd.read_csv(data/"india_pop.csv", names = ["state", "population"], index_col = "state").to_dict()["population"]
 
-# download district-level data 
 def get_state_timeseries(states = "*", download: bool = False) -> pd.DataFrame:
+    """ load state- and district-level data, downloading source files if specified """
     paths = {"v3": [data_path(i) for i in (1, 2)], "v4": [data_path(i) for i in range(3, 25)]}
     if download:
         for target in paths['v3'] + paths['v4']: 
@@ -205,7 +187,7 @@ def assemble_sero_data():
 
     return district_sero.join(all_crosswalk)
 
-def assemble_initial_conditions(states = "*", simulation_start = simulation_start):
+def assemble_initial_conditions(states = "*", simulation_start = simulation_start, survey_date = survey_date):
     rows = []
     district_age_pop = pd.read_csv(data/"all_india_sero_pop.csv").set_index(["state", "district"])
     if states == "*":
@@ -213,54 +195,70 @@ def assemble_initial_conditions(states = "*", simulation_start = simulation_star
     else:
         districts_to_run = district_age_pop[district_age_pop.index.isin(states, level = 0)]
 
-    progress = tqdm(total = len(districts_to_run) + 2)
-    progress.set_description("loading case data")
+    progress = tqdm(total = 4 * len(districts_to_run) + 11)
+    progress.set_description(f"{'loading case data':<20}")
     
     ts = get_state_timeseries(states)
-    progress.update(1)
+    progress.update(10)
     for ((state, district), 
         sero_0, sero_1, sero_2, sero_3, sero_4, sero_5, sero_6, 
         N_0, N_1, N_2, N_3, N_4, N_5, N_6, N_tot
     ) in districts_to_run.itertuples():
         progress.set_description(f"{state[:20]:<20}")
-        dT_conf = ts.loc[state, district].dT
-        dT_conf = dT_conf.reindex(pd.date_range(dT_conf.index.min(), dT_conf.index.max()), fill_value = 0)
-        dT_conf_smooth = pd.Series(smooth(dT_conf), index = dT_conf.index).clip(0).astype(int)
-        T_conf_smooth  = dT_conf_smooth.cumsum().astype(int)
-        T_conf = T_conf_smooth[survey_date]
         
         dR_conf = ts.loc[state, district].dR
         dR_conf = dR_conf.reindex(pd.date_range(dR_conf.index.min(), dR_conf.index.max()), fill_value = 0)
-        dR_conf_smooth = pd.Series(smooth(dR_conf), index = dR_conf.index).clip(0).astype(int)
+        if len(dR_conf) >= window + 1:
+            dR_conf_smooth = pd.Series(smooth(dR_conf), index = dR_conf.index).clip(0).astype(int)
+        else: 
+            dR_conf_smooth = dR_conf
+
         R_conf_smooth  = dR_conf_smooth.cumsum().astype(int)
-        R_conf = R_conf_smooth[survey_date]
+        R_conf = R_conf_smooth[survey_date if survey_date in R_conf_smooth.index else -1]
         R_sero = (sero_0*N_0 + sero_1*N_1 + sero_2*N_2 + sero_3*N_3 + sero_4*N_4 + sero_5*N_5 + sero_6*N_6)
         R_ratio = R_sero/R_conf 
-        R0 = R_conf_smooth[simulation_start] * R_ratio
-
+        R0 = R_conf_smooth[simulation_start if simulation_start in R_conf_smooth.index else -1] * R_ratio
+        progress.update(1)
+        
         dD_conf = ts.loc[state, district].dD
         dD_conf = dD_conf.reindex(pd.date_range(dD_conf.index.min(), dD_conf.index.max()), fill_value = 0)
-        dD_conf_smooth = pd.Series(smooth(dD_conf), index = dD_conf.index).clip(0).astype(int)
+        if len(dD_conf) >= window + 1:
+            dD_conf_smooth = pd.Series(smooth(dD_conf), index = dD_conf.index).clip(0).astype(int)
+        else:
+            dD_conf_smooth = dD_conf
         D_conf_smooth  = dD_conf_smooth.cumsum().astype(int)
-        D0 = D_conf_smooth[simulation_start]
+        D0 = D_conf_smooth[simulation_start if simulation_start in D_conf_smooth.index else -1]
+        progress.update(1)
         
+        dT_conf = ts.loc[state, district].dT
+        dT_conf = dT_conf.reindex(pd.date_range(dT_conf.index.min(), dT_conf.index.max()), fill_value = 0)
+        if len(dT_conf) >= window + 1:
+            dT_conf_smooth = pd.Series(smooth(dT_conf), index = dT_conf.index).clip(0).astype(int)
+        else:
+            dT_conf_smooth = dT_conf
+        T_conf_smooth  = dT_conf_smooth.cumsum().astype(int)
+        T_conf = T_conf_smooth[survey_date if survey_date in T_conf_smooth.index else -1]
         T_sero = R_sero + D0 
         T_ratio = T_sero/T_conf
-        T0 = T_conf_smooth[simulation_start] * T_ratio
+        T0 = T_conf_smooth[simulation_start if simulation_start in T_conf_smooth.index else -1] * T_ratio
+        progress.update(1)
 
         S0 = N_tot - T0
-        dD0 = dD_conf_smooth[simulation_start]
-        dT0 = dT_conf_smooth[simulation_start] * T_ratio
+        dD0 = dD_conf_smooth[simulation_start if simulation_start in dD_conf_smooth.index else -1]
+        dT0 = dT_conf_smooth[simulation_start if simulation_start in dT_conf_smooth.index else -1] * T_ratio
         I0 = max(0, (T0 - R0 - D0))
 
         (Rt_dates, Rt_est, *_) = analytical_MPVS(T_ratio * dT_conf_smooth, CI = CI, smoothing = lambda _:_, totals = False)
         Rt = dict(zip(Rt_dates, Rt_est))
 
-        rows.append((state, district, sero_0, N_0, sero_1, N_1, sero_2, N_2, sero_3, N_3, sero_4, N_4, sero_5, N_5, sero_6, N_6, N_tot, Rt[simulation_start], S0, I0, R0, D0, dT0, dD0))
+        rows.append((state_name_lookup[state], state, district, 
+            sero_0, N_0, sero_1, N_1, sero_2, N_2, sero_3, N_3, sero_4, N_4, sero_5, N_5, sero_6, N_6, N_tot, 
+            Rt.get(simulation_start, Rt[max(Rt.keys())]), S0, I0, R0, D0, dT0, dD0
+        ))
         progress.update(1)
     progress.set_description(f"{'serializing data':<20}")
     out = pd.DataFrame(rows, 
-        columns = ["state", "district", "sero_0", "N_0", "sero_1", "N_1", "sero_2", "N_2", "sero_3", "N_3", "sero_4", "N_4", "sero_5", "N_5", "sero_6", "N_6", "N_tot", "Rt", "S0", "I0", "R0", "D0", "dT0", "dD0"]
+        columns = ["state_code", "state", "district", "sero_0", "N_0", "sero_1", "N_1", "sero_2", "N_2", "sero_3", "N_3", "sero_4", "N_4", "sero_5", "N_5", "sero_6", "N_6", "N_tot", "Rt", "S0", "I0", "R0", "D0", "dT0", "dD0"]
     )
     progress.update(1)
     return out 
@@ -268,3 +266,4 @@ def assemble_initial_conditions(states = "*", simulation_start = simulation_star
 if __name__ == "__main__":
     # assemble_sero_data().to_csv(data/"all_india_sero_pop.csv")
     assemble_initial_conditions(focus_states).to_csv(data/"focus_states_simulation_initial_conditions.csv")
+    # assemble_initial_conditions().to_csv(data/"all_india_simulation_initial_conditions.csv")
