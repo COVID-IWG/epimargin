@@ -6,6 +6,7 @@ from studies.age_structure.TN_CMIE.epi_simulations import *
 
 # data loading
 N_jk_dicts = districts_to_run.filter(like = "N_", axis = 1).to_dict()
+N_TN       = districts_to_run.N_tot.sum()
 
 def parse_tag(tag):
     return tuple(int(_) if _.isnumeric() else _ for _ in tag.split("_", 1))
@@ -26,33 +27,35 @@ def export_WB():
     pd.DataFrame(age_dist_wtp_flat).rename(columns = dict(enumerate(["district", "metric"] + age_bin_labels)))
 
 # calculations
-@lru_cache
-def get_wtp_ranking(district_WTP, phi, vax_policy = "random"):
-    all_wtp = pd.concat([
-        pd.DataFrame(np.median(v, axis = 1))\
-            .assign(district = district)\
+def get_wtp_ranking(district_WTP):
+    @lru_cache
+    def ranking(phi, vax_policy = "random"):
+        all_wtp = pd.concat([
+            pd.DataFrame(np.median(v, axis = 1))\
+                .assign(district = district)\
+                .reset_index()\
+                .rename(columns = {"index": "t"})\
+                .rename(columns = dict(enumerate(age_bin_labels)))\
+                .set_index(["t", "district"])
+            for ((district, tag), v) in district_WTP.items() 
+            if tag == f"{phi}_{vax_policy}"
+        ], axis = 0)\
+            .stack()\
             .reset_index()\
-            .rename(columns = {"index": "t"})\
-            .rename(columns = dict(enumerate(age_bin_labels)))\
-            .set_index(["t", "district"])
-        for ((district, tag), v) in district_WTP.items() 
-        if tag == f"{phi}_{vax_policy}"
-    ], axis = 0)\
-        .stack()\
-        .reset_index()\
-        .rename(columns = {"level_2": "agebin", 0: "agg_wtp"})
+            .rename(columns = {"level_2": "agebin", 0: "agg_wtp"})
 
-    all_wtp["_t"] = -all_wtp["t"]
-    all_wtp["pop"]        = [map_pop_dict(b, d) for (b, d) in all_wtp[["agebin", "district"]].itertuples(index = False)]
-    all_wtp["wtp_pc"]     = all_wtp["agg_wtp"]/all_wtp["pop"]
-    all_wtp["wtp_pc_usd"] = all_wtp["wtp_pc"] * USD 
+        all_wtp["_t"] = -all_wtp["t"]
+        all_wtp["pop"]        = [map_pop_dict(b, d) for (b, d) in all_wtp[["agebin", "district"]].itertuples(index = False)]
+        all_wtp["wtp_pc"]     = all_wtp["agg_wtp"]/all_wtp["pop"]
+        all_wtp["wtp_pc_usd"] = all_wtp["wtp_pc"] * USD 
 
-    all_wtp.sort_values(["_t", "wtp_pc_usd"], ascending = False, inplace = True)
-    all_wtp.drop(columns = ["_t"], inplace = True) 
-    all_wtp.set_index("t", inplace = True)
-    all_wtp["num_vax"] = all_wtp["pop"].groupby(level = 0).cumsum()
+        all_wtp.sort_values(["_t", "wtp_pc_usd"], ascending = False, inplace = True)
+        all_wtp.drop(columns = ["_t"], inplace = True) 
+        all_wtp.set_index("t", inplace = True)
+        all_wtp["num_vax"] = all_wtp["pop"].groupby(level = 0).cumsum()
 
-    return all_wtp
+        return all_wtp
+    return ranking
 
 # plotting functions
 def outcomes_per_policy(percentiles, metric_label, fmt, 
@@ -140,7 +143,51 @@ def plot_district_age_distribution(percentiles, ylabel, fmt, phi = 50, vax_polic
     plt.vlines(x = [0.75 + 1.5 * _ for _ in range(n-1)], ymin = ymin, ymax = ymax, color = "gray", alpha = 0.5, linewidths = 2)
     plt.ylim(ymin, ymax)
     plt.gca().grid(False, axis = "x")
-    plt.PlotDevice().ylabel(f"{ylabel}\n")
+    plt.PlotDevice().title(f"\n{vax_policy} demand curves").ylabel(f"{ylabel}\n")
+
+def demand_curves(ranking_provider, vax_policy, phis = [25, 50, 100, 200], phi_benchmark = 25, N_state = N_TN):
+    wtp_rankings = {phi: ranking_provider(phi, vax_policy) for phi in phis}
+
+    figure = plt.figure()
+    lines = []
+    
+    # benchmark 
+    benchmark = wtp_rankings[phi_benchmark]
+    x_pop = list(chain(*zip(benchmark.loc[0]["num_vax"].shift(1).fillna(0), benchmark.loc[0]["num_vax"])))
+    y_wtp = list(chain(*zip(benchmark.loc[0]["wtp_pc_usd"], benchmark.loc[0]["wtp_pc_usd"])))
+    lines.append(plt.plot(x_pop, y_wtp, figure = figure, color = "black", linewidth = 2)[0])
+    lines.append(plt.plot(0, 0, color = "white")[0])
+
+    # plot dynamic curve 
+    for (phi, all_wtp) in wtp_rankings.items():
+        daily_doses = phi * percent * annually * N_state
+        distributed_doses = 0
+        x_pop = []
+        y_wtp = []
+        t_vax = []
+        ranking = 0
+        for t in range(simulation_range):
+            wtp = all_wtp.loc[t].reset_index()
+            ranking = wtp[(wtp.index >= ranking) & (wtp.num_vax > distributed_doses)].index.min()
+            if np.isnan(ranking):
+                break
+            x_pop += [distributed_doses, distributed_doses + daily_doses]
+            t_vax += [t, t+1]
+            y_wtp += [wtp.iloc[ranking].wtp_pc_usd]*2
+            distributed_doses += daily_doses
+        lines.append(
+            plt.plot(x_pop, y_wtp, label = f"dynamic, {vax_policy}, $\phi = ${phi}%", figure = figure)[0]
+        )
+    plt.legend(
+        lines,
+        [f"static, t = 0, $\phi = ${phi_benchmark}%", ""]  + [f"dynamic, {vax_policy}, $\phi = ${phi}%" for phi in phis],
+        title = "allocation", title_fontsize = "24", fontsize = "20")
+    plt.xticks(fontsize = "20")
+    plt.yticks(fontsize = "20")
+    plt.PlotDevice().ylabel("WTP (USD)\n").xlabel("\nnumber vaccinated")
+    plt.ylim(0, 350)
+    plt.xlim(left = 0, right = N_TN)
+    plt.show()
 
 if __name__ == "__main__":
     src = mkdir(data/f"wtp_metrics{num_sims}")
@@ -207,141 +254,10 @@ if __name__ == "__main__":
     # plt.show()
 
     # demand curves
-    N_TN = districts_to_run.N_tot.sum()
-    def demand_curves(district_WTP, vax_policy, phis = [25, 50, 100, 200], phi_benchmark = 25):
-        wtp_rankings = {phi: get_wtp_ranking(district_WTP, phi, vax_policy) for phi in phis}
-
-        figure = plt.figure()
-        lines = []
-        
-        # benchmark 
-        benchmark = wtp_rankings[phi_benchmark]
-        x_pop = list(chain(*zip(benchmark.loc[0]["num_vax"].shift(1).fillna(0), benchmark.loc[0]["num_vax"])))
-        y_wtp = list(chain(*zip(benchmark.loc[0]["wtp_pc_usd"], benchmark.loc[0]["wtp_pc_usd"])))
-        lines.append(plt.plot(x_pop, y_wtp, figure = figure, color = "black", linewidth = 2)[0])
-        lines.append(plt.plot(0, 0, color = "white")[0])
-
-        # plot dynamic curve 
-        for (phi, all_wtp) in wtp_rankings.items():
-            daily_doses = phi * percent * annually * N_TN
-            distributed_doses = 0
-            x_pop = []
-            y_wtp = []
-            t_vax = []
-            ranking = 0
-            for t in range(simulation_range):
-                wtp = all_wtp.loc[t].reset_index()
-                ranking = wtp[(wtp.index >= ranking) & (wtp.num_vax > distributed_doses)].index.min()
-                if np.isnan(ranking):
-                    break
-                x_pop += [distributed_doses, distributed_doses + daily_doses]
-                t_vax += [t, t+1]
-                y_wtp += [wtp.iloc[ranking].wtp_pc_usd]*2
-                distributed_doses += daily_doses
-            lines.append(
-                plt.plot(x_pop, y_wtp, label = f"dynamic, {vax_policy}, $\phi = ${phi}%", figure = figure)[0]
-            )
-        plt.legend(
-            lines,
-            ["static, t = 0, $\phi = ${phi_benchmark}%", ""]  + [f"dynamic, {vax_policy}, $\phi = ${phi}%" for phi in phis],
-            title = "allocation", title_fontsize = "24", fontsize = "20")
-        plt.xticks(fontsize = "20")
-        plt.yticks(fontsize = "20")
-        plt.PlotDevice().ylabel("WTP (USD)\n").xlabel("\nnumber vaccinated")
-        plt.ylim(0, 350)
-        plt.xlim(left = 0, right = N_TN)
-        plt.show()
-        
-
-    # calculate WTP rankings
-    phis = [25, 200]
-    wtp_rankings = {
-        (phi, vax_policy): get_wtp_ranking(district_WTP, phi, vax_policy) 
-        for (phi, vax_policy) in product(phis, ["random", "mortality"])
-    }
-
-    
-
-    lines = []
-
-    # plot static benchmark
-    figure = plt.figure()
-    x_pop = list(chain(*zip(wtp_rankings[25, "random"].loc[0]["num_vax"].shift(1).fillna(0), wtp_rankings[25, "random"].loc[0]["num_vax"])))
-    y_wtp = list(chain(*zip(wtp_rankings[25, "random"].loc[0]["wtp_pc_usd"], wtp_rankings[25, "random"].loc[0]["wtp_pc_usd"])))
-    lines.append(plt.plot(x_pop, y_wtp, figure = figure, color = "black", linewidth = 2)[0])
-    lines.append(plt.plot(0, 0, color = "white")[0])
-
-    # plot dynamic curve 
-    for ((phi, vax_policy), all_wtp) in wtp_rankings.items():
-        daily_doses = phi * percent * annually * N_TN
-        distributed_doses = 0
-        x_pop = []
-        y_wtp = []
-        t_vax = []
-        ranking = 0
-        for t in range(simulation_range):
-            wtp = all_wtp.loc[t].reset_index()
-            ranking = wtp[(wtp.index >= ranking) & (wtp.num_vax > distributed_doses)].index.min()
-            if np.isnan(ranking):
-                break
-            x_pop += [distributed_doses, distributed_doses + daily_doses]
-            t_vax += [t, t+1]
-            y_wtp += [wtp.iloc[ranking].wtp_pc_usd]*2
-            distributed_doses += daily_doses
-        lines.append(
-            plt.plot(x_pop, y_wtp, label = f"dynamic, {vax_policy}, $\phi = ${phi}%", figure = figure)[0]
-        )
-    plt.legend(
-        lines,
-        ["static, t = 0, $\phi = $25%", ""]  + [f"dynamic, {vax_policy}, $\phi = ${phi}%" for (phi, vax_policy) in product(phis, ["random", "mortality"])],
-        title = "allocation", title_fontsize = "24", fontsize = "20")
-    plt.xticks(fontsize = "20")
-    plt.yticks(fontsize = "20")
-    plt.PlotDevice().ylabel("WTP (USD)\n").xlabel("\nnumber vaccinated")
-    plt.ylim(0, 350)
-    plt.xlim(left = 0, right = N_TN)
+    ranking_provider = get_wtp_ranking(district_WTP)
+    demand_curves(ranking_provider, "mortality")
     plt.show()
-
-    # realized value
-    wtp_ranking_random_25 = get_wtp_ranking(district_WTP, 25)
-    wtp_ranking_mortality_25  = get_wtp_ranking(district_WTP, 25, "mortality")
-    wtp_ranking_mortality_50  = get_wtp_ranking(district_WTP, 50, "mortality")
-    wtp_ranking_mortality_100 = get_wtp_ranking(district_WTP, 100, "mortality")
-    wtp_ranking_mortality_200 = get_wtp_ranking(district_WTP, 200, "mortality")
-
-    lines = []
-    avg_wtp_random_25 = (wtp_ranking_random_25.loc[0]["pop"] * wtp_ranking_random_25.loc[0]["wtp_pc_usd"]).sum()/N_TN
-
-    figure = plt.figure()
-    lines.append(plt.plot([0, N_TN], [avg_wtp_random_25]*2, figure = figure, color = "black", linewidth = 2)[0])
-    lines.append(plt.plot(0, 0, color = "white")[0])
-
-    for (phi, ranking) in zip(
-        [25, 50, 100, 200], 
-        [wtp_ranking_mortality_25, wtp_ranking_mortality_50, wtp_ranking_mortality_100, wtp_ranking_mortality_200]
-    ):
-        daily_doses = phi * percent * annually * N_TN
-        x_pop = []
-        y_wtp = []
-        t = 0
-        for agebin in age_bin_labels[::-1]:
-            t_start = t
-            N_agebin = ranking.loc[0].query('agebin == @agebin')["pop"].sum()
-            while (t - t_start) * daily_doses <= N_agebin and t < simulation_range:
-                age_rankings = ranking.loc[t].query('agebin == @agebin')
-                avg_wtp = (lambda x: x.values/x.values.sum())(age_rankings["pop"] * daily_doses) @ age_rankings["wtp_pc_usd"]
-                x_pop += [t*daily_doses, (t+1)*daily_doses]
-                y_wtp += [avg_wtp]*2
-                t += 1
-        lines.append(plt.plot(x_pop, y_wtp, figure = figure)[0])
-
-    plt.legend(
-        lines,
-        ["random assignment, t = 0, $\phi = 25$%", ""]  + [f"mortality prioritized, $\phi = ${phi}%" for phi in [25, 50, 100, 200]],
-        title = "allocation", title_fontsize = "24", fontsize = "20")
-    plt.xticks(fontsize = "20")
-    plt.yticks(fontsize = "20")
-    plt.PlotDevice().ylabel("per capita social value (USD)\n").xlabel("\nnumber vaccinated")
-    plt.ylim(0, 250)
-    plt.xlim(left = 0, right = N_TN)
+    demand_curves(ranking_provider, "random")
+    plt.show()
+    demand_curves(ranking_provider, "contact")
     plt.show()
