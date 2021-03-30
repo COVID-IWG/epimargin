@@ -1,14 +1,12 @@
-from collections import defaultdict
-
 import pandas as pd
 from studies.age_structure.commons import *
 from studies.age_structure.epi_simulations import *
-from tqdm.std import tqdm
+import dask 
 
 """ Calculate WTP, VSLY, and other policy evaluation metrics """ 
 
-src = mkdir(data/f"focus_sim_metrics{num_sims}")
-dst = mkdir(data/f"focus_wtp_metrics{num_sims}")
+src = mkdir(ext/f"all_india_sim_metrics{num_sims}")
+dst = mkdir(ext/f"all_india_wtp_metrics{num_sims}")
 
 # coefficients of consumption ~ prevalence regression
 coeffs = pd.read_stata(data/"reg_estimates_full_ALL.dta")\
@@ -40,6 +38,7 @@ constant_coeffs = coeffs.loc["_cons"].set_index("state") ["estimate"].to_dict()
 
 # life expectancy per state
 YLLs = pd.read_stata(data/"life_expectancy_2009_2013_collapsed.dta")\
+    .assign(state = lambda _: _["state"].str.replace("&", "And"))\
     .set_index("state")\
     .rename(columns = {f"life_expectancy{i+1}": agebin_labels[i] for i in range(7)})
 
@@ -141,8 +140,6 @@ def get_metrics(pi, q_p1v1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0):
 
     VSLY_daily_1 = ((1 - pi) * q_p1v0 + pi * q_p1v1) * np.mean(c_p0v0, axis = 1)[:, None, :]
 
-    cb_daily_1 = (WTP_daily_1 - VSLY_daily_1)
-
     beta = 1/(1 + 4.25/365)
     s = np.arange(simulation_range + 1)
 
@@ -172,29 +169,10 @@ def get_metrics(pi, q_p1v1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0):
     )
 
 def save_metrics(metrics, name):
-    np.savez_compressed(dst/f"{name}.npz", **{"_".join(map(str, k)): v for (k, v) in metrics.items()})
+    np.savez_compressed(dst/f"{name}.npz", metrics)
 
-
-if __name__ == "__main__":
-    evaluated_WTP    = defaultdict(lambda: np.zeros((simulation_range + 1, num_sims, num_age_bins)))
-    evaluated_VSLY   = defaultdict(lambda: np.zeros((simulation_range + 1, num_sims, num_age_bins)))
-    total_Dj         = defaultdict(lambda: np.zeros((simulation_range + 1, num_sims, num_age_bins)))
-    total_consp1v0   = defaultdict(lambda: np.zeros((simulation_range + 1, num_sims, num_age_bins)))
-    total_consp0v0   = defaultdict(lambda: np.zeros((simulation_range + 1, num_sims, num_age_bins)))
-    total_consp1v1   = defaultdict(lambda: np.zeros((simulation_range + 1, 1, num_age_bins)))
-    evaluated_WTP_h  = defaultdict(lambda: np.zeros((num_sims, num_age_bins)))
-    evaluated_WTP_i  = defaultdict(lambda: np.zeros((num_sims, num_age_bins)))
-    evaluated_WTP_p  = defaultdict(lambda: np.zeros((num_sims, num_age_bins)))
-    evaluated_WTP_s  = defaultdict(lambda: np.zeros((num_sims, num_age_bins)))
-    evaluated_WTP_pc = defaultdict(lambda: np.zeros((num_sims, num_age_bins)))
-    district_WTP     = defaultdict(lambda: np.zeros((num_sims, num_age_bins)))
-    district_YLL     = defaultdict(lambda: np.zeros((num_sims, num_age_bins)))
-    evaluated_deaths = defaultdict(lambda: np.zeros(num_sims))
-    evaluated_YLL    = defaultdict(lambda: np.zeros(num_sims))
-
-    progress = tqdm(total = len(districts_to_run) * (1 + len(phi_points) * 3) + 13)
-    for ((state, district), state_code, N_district, N_0, N_1, N_2, N_3, N_4, N_5, N_6) in districts_to_run[["state_code", "N_tot", 'N_0', 'N_1', 'N_2', 'N_3', 'N_4', 'N_5', 'N_6']].itertuples():
-        progress.set_description(f"{district:15s}|    no vax|         ")
+def process(district_data):
+        (state, district), state_code, N_district, N_0, N_1, N_2, N_3, N_4, N_5, N_6 = district_data
         N_jk = np.array([N_0, N_1, N_2, N_3, N_4, N_5, N_6])
         age_weight = N_jk/(N_j)
         pop_weight = N_jk/(N_j.sum())
@@ -203,7 +181,7 @@ if __name__ == "__main__":
             (1 + f_hat_p1v1)[:, None] * consumption_2019.loc[state, district].values[:, None],
             [0, 2, 1]
         )
-
+        state_YLLs = YLLs.get(state, default = YLLs.mean(axis = 0))
         with np.load(src/f"{state_code}_{district}_phi25_novax.npz") as counterfactual:
             dI_pc_p0 = counterfactual['dT']/N_district
             dD_pc_p0 = counterfactual['dD']/N_district
@@ -215,22 +193,20 @@ if __name__ == "__main__":
             [1, 2, 0]
         )
 
-        evaluated_deaths[state, 25, "no_vax"] += (D_p0[-1] - D_p0[0]).sum(axis = 1)
-        evaluated_YLL   [state, 25, "no_vax"] += (D_p0[-1] - D_p0[0]) @ YLLs.loc[state]
+        save_metrics((D_p0[-1] - D_p0[0]).sum(axis = 1), f"evaluated_deaths_{state}_{district}_no_vax")
+        save_metrics((D_p0[-1] - D_p0[0]) @ state_YLLs,  f"evaluated_YLLs_{state}_{district}_no_vax")
 
         wtp_nv, vsly_nv = counterfactual_metrics(q_p0v0, c_p0v0)
-        evaluated_WTP   [state, 25, "no_vax"] += N_jk * wtp_nv
-        evaluated_VSLY  [state, 25, "no_vax"] += N_jk * vsly_nv
-        total_Dj        [state, 25, "no_vax"] += D_p0 
-        total_consp0v0  [state, 25, "no_vax"] += (age_weight[:, None, None] * c_p0v0.T).T
-
-        progress.update(1)
+        save_metrics(N_jk * wtp_nv,  f"evaluated_WTP_{state}_{district}_no_vax")
+        save_metrics(N_jk * vsly_nv, f"evaluated_VSLY_{state}_{district}_no_vax")
+        save_metrics(D_p0, f"total_Dj_{state}_{district}_no_vax")
+        save_metrics((age_weight[:, None, None] * c_p0v0.T).T, f"total_consp0v0_{state}_{district}_no_vax")
         
         for _phi in phi_points:
             phi = int(_phi * 365 * 100)
 
             for vax_policy in ["random", "contact", "mortality"]:
-                progress.set_description(f"{district:15s}| {vax_policy:>9s}| φ = {str(int(phi)):>3s}%")
+                # print(state, district, phi, vax_policy)
                 with np.load(src/f"{state_code}_{district}_phi{phi}_{vax_policy}.npz") as policy:
                     dI_pc_p1 = policy['dT']/N_district
                     dD_pc_p1 = policy['dD']/N_district
@@ -239,7 +215,7 @@ if __name__ == "__main__":
                     q_p1v0   = policy['q0']
                     D_p1     = policy["Dj"]
 
-                f_hat_p1v0 = income_decline(state, district, dI_pc_p0, dD_pc_p0)
+                f_hat_p1v0 = income_decline(state, district, dI_pc_p1, dD_pc_p1)
                 c_p1v0 = np.transpose(
                     (1 + f_hat_p1v0) * consumption_2019.loc[state, district].values[:, None, None], 
                     [1, 2, 0]
@@ -247,42 +223,34 @@ if __name__ == "__main__":
 
                 wtp, wtp_health, wtp_income, wtp_private, vsly = get_metrics(pi, q_p1v1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0)
                 
-                evaluated_deaths[state, phi, vax_policy] += (D_p1[-1] - D_p1[0]).sum(axis = 1)
-                evaluated_YLL   [state, phi, vax_policy] += (D_p1[-1] - D_p1[0]) @ YLLs.loc[state]
+                save_metrics((D_p1[-1] - D_p1[0]).sum(axis = 1), f"evaluated_deaths_{state}_{district}_{phi}_{vax_policy}")
+                save_metrics((D_p1[-1] - D_p1[0]) @ state_YLLs, f"evaluated_YLL_{state}_{district}_{phi}_{vax_policy}")
                 
-                evaluated_WTP   [state, phi, vax_policy] += N_jk * wtp
-                evaluated_VSLY  [state, phi, vax_policy] += N_jk * vsly
+                save_metrics(N_jk * wtp, f"evaluated_WTP_{state}_{district}_{phi}_{vax_policy}")
+                save_metrics(N_jk * vsly, f"evaluated_VSLY_{state}_{district}_{phi}_{vax_policy}")
                 
-                evaluated_WTP_h  [state, phi, vax_policy] += age_weight * wtp_health
-                evaluated_WTP_i  [state, phi, vax_policy] += age_weight * wtp_income
-                evaluated_WTP_p  [state, phi, vax_policy] += age_weight * wtp_private
-                # evaluated_WTP_s  [phi, vax_policy] += age_weight * wtp_social
-                evaluated_WTP_pc [state, phi, vax_policy] += age_weight * wtp[0]
+                save_metrics(age_weight * wtp_health, f"evaluated_WTP_h_{state}_{district}_{phi}_{vax_policy}")
+                save_metrics(age_weight * wtp_income, f"evaluated_WTP_i_{state}_{district}_{phi}_{vax_policy}")
+                save_metrics(age_weight * wtp_private, f"evaluated_WTP_p_{state}_{district}_{phi}_{vax_policy}")
+                save_metrics(age_weight * wtp[0], f"evaluated_WTP_pc_{state}_{district}_{phi}_{vax_policy}")
 
-                total_Dj[state, phi, vax_policy] += D_p1
-                total_consp1v1[state, phi, vax_policy] += age_weight * c_p1v1
-                total_consp1v0[state, phi, vax_policy] += (age_weight[:, None, None] * c_p1v0.T).T
+                save_metrics(D_p1, f"total_Dj_{state}_{district}_{phi}_{vax_policy}")
+                save_metrics(age_weight * c_p1v1, f"total_consp1v1_{state}_{district}_{phi}_{vax_policy}")
+                save_metrics((age_weight[:, None, None] * c_p1v0.T).T, f"total_consp1v0_{state}_{district}_{phi}_{vax_policy}")
                 
-                district_WTP[state, district, phi, vax_policy] = N_jk * wtp
-                district_YLL[state, district, phi, vax_policy] = (D_p1[-1] - D_p1[0]) @ YLLs.loc[state]
-                progress.update(1)
+                save_metrics(wtp, f"district_WTP_{state}_{district}_{phi}_{vax_policy}")
+                save_metrics(vsly , f"district_VSLY_{state}_{district}_{phi}_{vax_policy}")
+                save_metrics((D_p1[-1] - D_p1[0]) @ state_YLLs, f"district_YLL_{state}_{district}_{phi}_{vax_policy}")
 
-    metric_names = {
-        "evaluated_deaths": evaluated_deaths,
-        "evaluated_YLL"   : evaluated_YLL,
-        "evaluated_WTP"   : evaluated_WTP,
-        "evaluated_VSLY"  : evaluated_VSLY,
-        "evaluated_WTP_h" : evaluated_WTP_h,
-        "evaluated_WTP_i" : evaluated_WTP_i,
-        "evaluated_WTP_p" : evaluated_WTP_p,
-        "evaluated_WTP_pc": evaluated_WTP_pc,
-        "total_Dj"        : total_Dj,
-        "total_consp1v1"  : total_consp1v1,
-        "total_consp1v0"  : total_consp1v0,
-        "district_WTP"    : district_WTP,
-        "district_YLL"    : district_YLL,
-    }
-    progress.set_description("serializing datasets                ")
-    for (name, metrics) in metric_names.items():
-        save_metrics(metrics, name)
-        progress.update(1)
+
+if __name__ == "__main__":
+    population_columns = ["state_code", "N_tot", 'N_0', 'N_1', 'N_2', 'N_3', 'N_4', 'N_5', 'N_6']
+    with dask.config.set({"scheduler.allowed-failures": 1}):
+        client = dask.distributed.Client()
+        print(client.dashboard_link)
+        with dask.distributed.get_task_stream(client) as ts:
+            futures = []
+            for district in districts_to_run[population_columns].itertuples():
+                futures.append(client.submit(process, district))
+        dask.distributed.progress(futures)
+
