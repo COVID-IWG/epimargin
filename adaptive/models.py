@@ -311,8 +311,8 @@ class Age_SIRVD(SIR):
         self.upper_CI.append(poisson.ppf(    self.CI, lambda_T))
         self.lower_CI.append(poisson.ppf(1 - self.CI, lambda_T))
 
-        dS    = S   /(S+S_vn) * (S_ratios * dT[:, None])
-        dS_vn = S_vn/(S+S_vn) * (S_ratios * dT[:, None])
+        dS    = fillna(S   /(S+S_vn)) * (S_ratios * dT[:, None])
+        dS_vn = fillna(S_vn/(S+S_vn)) * (S_ratios * dT[:, None])
 
         S    = (S    - dS).clip(0)
         S_vn = (S_vn - dS_vn).clip(0)

@@ -11,6 +11,7 @@ from tqdm import tqdm
 """ Common data loading/cleaning functions and constants """
 
 data = Path("./data").resolve()
+ext  = Path("/Volumes/dedomeno/covid/vax-nature").resolve()
 
 USD = 1/72
 
@@ -19,12 +20,12 @@ agebin_labels = ["0-17", "18-29","30-39", "40-49", "50-59", "60-69","70+"]
 # Rt estimation parameters
 CI = 0.95
 window = 14
-gamma = 0.2
+gamma = 0.1 
 infectious_period = 5
 smooth = notched_smoothing(window)
 
 # simulation parameters
-simulation_start = pd.Timestamp("Jan 1, 2021")
+simulation_start = pd.Timestamp("March 1, 2021")
 num_sims = 100
 focus_states = ["Tamil Nadu", "Punjab", "Maharashtra", "Bihar", "West Bengal"]
 
@@ -82,31 +83,8 @@ TN_IFRs = {
     "70+"  : 0.00588,
 }
 
-median_ages = { 
-    "0-17" : 8.5,
-    "18-29": 23.5,
-    "30-39": 34.5,
-    "40-49": 44.5,
-    "50-59": 54.5,
-    "60-69": 64.5,
-    "70+"  : 85,
-}
-
-district_IFR = pd.read_csv(data/"district_estimates.csv").set_index("district")
-district_IFR.drop(columns = [_ for _ in district_IFR.columns if "Unnamed" in _], inplace = True)
-
-
-# normalize
-IN_age_structure_norm = sum(IN_age_structure.values())
-IN_age_ratios = np.array([v/IN_age_structure_norm for v in IN_age_structure.values()])
-
 TN_age_structure_norm = sum(TN_age_structure.values())
 TN_age_ratios = np.array([v/TN_age_structure_norm for v in TN_age_structure.values()])
-split_by_age = lambda v: (v * TN_age_ratios).astype(int)
-
-TN_IFR_norm = sum(TN_IFRs.values())
-TN_IFR_ratios = np.array([v/TN_IFR_norm for v in TN_IFRs.values()])
-split_by_IFR = lambda v: (v * TN_IFR_ratios).astype(int)
 
 # redefined estimators
 TN_death_structure = pd.Series({ 
@@ -136,7 +114,7 @@ fD = (TN_death_structure     / TN_death_structure    .sum())[:, None]
 fR = (TN_recovery_structure  / TN_recovery_structure .sum())[:, None]
 fI = (TN_infection_structure / TN_infection_structure.sum())[:, None]
 
-india_pop = pd.read_csv(data/"india_pop.csv", names = ["state", "population"], index_col = "state").to_dict()["population"]
+# vaccin policies 
 
 def get_state_timeseries(states = "*", download: bool = False) -> pd.DataFrame:
     """ load state- and district-level data, downloading source files if specified """
@@ -187,7 +165,14 @@ def assemble_sero_data():
 
     return district_sero.join(all_crosswalk)
 
-def assemble_initial_conditions(states = "*", simulation_start = simulation_start, survey_date = survey_date):
+def load_vax_data(download = False):
+    if download:
+        download_data(data, "vaccine_doses_statewise.csv")
+    vax = pd.read_csv(data/"vaccine_doses_statewise.csv").set_index("State").T
+    vax.columns = vax.columns.str.title()
+    return vax.set_index(pd.to_datetime(vax.index, format = "%d/%m/%Y"))
+
+def assemble_initial_conditions(states = "*", simulation_start = simulation_start, survey_date = survey_date, download = False):
     rows = []
     district_age_pop = pd.read_csv(data/"all_india_sero_pop.csv").set_index(["state", "district"])
     if states == "*":
@@ -198,12 +183,13 @@ def assemble_initial_conditions(states = "*", simulation_start = simulation_star
     progress = tqdm(total = 4 * len(districts_to_run) + 11)
     progress.set_description(f"{'loading case data':<20}")
     
-    ts = get_state_timeseries(states)
+    ts  = get_state_timeseries(states, download)
+    vax = load_vax_data(download)
     progress.update(10)
     for ((state, district), 
         sero_0, sero_1, sero_2, sero_3, sero_4, sero_5, sero_6, 
         N_0, N_1, N_2, N_3, N_4, N_5, N_6, N_tot
-    ) in districts_to_run.itertuples():
+    ) in districts_to_run.dropna().itertuples():
         progress.set_description(f"{state[:20]:<20}")
         
         dR_conf = ts.loc[state, district].dR
@@ -243,7 +229,7 @@ def assemble_initial_conditions(states = "*", simulation_start = simulation_star
         T0 = T_conf_smooth[simulation_start if simulation_start in T_conf_smooth.index else -1] * T_ratio
         progress.update(1)
 
-        S0 = N_tot - T0
+        S0 = max(0, N_tot - T0)
         dD0 = dD_conf_smooth[simulation_start if simulation_start in dD_conf_smooth.index else -1]
         dT0 = dT_conf_smooth[simulation_start if simulation_start in dT_conf_smooth.index else -1] * T_ratio
         I0 = max(0, (T0 - R0 - D0))
@@ -251,19 +237,20 @@ def assemble_initial_conditions(states = "*", simulation_start = simulation_star
         (Rt_dates, Rt_est, *_) = analytical_MPVS(T_ratio * dT_conf_smooth, CI = CI, smoothing = lambda _:_, totals = False)
         Rt = dict(zip(Rt_dates, Rt_est))
 
+        V0 = vax.loc[simulation_start][state] * N_tot / districts_to_run.loc[state].N_tot.sum()
+
         rows.append((state_name_lookup[state], state, district, 
             sero_0, N_0, sero_1, N_1, sero_2, N_2, sero_3, N_3, sero_4, N_4, sero_5, N_5, sero_6, N_6, N_tot, 
-            Rt.get(simulation_start, Rt[max(Rt.keys())]), S0, I0, R0, D0, dT0, dD0
+            Rt.get(simulation_start, Rt[max(Rt.keys())]) if Rt else 0, S0, I0, R0, D0, dT0, dD0, V0
         ))
         progress.update(1)
-    progress.set_description(f"{'serializing data':<20}")
     out = pd.DataFrame(rows, 
-        columns = ["state_code", "state", "district", "sero_0", "N_0", "sero_1", "N_1", "sero_2", "N_2", "sero_3", "N_3", "sero_4", "N_4", "sero_5", "N_5", "sero_6", "N_6", "N_tot", "Rt", "S0", "I0", "R0", "D0", "dT0", "dD0"]
+        columns = ["state_code", "state", "district", "sero_0", "N_0", "sero_1", "N_1", "sero_2", "N_2", "sero_3", "N_3", "sero_4", "N_4", "sero_5", "N_5", "sero_6", "N_6", "N_tot", "Rt", "S0", "I0", "R0", "D0", "dT0", "dD0", "V0"]
     )
     progress.update(1)
     return out 
 
 if __name__ == "__main__":
     # assemble_sero_data().to_csv(data/"all_india_sero_pop.csv")
-    assemble_initial_conditions(focus_states).to_csv(data/"focus_states_simulation_initial_conditions.csv")
-    # assemble_initial_conditions().to_csv(data/"all_india_simulation_initial_conditions.csv")
+    # assemble_initial_conditions(focus_states).to_csv(data/"focus_states_simulation_initial_conditions.csv")
+    assemble_initial_conditions().to_csv(data/"all_india_simulation_initial_conditions.csv")

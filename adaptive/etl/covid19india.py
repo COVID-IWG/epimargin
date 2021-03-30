@@ -263,7 +263,8 @@ state_name_lookup = {
     'State Unassigned'           : 'UN', 
     'Uttar Pradesh'              : 'UP', 
     'Uttarakhand'                : 'UT',
-    'West Bengal'                : 'WB'
+    'West Bengal'                : 'WB',
+    'Dadra And Nagar Haveli And Daman And Diu' : "DNDD"
 }
 
 
