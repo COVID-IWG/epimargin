@@ -21,7 +21,7 @@ figs.mkdir(exist_ok=True)
 # define data versions for api files
 paths = {
     "v3": [data_path(i) for i in (1, 2)],
-    "v4": [data_path(i) for i in range(3, 18)]
+    "v4": [data_path(i) for i in range(3, 25)]
 }
 
 for target in paths['v3'] + paths['v4']:
@@ -39,7 +39,7 @@ run_date     = str(pd.Timestamp.now()).split()[0]
 
 ts = get_time_series(df, "detected_state")
 
-states = ["Maharashtra", "Bihar", "Delhi", "Andhra Pradesh", "Telangana", "Tamil Nadu", "Madhya Pradesh"]
+states = ["Maharashtra", "Punjab", "West Bengal", "Bihar", "Delhi", "Andhra Pradesh", "Telangana", "Tamil Nadu", "Madhya Pradesh"]
 
 for state in states: 
     print(state)
@@ -64,13 +64,13 @@ for state in states:
     })
     print("  + Rt today:", Rt_pred[-1])
 
-    # plt.Rt(dates, Rt_pred, RR_CI_lower, RR_CI_upper, CI)\
-    #     .ylabel("Estimated $R_t$")\
-    #     .xlabel("Date")\
-    #     .title(state)\
-    #     .size(11, 8)\
-    #     .save(figs/f"Rt_est_{state}.png", dpi=600, bbox_inches="tight")\
-    #     .show()
+    plt.Rt(dates, Rt_pred, RR_CI_lower, RR_CI_upper, CI)\
+        .ylabel("Estimated $R_t$")\
+        .xlabel("Date")\
+        .title(state)\
+        .size(11, 8)\
+        .save(figs/f"Rt_est_{state}.png", dpi=600, bbox_inches="tight")\
+        .show()
 
     # plt.daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI)\
     #     .ylabel("Predicted/Observed Cases")\
@@ -81,4 +81,114 @@ for state in states:
     #     .show()
 
     estimates["anomaly"] = estimates["dates"].isin(set(anomaly_dates))
-    estimates.to_csv(data/f"india_rt_data{data_recency}_run{run_date}.csv")
+    estimates.to_csv(data/f"india_rt_data_{state}_{data_recency}_run{run_date}.csv")
+
+tn_ts = get_time_series(df.query("detected_state == 'Tamil Nadu'"), "detected_district") 
+for district in tn_ts.index.get_level_values(0).unique()[19:]: 
+    print(district)
+    print("  + running estimation...")
+    (
+        dates,
+        Rt_pred, RR_CI_upper, RR_CI_lower,
+        T_pred, T_CI_upper, T_CI_lower,
+        total_cases, new_cases_ts,
+        anomalies, anomaly_dates
+    ) = analytical_MPVS(tn_ts.loc[district].Hospitalized, CI = CI, smoothing = notched_smoothing(window = smoothing), totals = False)
+    estimates = pd.DataFrame(data = {
+        "dates": dates,
+        "Rt_pred": Rt_pred,
+        "RR_CI_upper": RR_CI_upper,
+        "RR_CI_lower": RR_CI_lower,
+        "T_pred": T_pred,
+        "T_CI_upper": T_CI_upper,
+        "T_CI_lower": T_CI_lower,
+        "total_cases": total_cases[2:],
+        "new_cases_ts": new_cases_ts,
+    })
+    estimates.to_csv(data/f"TN_Rt_data_{district}_{data_recency}_run{run_date}.csv")
+    print("  + Rt today:", Rt_pred[-1])
+
+    plt.figure()
+    plt.Rt(dates, Rt_pred, RR_CI_lower, RR_CI_upper, CI)\
+        .ylabel("Estimated $R_t$")\
+        .xlabel("Date")\
+        .title(district)\
+        .size(11, 8)\
+        .save(figs/f"Rt_est_TN{district}.png", dpi=600, bbox_inches="tight")#\
+        #.show()
+
+
+mh_ts = get_time_series(df.query("detected_state == 'Maharashtra'"), "detected_district") 
+for district in mh_ts.index.get_level_values(0).unique()[-3:]: 
+    print(district)
+    print("  + running estimation...")
+    (
+        dates,
+        Rt_pred, RR_CI_upper, RR_CI_lower,
+        T_pred, T_CI_upper, T_CI_lower,
+        total_cases, new_cases_ts,
+        anomalies, anomaly_dates
+    ) = analytical_MPVS(mh_ts.loc[district].Hospitalized, CI = CI, smoothing = notched_smoothing(window = smoothing), totals = False)
+    estimates = pd.DataFrame(data = {
+        "dates": dates,
+        "Rt_pred": Rt_pred,
+        "RR_CI_upper": RR_CI_upper,
+        "RR_CI_lower": RR_CI_lower,
+        "T_pred": T_pred,
+        "T_CI_upper": T_CI_upper,
+        "T_CI_lower": T_CI_lower,
+        "total_cases": total_cases[2:],
+        "new_cases_ts": new_cases_ts,
+    })
+    estimates.to_csv(data/f"MH_Rt_data_{district}_{data_recency}_run{run_date}.csv")
+    print("  + Rt today:", Rt_pred[-1])
+
+    plt.figure()
+    plt.Rt(dates, Rt_pred, RR_CI_lower, RR_CI_upper, CI)\
+        .ylabel("Estimated $R_t$")\
+        .xlabel("Date")\
+        .title(district)\
+        .size(11, 8)\
+        .save(figs/f"Rt_est_MH{district}.png", dpi=600, bbox_inches="tight")#\
+        #.show()
+    plt.close()
+
+
+mp_ts = get_time_series(df.query("detected_state == 'Madhya Pradesh'"), "detected_district") 
+for district in mp_ts.index.get_level_values(0).unique(): 
+    print(district)
+    print("  + running estimation...")
+    try:
+        (
+            dates,
+            Rt_pred, RR_CI_upper, RR_CI_lower,
+            T_pred, T_CI_upper, T_CI_lower,
+            total_cases, new_cases_ts,
+            anomalies, anomaly_dates
+        ) = analytical_MPVS(mp_ts.loc[district].Hospitalized, CI = CI, smoothing = notched_smoothing(window = smoothing), totals = False)
+    except Exception as e:
+        print(e)
+        continue
+    estimates = pd.DataFrame(data = {
+        "dates": dates,
+        "Rt_pred": Rt_pred,
+        "RR_CI_upper": RR_CI_upper,
+        "RR_CI_lower": RR_CI_lower,
+        "T_pred": T_pred,
+        "T_CI_upper": T_CI_upper,
+        "T_CI_lower": T_CI_lower,
+        "total_cases": total_cases[2:],
+        "new_cases_ts": new_cases_ts,
+    })
+    estimates.to_csv(data/f"MP_Rt_data_{district}_{data_recency}_run{run_date}.csv")
+    print("  + Rt today:", Rt_pred[-1])
+
+    plt.figure()
+    plt.Rt(dates, Rt_pred, RR_CI_lower, RR_CI_upper, CI)\
+        .ylabel("Estimated $R_t$")\
+        .xlabel("Date")\
+        .title(district)\
+        .size(11, 8)\
+        .save(figs/f"Rt_est_MP{district}.png", dpi=600, bbox_inches="tight")#\
+        #.show()
+    plt.close()
