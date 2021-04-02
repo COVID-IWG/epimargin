@@ -37,7 +37,7 @@ joblib==0.14.1
 kiwisolver==1.2.0
 lazy-object-proxy==1.4.3
 linearmodels==4.19
-lxml==4.6.2
+lxml==4.6.3
 MarkupSafe==1.1.1
 matplotlib==3.2.1
 mccabe==0.6.1
@@ -58,7 +58,7 @@ property-cached==1.6.4
 ptyprocess==0.6.0
 pycodestyle==2.6.0
 pyflakes==2.2.0
-Pygments==2.6.1
+Pygments==2.7.4
 pyhdfe==0.1.0
 pylint==2.5.2
 pymc3==3.9.3
