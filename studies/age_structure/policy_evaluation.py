@@ -175,7 +175,6 @@ def process(district_data):
         (state, district), state_code, N_district, N_0, N_1, N_2, N_3, N_4, N_5, N_6 = district_data
         N_jk = np.array([N_0, N_1, N_2, N_3, N_4, N_5, N_6])
         age_weight = N_jk/(N_j)
-        pop_weight = N_jk/(N_j.sum())
         f_hat_p1v1 = income_decline(state, district, np.zeros((simulation_range + 1, 1)), np.zeros((simulation_range + 1, 1)))
         c_p1v1 = np.transpose(
             (1 + f_hat_p1v1)[:, None] * consumption_2019.loc[state, district].values[:, None],
@@ -206,7 +205,8 @@ def process(district_data):
             phi = int(_phi * 365 * 100)
 
             for vax_policy in ["random", "contact", "mortality"]:
-                # print(state, district, phi, vax_policy)
+                if (dst/f"district_YLL_{state}_{district}_{phi}_{vax_policy}.npz").exists():
+                    continue
                 with np.load(src/f"{state_code}_{district}_phi{phi}_{vax_policy}.npz") as policy:
                     dI_pc_p1 = policy['dT']/N_district
                     dD_pc_p1 = policy['dD']/N_district
@@ -250,7 +250,7 @@ if __name__ == "__main__":
         print(client.dashboard_link)
         with dask.distributed.get_task_stream(client) as ts:
             futures = []
-            for district in districts_to_run[population_columns].itertuples():
-                futures.append(client.submit(process, district))
+            for district in districts_to_run[~districts_to_run.index.isin(["Andaman And Nicobar Islands"], level = 0)][population_columns].itertuples():
+                futures.append(client.submit(process, district, key = ":".join(district[:2])))
         dask.distributed.progress(futures)
 

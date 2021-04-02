@@ -1,8 +1,14 @@
-from itertools import chain, product
+import sys
+from itertools import chain, islice, product
+
+from seaborn import categorical
 
 import adaptive.plots as plt
+import geopandas as gpd
+import mapclassify
 from studies.age_structure.commons import *
 from studies.age_structure.epi_simulations import *
+from tqdm import tqdm
 
 # data loading
 N_jk_dicts = districts_to_run.filter(like = "N_", axis = 1).to_dict()
@@ -72,6 +78,24 @@ def get_within_state_wtp_ranking(state, district_WTP, phi, vax_policy = "random"
 
     return all_wtp
 
+def aggregate_static_percentiles(src, pattern, sum_axis = 0, pct_axis = 0, lim = None):
+    total = np.array(0)
+    for npz in tqdm(src.glob(pattern) if not lim else islice(src.glob(pattern), lim)):
+        total = total + np.load(npz)['arr_0']
+    return np.percentile(total, [50, 5, 95], axis = pct_axis)
+
+def aggregate_dynamic_percentiles(src, pattern, sum_axis = 1, pct_axis = 0, t = 0, lim = None):
+    total = np.array(0)
+    for npz in tqdm(src.glob(pattern) if not lim else islice(src.glob(pattern), lim)):
+        total = total + np.load(npz)['arr_0'][t].sum(axis = sum_axis)
+    return np.percentile(total, [50, 5, 95], axis = pct_axis)
+
+def aggregate_dynamic_percentiles_by_age(src, pattern, sum_axis = 1, pct_axis = 0, t = 0, lim = None):
+    total = np.array(0)
+    for npz in tqdm(src.glob(pattern) if not lim else islice(src.glob(pattern), lim)):
+        total = total + np.load(npz)['arr_0'][t]
+    return np.percentile(total, [50, 5, 95], axis = pct_axis)
+
 # plotting functions
 def outcomes_per_policy(percentiles, metric_label, fmt, 
     phis            = [25, 50, 100, 200], 
@@ -126,22 +150,23 @@ def plot_component_breakdowns(color, white, colorlabel, whitelabel, semilogy = F
     plt.PlotDevice().ylabel(f"{ylabel}\n")
     if semilogy: plt.semilogy()
 
-def plot_district_age_distribution(state, percentiles, ylabel, fmt, phi = 50, vax_policy = "random", N_jk = None, n = 5, district_spacing = 1.5, age_spacing = 0.1, rotation = 0):
+def plot_state_age_distribution(percentiles, ylabel, fmt, district_spacing = 1.5, age_spacing = 0.1, rotation = 0):
     fig = plt.figure()
-    district_ordering = list(sorted(
-        (k[0] for k in percentiles.keys()), 
-        key = lambda k: percentiles[k, phi, vax_policy][0].sum(), 
+    n = len(percentiles)
+    state_ordering = list(sorted(
+        percentiles.keys(), 
+        key = lambda k: percentiles[k][0].max(), 
         reverse = True)
-    )[:n]
-    for (i, district) in enumerate(district_ordering):
-        ylls = percentiles[district, phi, vax_policy]
+    )
+    for (i, state) in enumerate(state_ordering):
+        ylls = percentiles[state]
         for j in range(7):
             plt.errorbar(
                 x = [district_spacing * i + age_spacing * (j - 3)],
-                y = ylls[0, 6-j] * USD/(N_jk[f"N_{6-j}"][state, district] if N_jk else 1),
+                y = ylls[0, 6-j],
                 yerr = [
-                    [(ylls[0, 6-j] - ylls[1, 6-j]) * USD/(N_jk[f"N_{6-j}"][state, district] if N_jk else 1)],
-                    [(ylls[2, 6-j] - ylls[0, 6-j]) * USD/(N_jk[f"N_{6-j}"][state, district] if N_jk else 1)]
+                    [(ylls[0, 6-j] - ylls[1, 6-j])],
+                    [(ylls[2, 6-j] - ylls[0, 6-j])]
                 ], 
                 fmt = fmt,
                 color = agebin_colors[6-j],
@@ -151,12 +176,13 @@ def plot_district_age_distribution(state, percentiles, ylabel, fmt, phi = 50, va
             )
     plt.xticks(
         [1.5 * _ for _ in range(n)],
-        district_ordering,
+        state_ordering,
         rotation = rotation,
         fontsize = "20"
     )
     plt.yticks(fontsize = "20")
-    plt.legend(title = "age bin", title_fontsize = "20", fontsize = "20", ncol = 7, 
+    # plt.legend(title = "age bin", title_fontsize = "20", fontsize = "20", ncol = 7, 
+    plt.legend(fontsize = "20", ncol = 7, 
         loc = "lower center", bbox_to_anchor = (0.5, 1))
     ymin, ymax = plt.ylim()
     plt.vlines(x = [0.75 + 1.5 * _ for _ in range(n-1)], ymin = ymin, ymax = ymax, color = "gray", alpha = 0.5, linewidths = 2)
@@ -165,95 +191,140 @@ def plot_district_age_distribution(state, percentiles, ylabel, fmt, phi = 50, va
     plt.PlotDevice().ylabel(f"{ylabel}\n")
 
 if __name__ == "__main__":
+    figs_to_run = set(sys.argv[1:])
+    run_all = len(figs_to_run) == 0 # if none specified, run all
     src = mkdir(ext/f"all_india_wtp_metrics{num_sims}")
+    params = list(chain([("no_vax",)], product([25, 50, 100, 200], ["contact", "random", "mortality"])))
 
-    evaluated_deaths = load_metrics(src/"evaluated_deaths.npz")
-    evaluated_YLL    = load_metrics(src/"evaluated_YLL.npz")
-    evaluated_WTP    = load_metrics(src/"evaluated_WTP.npz")
-    evaluated_VSLY   = load_metrics(src/"evaluated_VSLY.npz")
-    evaluated_WTP_h  = load_metrics(src/"evaluated_WTP_h.npz")
-    evaluated_WTP_i  = load_metrics(src/"evaluated_WTP_i.npz")
-    evaluated_WTP_p  = load_metrics(src/"evaluated_WTP_p.npz")
-    evaluated_WTP_pc = load_metrics(src/"evaluated_WTP_pc.npz")
-    district_WTP     = load_metrics(src/"district_WTP.npz")
-    district_YLL     = load_metrics(src/"district_YLL.npz")
-
-    all_death_percentiles = {tag: np.percentile(metric,                  [50, 5, 95])           for (tag, metric) in evaluated_deaths.items()}
-    all_YLL_percentiles   = {tag: np.percentile(metric,                  [50, 5, 95])           for (tag, metric) in evaluated_YLL.items()}
-    all_VSLY_percentiles  = {tag: np.percentile(metric[0].sum(axis = 1), [50, 5, 95], axis = 0) for (tag, metric) in evaluated_VSLY.items()}
-    all_WTP_percentiles   = {tag: np.percentile(metric[0].sum(axis = 1), [50, 5, 95], axis = 0) for (tag, metric) in evaluated_WTP.items()}
-
-    death_percentiles = {parse_tag(k2): v for ((_, k2), v) in all_death_percentiles.items()}
-    YLL_percentiles   = {parse_tag(k2): v for ((_, k2), v) in all_YLL_percentiles  .items()}
-    VSLY_percentiles  = {parse_tag(k2): v for ((_, k2), v) in all_VSLY_percentiles .items()}
-    WTP_percentiles   = {parse_tag(k2): v for ((_, k2), v) in all_WTP_percentiles  .items()}
-    
     # policy outcomes
-    outcomes_per_policy(death_percentiles, "deaths", "o") 
-    # plt.PlotDevice().title(f"{state}: deaths")
-    plt.show()
-    outcomes_per_policy(YLL_percentiles, "YLLs", "o") 
-    plt.PlotDevice().title(f"{state}: YLLs")
-    plt.show()
-    outcomes_per_policy(WTP_percentiles, "WTP (USD, billions)", "D") 
-    plt.PlotDevice().title(f"{state}: willingness to pay")
-    plt.show()
-    outcomes_per_policy(VSLY_percentiles, "VSLY (USD, billions)", "D") 
-    plt.gca().ticklabel_format(axis = "y", useOffset = False)
-    # plt.gca().get_yaxis().get_major_formatter().set_useOffset(False)
-    plt.PlotDevice().title(f"{state}: VSLY")
-    plt.show()
+    # 2A: deaths
+    if "2A" in figs_to_run or run_all:
+        death_percentiles = {
+            p: aggregate_static_percentiles(src, f"evaluated_deaths*{'_'.join(map(str, p))}.npz")
+            for p in params 
+        }
+        outcomes_per_policy(death_percentiles, "deaths", "o", reference = ("no_vax",)) 
+        plt.show()
 
-    # aggregate WTP by age
-    # fig = plt.figure()
-    # for (i, (md, lo, hi)) in enumerate(zip(*np.percentile(np.sum([v[0] for v in district_WTP.values()], axis = 0), [50, 5, 95], axis = 0))):
-    #     *_, bars = plt.errorbar(x = [i], y = [md * USD], yerr = [[md * USD - lo * USD], [hi * USD - md * USD]], figure = fig,
-    #     fmt = "D", color = agebin_colors[i], ms = 12, elinewidth = 5, label = agebin_labels[i])
-    #     [_.set_alpha(0.5) for _ in bars]
-    # plt.xticks([0, 1, 2, 3, 4, 5, 6], agebin_labels, fontsize = "20")
+    ## 2B: VSLY
+    if "2B" in figs_to_run or run_all:
+        VSLY_percentiles = {
+            p: aggregate_dynamic_percentiles(src, f"evaluated_VSLY*{'_'.join(map(str, p))}.npz")
+            for p in tqdm(params)
+        }
+        outcomes_per_policy(
+            {k: v * USD/(1e9) for (k, v) in VSLY_percentiles.items()}, "VSLY (USD, billions)", "D",
+            reference = ("no_vax",)
+        ) 
+        plt.gca().ticklabel_format(axis = "y", useOffset = False)
+        plt.show()
+
+    ## 2C: WTP
+    if "2C" in figs_to_run or run_all:
+        WTP_percentiles = {
+            p: aggregate_dynamic_percentiles(src, f"evaluated_WTP_[A-Z]*{'_'.join(map(str, p))}.npz")
+            for p in tqdm(params)
+        }
+
+        outcomes_per_policy({k: v * USD/(1e9) for (k, v) in WTP_percentiles.items()}, "WTP (USD, billions)", "D", reference = ("no_vax",)) 
+        plt.gca().ticklabel_format(axis = "y", useOffset = False)
+        plt.show()
+
+    ## 2D: dist x age 
+    if "2D" in figs_to_run or run_all:
+        focus_state_WTP = { 
+            state: aggregate_dynamic_percentiles_by_age(src, f"evaluated_WTP_{state}*50_random.npz", sum_axis = 0)
+            for state in tqdm(focus_states)
+        }
+        focus_state_WTP_pc = {
+            k: v/districts_to_run.loc[k].filter(regex = "N_[0-9]", axis = 1).sum(axis = 0)[None, :] * USD for (k, v) in focus_state_WTP.items()
+        }
+        plot_state_age_distribution(focus_state_WTP_pc, "per capita TEV (USD)", "D")
+        plt.show()
+
+    # appendix: YLL
+    if "YLL" in figs_to_run or run_all:
+        YLL_percentiles = {
+            p: aggregate_static_percentiles(src, f"evaluated_YLL*{'_'.join(map(str, p))}.npz")
+            for p in tqdm(params)
+        }
+        outcomes_per_policy(YLL_percentiles, "YLLs", "o", reference = ("no_vax",))
+        plt.show()
+
+    # 3C: YLL per million choropleth
+    if "3C" in figs_to_run or run_all:
+        india = gpd.read_file(data/"india.geojson")\
+            .drop(columns = ["id", "dt_code", "st_code", "year"])\
+            .rename(columns = {"st_nm": "state"})\
+            .set_index(["state", "district"])\
+            .rename(index = lambda s: s.replace("and", "And"))\
+            .sort_index()
+        def load_median_YLL(state_district, phi = 50, vax_policy = "random", src = src):
+            state, district = state_district
+            try:
+                return np.median(np.load(src/f"evaluated_YLL_{state}_{district}_{phi}_{vax_policy}.npz")['arr_0'])
+            except FileNotFoundError:
+                return np.nan
+
+        districts = districts_to_run.copy()\
+            .assign(YLL = districts_to_run.index.map(load_median_YLL))\
+            .assign(YLL_per_mn = lambda df: df["YLL"]/(df["N_tot"]/1e6))
+
+        fig, ax = plt.subplots(1, 1)
+        scheme = mapclassify.UserDefined(districts.YLL_per_mn, [np.nan, 0, 10, 100, 500, 1000, 5000]) 
+        districts["category"] = scheme.yb
+        india.join(districts["category"].astype(int)).plot(
+            column = "category", 
+            linewidth = 0.5,
+            edgecolor = "k",
+            ax = ax, 
+            legend = True,
+            categorical = True,
+            cmap = "plasma",
+            missing_kwds = { 
+                "color": "lightgrey",
+                "label": "not available"
+            }, 
+            legend_kwds = { 
+                "title": "YLL per million",
+                "title_fontsize": "20", 
+                "fontsize": "20"
+            }
+        )
+        plt.gca().axis("off")
+        plt.subplots_adjust(left=0, bottom=0, right=1, top=1)
+        texts = plt.gca().get_legend().texts
+        print(scheme.get_legend_classes())
+        print(texts)
+        texts[0].set_text("0")
+        for i in range(1, 6):
+            texts[i].set_text(scheme.get_legend_classes()[i + 1].replace(".00", ""))
+        fig.set_size_inches((16.8 ,  9.92*2))
+        plt.show()
+
+    # 3A: health/consumption
+    # if "__3A" in figs_to_run:
+    #     summed_wtp_health = np.median(evaluated_WTP_h[state, "50_random"], axis = 0)
+    #     summed_wtp_income = np.median(evaluated_WTP_pc[state, "50_random"] - evaluated_WTP_h[state, "50_random"], axis = 0)
+    #     plot_component_breakdowns(summed_wtp_health, summed_wtp_income, "health", "consumption", semilogy = True)
+    #     plt.show()
+
+    #     # demand curves
+    #     demand_curve = get_within_state_wtp_ranking(state, {(k, "50_random"): v for (k, v) in state_WTP_by_district.items()}, 50, "random") 
+
+    #     N_state = districts_to_run.loc[state, :].N_tot.sum()
+
+    # # plot static benchmark
+    # figure = plt.figure()
+    # x_pop = list(chain(*zip(demand_curve.loc[0]["num_vax"].shift(1).fillna(0), demand_curve.loc[0]["num_vax"])))
+    # y_wtp = list(chain(*zip(demand_curve.loc[0]["wtp_pc_usd"], demand_curve.loc[0]["wtp_pc_usd"])))
+    # plt.plot(x_pop, y_wtp, figure = figure, color = "grey", linewidth = 2)
+    # plt.xticks(fontsize = "20")
     # plt.yticks(fontsize = "20")
-    # plt.legend(title = "age bin", title_fontsize = "20", fontsize = "20")
-    # plt.PlotDevice().ylabel("aggregate WTP (USD)\n")
+    # plt.PlotDevice().ylabel("WTP (USD)\n").xlabel("\nnumber vaccinated")
+    # plt.ylim(0, 350)
+    # plt.xlim(left = 0, right = N_state)
     # plt.show()
-
-    # health/consumption
-    summed_wtp_health = np.median(evaluated_WTP_h[state, "50_random"], axis = 0)
-    # summed_wtp_income = np.median(evaluated_WTP_i["50_random"], axis = 0)
-    summed_wtp_income = np.median(evaluated_WTP_pc[state, "50_random"] - evaluated_WTP_h[state, "50_random"], axis = 0)
-    plot_component_breakdowns(summed_wtp_health, summed_wtp_income, "health", "consumption", semilogy = True)
-    plt.show()
-
-    # social/private 
-    summed_wtp_priv = np.median(evaluated_WTP_p[state, "50_random"], axis = 0)
-    summed_wtp_soc  = np.median(evaluated_WTP_pc[state, "50_random"] - evaluated_WTP_p[state, "50_random"], axis = 0)
-    plot_component_breakdowns(summed_wtp_soc, summed_wtp_priv, "social", "private", semilogy = False)
-    plt.show()
-
-    # dist x age 
-    state_WTP_by_district = {parse_tag(tag)[0]: v for ((s, tag), v) in district_WTP.items() if s == state and tag.endswith("50_random")}
-    per_district_WTP_percentiles = {(district, 50, "random"): np.percentile(wtp[0, :, :], [50, 5, 95], axis = 0) for (district, wtp) in state_WTP_by_district.items()}        
-    plot_district_age_distribution(state, per_district_WTP_percentiles, "per capita WTP (USD)", "D", N_jk = N_jk_dicts)
-    plt.show()
-    # per_district_YLL_percentiles = {(district, *parse_tag(tag)): np.percentile(yll         , [50, 5, 95], axis = 0) for ((district, tag), yll) in district_YLL.items()}
-    # plot_district_age_distribution(per_district_YLL_percentiles, "YLL"                 , "o")
-    # plt.show()
-
-    # demand curves
-    demand_curve = get_within_state_wtp_ranking(state, {(k, "50_random"): v for (k, v) in state_WTP_by_district.items()}, 50, "random") 
-
-    N_state = districts_to_run.loc[state, :].N_tot.sum()
-
-    # plot static benchmark
-    figure = plt.figure()
-    x_pop = list(chain(*zip(demand_curve.loc[0]["num_vax"].shift(1).fillna(0), demand_curve.loc[0]["num_vax"])))
-    y_wtp = list(chain(*zip(demand_curve.loc[0]["wtp_pc_usd"], demand_curve.loc[0]["wtp_pc_usd"])))
-    plt.plot(x_pop, y_wtp, figure = figure, color = "grey", linewidth = 2)
-    plt.xticks(fontsize = "20")
-    plt.yticks(fontsize = "20")
-    plt.PlotDevice().ylabel("WTP (USD)\n").xlabel("\nnumber vaccinated")
-    plt.ylim(0, 350)
-    plt.xlim(left = 0, right = N_state)
-    plt.show()
 
     # lines.append(plt.plot(0, 0, color = "white")[0])
 
