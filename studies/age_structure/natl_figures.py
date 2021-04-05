@@ -1,8 +1,6 @@
 import sys
 from itertools import chain, islice, product
 
-from seaborn import categorical
-
 import adaptive.plots as plt
 import geopandas as gpd
 import mapclassify
@@ -80,19 +78,19 @@ def get_within_state_wtp_ranking(state, district_WTP, phi, vax_policy = "random"
 
 def aggregate_static_percentiles(src, pattern, sum_axis = 0, pct_axis = 0, lim = None):
     total = np.array(0)
-    for npz in tqdm(src.glob(pattern) if not lim else islice(src.glob(pattern), lim)):
+    for npz in tqdm(islice(filter(lambda _: "Delhi" not in str(_), src.glob(pattern)), lim)):
         total = total + np.load(npz)['arr_0']
     return np.percentile(total, [50, 5, 95], axis = pct_axis)
 
 def aggregate_dynamic_percentiles(src, pattern, sum_axis = 1, pct_axis = 0, t = 0, lim = None):
     total = np.array(0)
-    for npz in tqdm(src.glob(pattern) if not lim else islice(src.glob(pattern), lim)):
+    for npz in tqdm(islice(filter(lambda _: "Delhi" not in str(_), src.glob(pattern)), lim)):
         total = total + np.load(npz)['arr_0'][t].sum(axis = sum_axis)
     return np.percentile(total, [50, 5, 95], axis = pct_axis)
 
 def aggregate_dynamic_percentiles_by_age(src, pattern, sum_axis = 1, pct_axis = 0, t = 0, lim = None):
     total = np.array(0)
-    for npz in tqdm(src.glob(pattern) if not lim else islice(src.glob(pattern), lim)):
+    for npz in tqdm(islice(filter(lambda _: "Delhi" not in str(_), src.glob(pattern)), lim)):
         total = total + np.load(npz)['arr_0'][t]
     return np.percentile(total, [50, 5, 95], axis = pct_axis)
 
@@ -193,23 +191,23 @@ def plot_state_age_distribution(percentiles, ylabel, fmt, district_spacing = 1.5
 if __name__ == "__main__":
     figs_to_run = set(sys.argv[1:])
     run_all = len(figs_to_run) == 0 # if none specified, run all
-    src = mkdir(ext/f"all_india_wtp_metrics{num_sims}")
+    src = fig_src
     params = list(chain([("no_vax",)], product([25, 50, 100, 200], ["contact", "random", "mortality"])))
 
     # policy outcomes
     # 2A: deaths
-    if "2A" in figs_to_run or run_all:
+    if "2A" in figs_to_run or "deaths" in figs_to_run or run_all:
         death_percentiles = {
-            p: aggregate_static_percentiles(src, f"evaluated_deaths*{'_'.join(map(str, p))}.npz")
+            p: aggregate_static_percentiles(src, f"evaluated_deaths_Maha*{'_'.join(map(str, p))}.npz")
             for p in params 
         }
         outcomes_per_policy(death_percentiles, "deaths", "o", reference = ("no_vax",)) 
         plt.show()
 
     ## 2B: VSLY
-    if "2B" in figs_to_run or run_all:
+    if "2B" in figs_to_run or "VSLY" in figs_to_run or run_all:
         VSLY_percentiles = {
-            p: aggregate_dynamic_percentiles(src, f"evaluated_VSLY*{'_'.join(map(str, p))}.npz")
+            p: aggregate_dynamic_percentiles(src, f"evaluated_VSLY_Tamil*{'_'.join(map(str, p))}.npz")
             for p in tqdm(params)
         }
         outcomes_per_policy(
@@ -219,19 +217,19 @@ if __name__ == "__main__":
         plt.gca().ticklabel_format(axis = "y", useOffset = False)
         plt.show()
 
-    ## 2C: WTP
-    if "2C" in figs_to_run or run_all:
-        WTP_percentiles = {
+    ## 2C: TEV
+    if "2C" in figs_to_run or "TEV" in figs_to_run or "WTP" in figs_to_run or run_all:
+        TEV_percentiles = {
             p: aggregate_dynamic_percentiles(src, f"evaluated_WTP_[A-Z]*{'_'.join(map(str, p))}.npz")
             for p in tqdm(params)
         }
 
-        outcomes_per_policy({k: v * USD/(1e9) for (k, v) in WTP_percentiles.items()}, "WTP (USD, billions)", "D", reference = ("no_vax",)) 
+        outcomes_per_policy({k: v * USD/(1e9) for (k, v) in TEV_percentiles.items()}, "TEV (USD, billions)", "D", reference = ("no_vax",)) 
         plt.gca().ticklabel_format(axis = "y", useOffset = False)
         plt.show()
 
-    ## 2D: dist x age 
-    if "2D" in figs_to_run or run_all:
+    ## 2D: state x age 
+    if "2D" in figs_to_run or "TEV_state_age" in figs_to_run or run_all:
         focus_state_WTP = { 
             state: aggregate_dynamic_percentiles_by_age(src, f"evaluated_WTP_{state}*50_random.npz", sum_axis = 0)
             for state in tqdm(focus_states)
@@ -245,11 +243,69 @@ if __name__ == "__main__":
     # appendix: YLL
     if "YLL" in figs_to_run or run_all:
         YLL_percentiles = {
-            p: aggregate_static_percentiles(src, f"evaluated_YLL*{'_'.join(map(str, p))}.npz")
+            p: aggregate_static_percentiles(src, f"evaluated_YLL*Punjab*{'_'.join(map(str, p))}.npz")
             for p in tqdm(params)
         }
         outcomes_per_policy(YLL_percentiles, "YLLs", "o", reference = ("no_vax",))
         plt.show()
+
+    for state in ["Tamil Nadu"]:#tqdm(districts_to_run.index.get_level_values(0).unique()[1:]):
+        try: 
+            plt.figure()
+            state_WTP_percentiles = {
+                p: aggregate_dynamic_percentiles(src, f"evaluated_WTP_{state}*{'_'.join(map(str, p))}.npz")
+                for p in tqdm(params)
+            }
+            outcomes_per_policy(
+                {k: v * USD/(1e9) for (k, v) in state_VSLY_percentiles.items()}, "TEV (USD, billions)", "D",
+                reference = ("no_vax",)
+            ) 
+
+            outcomes_per_policy(
+                {k: v * USD/(1e9) for (k, v) in state_VSLY_percentiles.items()}, "VSLY (USD, billions)", "D",
+                reference = ("no_vax",)
+            ) 
+            plt.gca().ticklabel_format(axis = "y", useOffset = False)
+            plt.title(state, loc = "left")
+            plt.gcf().set_size_inches((16.8 ,  9.92))
+            plt.savefig(f"figs/statecheckvsly/VSLY_check_{state}.png")
+            plt.close("all")
+
+
+            plt.figure()
+            state_VSLY_percentiles = {
+                p: aggregate_dynamic_percentiles(src, f"evaluated_VSLY_{state}*{'_'.join(map(str, p))}.npz")
+                for p in tqdm(params)
+            }
+            outcomes_per_policy(
+                {k: v * USD/(1e9) for (k, v) in state_VSLY_percentiles.items()}, "VSLY (USD, billions)", "D",
+                reference = (25, "random")
+            ) 
+            plt.gca().ticklabel_format(axis = "y", useOffset = False)
+            plt.show()
+            plt.title(state, loc = "left")
+            plt.gcf().set_size_inches((16.8 ,  9.92))
+            plt.savefig(f"figs/statecheckvsly/VSLY_check_{state}.png")
+            plt.close("all")
+
+            plt.figure()
+            state_YLL_percentiles = {
+                p: aggregate_static_percentiles(src, f"evaluated_YLL*_{state}*{'_'.join(map(str, p))}.npz")
+                for p in tqdm(params)
+            }
+            state_YLL_percentiles = {}
+            for p in tqdm(params):
+                state_YLL_percentiles[p] = aggregate_static_percentiles(src, f"evaluated_YLLs_{state}*{'_'.join(map(str, p))}.npz")
+            outcomes_per_policy(state_YLL_percentiles, "YLLs", "o", reference = ("no_vax",))
+            plt.gca().ticklabel_format(axis = "y", useOffset = False)
+            plt.show()
+            plt.title(state, loc = "left")
+            plt.gcf().set_size_inches((16.8 ,  9.92))
+            plt.savefig(f"figs/statecheckvsly/YLL_check_{state}.png")
+            plt.close("all")
+
+        except Exception as e:
+            print(state, e)
 
     # 3C: YLL per million choropleth
     if "3C" in figs_to_run or run_all:
@@ -301,6 +357,15 @@ if __name__ == "__main__":
             texts[i].set_text(scheme.get_legend_classes()[i + 1].replace(".00", ""))
         fig.set_size_inches((16.8 ,  9.92*2))
         plt.show()
+
+    # vslyd1Chennai_random, vslyd1Chennai_contact, vslyd1Chennai_mortality = map(lambda p: np.load(p)['arr_0'], src.glob("*VSLYd1*Chennai*200*.npz"))
+    # vslyChennai_random, vslyChennai_contact, vslyChennai_mortality = map(lambda p: np.load(p)['arr_0'], src.glob("district_VSLY*Chennai*200*.npz"))
+    # vslyndChennai_random, vslyndChennai_contact, vslyndChennai_mortality = map(lambda p: np.load(p)['arr_0'], src.glob("evaluated_VSLYND*Chennai*200*.npz"))
+    # vhChennai_random, vhChennai_contact, vhChennai_mortality = map(lambda p: np.load(p)['arr_0'], src.glob("evaluated_vh*Chennai*200*.npz"))
+    # deaths_random, deaths_contact, deaths_mortality = map(lambda p: np.load(p)['arr_0'], src.glob("evaluated_deaths*Chennai*200*.npz"))
+    
+    # deaths_random_inf, deaths_contact_inf, deaths_mortality_inf = map(lambda p: np.load(p)['arr_0'], src.glob("evaluated_deaths*Chennai*1*.npz"))
+    # vsly_random_inf, vsly_contact_inf, vsly_mortality_inf = map(lambda p: np.load(p)['arr_0'], src.glob("district_VSLY*Chennai*1*.npz"))
 
     # 3A: health/consumption
     # if "__3A" in figs_to_run:

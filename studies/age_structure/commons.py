@@ -6,6 +6,7 @@ from adaptive.estimators import analytical_MPVS
 from adaptive.etl.commons import download_data
 from adaptive.etl.covid19india import data_path, get_time_series, load_all_data, state_name_lookup
 from adaptive.smoothing import notched_smoothing
+from adaptive.utils import mkdir
 from tqdm import tqdm
 
 """ Common data loading/cleaning functions and constants """
@@ -19,19 +20,20 @@ agebin_labels = ["0-17", "18-29","30-39", "40-49", "50-59", "60-69","70+"]
 
 # Rt estimation parameters
 CI = 0.95
-window = 14
+window = 7
 gamma = 0.1 
-infectious_period = 5
+infectious_period = 1/gamma
 smooth = notched_smoothing(window)
 
 # simulation parameters
-simulation_start = pd.Timestamp("March 1, 2021")
-num_sims = 100
-focus_states = ["Tamil Nadu", "Punjab", "Maharashtra", "Bihar", "West Bengal"]
+simulation_start = pd.Timestamp("April 1, 2021")
 
-# common vaccination parameters
-immunity_threshold = 0.75
-Rt_threshold = 0.2
+num_sims = 100
+focus_states = ["Tamil Nadu"]#, "Punjab", "Maharashtra", "Bihar", "West Bengal"]
+
+experiment_tag = "10x_IFR"
+sim_dst = tev_src = mkdir(ext/f"{experiment_tag}_epi_{num_sims}_{simulation_start.strftime('%b%d')}")
+tev_dst = fig_src = mkdir(ext/f"{experiment_tag}_tev_{num_sims}_{simulation_start.strftime('%b%d')}")
 
 # misc
 survey_date = "October 23, 2020"
@@ -49,7 +51,6 @@ agebin_colors = [ "#05668d", "#427aa1", "#679436", "#a5be00", "#ffcb77", "#d0393
 
 #################################################################
 
-print(":: loading admin data")
 # load admin data on population
 IN_age_structure = { # WPP2019_POP_F01_1_POPULATION_BY_AGE_BOTH_SEXES
     "0-17":   116880 + 117982 + 126156 + 126046,
@@ -73,14 +74,24 @@ TN_age_structure = {
 
 N_j = np.array([20504724, 15674833, 11875848, 9777265, 6804602, 4650978, 2858780])
 
+# TN_IFRs = { 
+#     "0-17" : 0.00003,
+#     "18-29": 0.00003,
+#     "30-39": 0.00010,
+#     "40-49": 0.00032,
+#     "50-59": 0.00111,
+#     "60-69": 0.00264,
+#     "70+"  : 0.00588,
+# }
+
 TN_IFRs = { 
-    "0-17" : 0.00003,
-    "18-29": 0.00003,
-    "30-39": 0.00010,
-    "40-49": 0.00032,
-    "50-59": 0.00111,
-    "60-69": 0.00264,
-    "70+"  : 0.00588,
+    "0-17" : 0.003,
+    "18-29": 0.003,
+    "30-39": 0.010,
+    "40-49": 0.032,
+    "50-59": 0.111,
+    "60-69": 0.264,
+    "70+"  : 0.588,
 }
 
 TN_age_structure_norm = sum(TN_age_structure.values())
@@ -234,7 +245,13 @@ def assemble_initial_conditions(states = "*", simulation_start = simulation_star
         dT0 = dT_conf_smooth[simulation_start if simulation_start in dT_conf_smooth.index else -1] * T_ratio
         I0 = max(0, (T0 - R0 - D0))
 
-        (Rt_dates, Rt_est, *_) = analytical_MPVS(T_ratio * dT_conf_smooth, CI = CI, smoothing = lambda _:_, totals = False)
+        (Rt_dates, Rt_est, *_) = analytical_MPVS(
+            T_ratio * dT_conf_smooth, 
+            CI = CI, 
+            smoothing = lambda _:_, 
+            infectious_period = infectious_period, 
+            totals = False
+        )
         Rt = dict(zip(Rt_dates, Rt_est))
 
         V0 = vax.loc[simulation_start][state] * N_tot / districts_to_run.loc[state].N_tot.sum()
@@ -252,5 +269,9 @@ def assemble_initial_conditions(states = "*", simulation_start = simulation_star
 
 if __name__ == "__main__":
     # assemble_sero_data().to_csv(data/"all_india_sero_pop.csv")
-    # assemble_initial_conditions(focus_states).to_csv(data/"focus_states_simulation_initial_conditions.csv")
-    assemble_initial_conditions().to_csv(data/"all_india_simulation_initial_conditions.csv")
+    # assemble_initial_conditions(focus_states)\
+    #     .to_csv(
+    #         data/"focus_states_simulation_initial_conditions.csv")
+    # assemble_initial_conditions()\
+    assemble_initial_conditions(focus_states, download = True)\
+        .to_csv(data/f"all_india_simulation_initial_conditions{simulation_start.strftime('%b%d')}.csv")

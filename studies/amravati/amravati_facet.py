@@ -146,26 +146,49 @@ xticks = {
 }
 
 pop_density = pd.read_csv(data/"popdensity.csv").set_index(["state", "district"])
-fig, ax_nest = plt.subplots(ncols = ncols, nrows = nrows)
-for (j, i) in product(range(nrows), range(ncols)):
-    if (i + 1, j + 1) in coords.values():
-        continue
-    ax_nest[j, i].axis("off")
+# fig, ax_nest = plt.subplots(ncols = ncols, nrows = nrows)
+# for (j, i) in product(range(nrows), range(ncols)):
+#     if (i + 1, j + 1) in coords.values():
+#         continue
+#     ax_nest[j, i].axis("off")
 
-for ((state, district), (x, y)) in coords.items():
-    plt.sca(ax_nest[y - 1, x - 1])
-    urban_share = int((1 - serodist.loc[state, ("New " if district == "Delhi" else "") + district]["rural_share"].mean()) * 100)
-    density = pop_density.loc[state, district].density
-    rt_data = district_estimates.loc[state, district].set_index("dates")["Feb 1, 2021":]
-    plt.Rt(rt_data.index, rt_data.Rt_pred, rt_data.RR_CI_upper, rt_data.RR_CI_lower, 0.95, yaxis_colors = False, ymin = 0.5, ymax = 2.0)
-    plt.gca().get_legend().remove()
-    plt.gca().set_xticks([pd.Timestamp("February 1, 2021"), pd.Timestamp("March 1, 2021"), pd.Timestamp("April 1, 2021")])
-    plt.title(district, loc = "left", fontweight = "bold")
-    plt.title(f"({urban_share}% urban, {density}/km$^2$)", loc = "right", fontsize = 10)
-    if district not in xticks:
-        plt.gca().set_xticklabels([])
-    if district not in yticks:
-        plt.gca().set_yticklabels([])
+# for ((state, district), (x, y)) in coords.items():
+#     plt.sca(ax_nest[y - 1, x - 1])
+#     urban_share = int((1 - serodist.loc[state, ("New " if district == "Delhi" else "") + district]["rural_share"].mean()) * 100)
+#     density = pop_density.loc[state, district].density
+#     rt_data = district_estimates.loc[state, district].set_index("dates")["Feb 1, 2021":]
+#     plt.Rt(rt_data.index, rt_data.Rt_pred, rt_data.RR_CI_upper, rt_data.RR_CI_lower, 0.95, yaxis_colors = False, ymin = 0.5, ymax = 2.0)
+#     plt.gca().get_legend().remove()
+#     plt.gca().set_xticks([pd.Timestamp("February 1, 2021"), pd.Timestamp("March 1, 2021"), pd.Timestamp("April 1, 2021")])
+#     plt.title(district, loc = "left", fontweight = "bold")
+#     plt.title(f"({urban_share}% urban, {density}/km$^2$)", loc = "right", fontsize = 10)
+#     if district not in xticks:
+#         plt.gca().set_xticklabels([])
+#     if district not in yticks:
+#         plt.gca().set_yticklabels([])
 
-plt.subplots_adjust(hspace = 0.3, wspace = 0.25, left = 0.05, bottom = 0.05, right = 0.95, top = 0.95)
+# plt.subplots_adjust(hspace = 0.3, wspace = 0.25, left = 0.05, bottom = 0.05, right = 0.95, top = 0.95)
+# plt.show()
+
+ridge_districts = [
+    "Amravati", 
+    "Akola", "Washim",# "Yavatmal", "Wardha", 
+    "Nagpur", "Buldhana", "Hingoli",
+    "Parbhani", "Jalgaon", "Jalna",
+    "Dhule", "Aurangabad",
+    "Nandurbar", "Nashik", "Ahmednagar",
+    "Pune", "Thane", "Mumbai"
+]
+
+fig, axs = plt.subplots(nrows = len(ridge_districts), sharex = True)
+for (i, (ax, district)) in enumerate(zip(axs.flat, ridge_districts)):
+    rt_data = district_estimates.loc["Maharashtra", district]
+    rt_data = rt_data[rt_data.dates >= "Feb 01, 2021"]
+    dates, Rt_pred, Rt_CI_upper, Rt_CI_lower = rt_data.dates, rt_data.Rt_pred, rt_data.RR_CI_upper, rt_data.RR_CI_lower
+    plt.sca(ax)
+    plt.grid(False, which = "both", axis = "both")
+    sns.despine(ax = ax, top = True, left = True, right = True)
+    plt.Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, 0.95, yaxis_colors = False, ymin = 0.9, ymax = 2.5, legend = i == 0, critical_threshold = False)
+    plt.title("\n" + district, position = (0, 0.9), ha = "left", va = "top")
+plt.subplots_adjust(hspace = 0, left = 0.03, right = 0.97, bottom = 0.03, top = 0.97)
 plt.show()

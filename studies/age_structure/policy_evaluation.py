@@ -5,11 +5,13 @@ import dask
 
 """ Calculate WTP, VSLY, and other policy evaluation metrics """ 
 
-src = mkdir(ext/f"all_india_sim_metrics{num_sims}")
-dst = mkdir(ext/f"all_india_wtp_metrics{num_sims}")
+src = tev_src
+dst = tev_dst
+# dst = mkdir(Path("/Volumes/dedomeno/covid/vax-nature/focus_states_wrongcons_tev_100_Apr01"))
+
 
 # coefficients of consumption ~ prevalence regression
-coeffs = pd.read_stata(data/"reg_estimates_full_ALL.dta")\
+coeffs = pd.read_stata(data/"reg_estimates_india_TRYTHIS.dta")\
     [["parm", "estimate", "state_api", "district_api"]]\
     .rename(columns = {"parm": "param", "state_api": "state", "district_api": "district"})\
     .set_index("param")
@@ -31,10 +33,9 @@ def nest_dict(paramkey, coeffs):
     } 
 I_cat_coeffs = nest_dict("I_cat", coeffs)
 D_cat_coeffs = nest_dict("D_cat", coeffs)
-month_coeffs = nest_dict("month", coeffs)
+month_coeffs = nest_dict("month", coeffs)['']
 
 district_coeffs = coeffs.set_index(["state", "district"])["estimate"].to_dict()
-constant_coeffs = coeffs.loc["_cons"].set_index("state") ["estimate"].to_dict()
 
 # life expectancy per state
 YLLs = pd.read_stata(data/"life_expectancy_2009_2013_collapsed.dta")\
@@ -47,35 +48,6 @@ consumption_2019 = pd.read_stata("data/pcons_2019.dta")\
     .rename(columns = lambda _: _.replace("_api", ""))\
     .set_index(["state", "district"])
 
-# bin cutoffs for prevalence categories
-infection_cutoffs = [
-    0, 
-    3.32402467922e-07,
-    9.92239659409e-07,
-    2.13133272235e-06,
-    3.92613963159e-06,
-    6.71275268205e-06,
-    0.0000109327946918,
-    0.000018186142392,
-    0.0000315942104186,
-    0.0000635257453881,    
-    1
-]
-
-death_cutoffs = [
-    0, 
-    2.41533752857e-08,
-    4.25654050437e-08,
-    6.65281624245e-08,
-    1.01670598749e-07,
-    1.48801428152e-07,
-    2.27536067026e-07,
-    3.57383124060e-07,
-    5.86270552056e-07,
-    1.04866321656e-06,
-    1
-]
-
 def dict_map(arr, mapping): 
     # from https://stackoverflow.com/questions/55949809/efficiently-replace-elements-in-array-based-on-dictionary-numpy-python
     k = np.array(list(mapping.keys()))
@@ -86,17 +58,14 @@ def dict_map(arr, mapping):
     return mapping_ar[arr]
 
 def income_decline(state, district, dI_pc, dD_pc):
-    I_cat = np.nan_to_num(np.apply_along_axis(lambda _: pd.cut(_, infection_cutoffs, labels = False), 0, dI_pc)).astype(int)
-    D_cat = np.nan_to_num(np.apply_along_axis(lambda _: pd.cut(_,     death_cutoffs, labels = False), 0, dD_pc)).astype(int)
     month = pd.date_range(start = simulation_start, periods = len(dI_pc), freq = "D").month.values
 
     return (
-        dict_map(I_cat, I_cat_coeffs[state])          + 
-        dict_map(D_cat, D_cat_coeffs[state])          + 
-        dict_map(month, month_coeffs[state])[:, None] + 
-        district_coeffs.get((state, district), 0)     + 
-        district_coeffs[state, ""]                    +
-        constant_coeffs[state] 
+        coeffs.loc["I"]["estimate"] * dI_pc       + 
+        coeffs.loc["D"]["estimate"] * dD_pc       + 
+        dict_map(month, month_coeffs)[:, None]    + 
+        district_coeffs.get((state, district), 0) + 
+        coeffs.loc["_cons"]["estimate"] 
     )
 
 def discounted_WTP(wtp, rate = (4.25/100), period = "daily"):
@@ -113,7 +82,7 @@ def counterfactual_metrics(q_p0v0, c_p0v0):
     WTP_NPV  = [] 
     VSLY_NPV = []
     
-    beta = 1/(1 + 4.25/365)
+    beta = 1/((1.0425)**(1/365))
     s = np.arange(simulation_range + 1)
     for t in range(simulation_range + 1):
         wtp = np.sum(np.power(beta, s[t:] - t)[:, None, None] * WTP_daily_0[t:, :], axis = 0)
@@ -138,22 +107,30 @@ def get_metrics(pi, q_p1v1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0):
     dWTP_private_daily = \
         q_p1v1 * c_p1v1 - q_p1v0 * c_p1v0
 
-    VSLY_daily_1 = ((1 - pi) * q_p1v0 + pi * q_p1v1) * np.mean(c_p0v0, axis = 1)[:, None, :]
+    vax_hazard   = ((1 - pi) * q_p1v0 + pi * q_p1v1)
+    mean_cons =  np.mean(c_p0v0, axis = 1)[:, None, :]
+    VSLY_daily_1 = ((1 - pi) * q_p1v0 + pi * q_p1v1) * mean_cons
 
-    beta = 1/(1 + 4.25/365)
+    beta = 1/((1.0425)**(1/365))
     s = np.arange(simulation_range + 1)
 
     WTP_NPV  = [] 
     VSLY_NPV = []
+    VSLY_no_discount = []
     WTP_health_NPV0  = None
     WTP_income_NPV0  = None
     WTP_private_NPV0 = None
+    vh_discount = []
     for t in range(simulation_range + 1):
         wtp = np.sum(np.power(beta, s[t:] - t)[:, None, None] * WTP_daily_1[t:, :], axis = 0)
         WTP_NPV.append(wtp)
 
         vsly = np.sum(np.power(beta, s[t:] - t)[:, None, None] * VSLY_daily_1[t:, :], axis = 0)
         VSLY_NPV.append(vsly)
+        vsly_beta1 = np.sum(np.power(1   , s[t:] - t)[:, None, None] * VSLY_daily_1[t:, :], axis = 0)
+        VSLY_no_discount.append(vsly_beta1)
+
+        vh_discount
 
         if t == 1:
             WTP_health_NPV0  = np.sum(np.power(beta, s - t)[:, None, None] * dWTP_health_daily , axis = 0)
@@ -166,6 +143,9 @@ def get_metrics(pi, q_p1v1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0):
         WTP_income_NPV0,
         WTP_private_NPV0,
         VSLY_NPV,
+        VSLY_daily_1.sum(axis = 0),
+        vax_hazard.sum(axis = 0),
+        VSLY_no_discount
     )
 
 def save_metrics(metrics, name):
@@ -181,7 +161,8 @@ def process(district_data):
             [0, 2, 1]
         )
         state_YLLs = YLLs.get(state, default = YLLs.mean(axis = 0))
-        with np.load(src/f"{state_code}_{district}_phi25_novax.npz") as counterfactual:
+        phi_cf = int(phi_points[0] * 365 * 100)
+        with np.load(src/f"{state_code}_{district}_phi{phi_cf}_novax.npz") as counterfactual:
             dI_pc_p0 = counterfactual['dT']/N_district
             dD_pc_p0 = counterfactual['dD']/N_district
             q_p0v0   = counterfactual["q0"]
@@ -191,9 +172,9 @@ def process(district_data):
             (1 + f_hat_p0v0) * consumption_2019.loc[state, district].values[:, None, None],
             [1, 2, 0]
         )
-
+        YLLs_for_dist = (D_p0[-1] - D_p0[0]) @ state_YLLs
         save_metrics((D_p0[-1] - D_p0[0]).sum(axis = 1), f"evaluated_deaths_{state}_{district}_no_vax")
-        save_metrics((D_p0[-1] - D_p0[0]) @ state_YLLs,  f"evaluated_YLLs_{state}_{district}_no_vax")
+        save_metrics(YLLs_for_dist,  f"evaluated_YLLs_{state}_{district}_no_vax")
 
         wtp_nv, vsly_nv = counterfactual_metrics(q_p0v0, c_p0v0)
         save_metrics(N_jk * wtp_nv,  f"evaluated_WTP_{state}_{district}_no_vax")
@@ -203,10 +184,9 @@ def process(district_data):
         
         for _phi in phi_points:
             phi = int(_phi * 365 * 100)
-
             for vax_policy in ["random", "contact", "mortality"]:
-                if (dst/f"district_YLL_{state}_{district}_{phi}_{vax_policy}.npz").exists():
-                    continue
+                # if (dst/f"district_YLL_{state}_{district}_{phi}_{vax_policy}.npz").exists():
+                #     continue
                 with np.load(src/f"{state_code}_{district}_phi{phi}_{vax_policy}.npz") as policy:
                     dI_pc_p1 = policy['dT']/N_district
                     dD_pc_p1 = policy['dD']/N_district
@@ -221,12 +201,19 @@ def process(district_data):
                     [1, 2, 0]
                 )
 
-                wtp, wtp_health, wtp_income, wtp_private, vsly = get_metrics(pi, q_p1v1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0)
+                try:
+                    print(state, district, phi, vax_policy)
+                    wtp, wtp_health, wtp_income, wtp_private, vsly, VSLY_daily_1, vax_hazard, VSLY_no_discount = get_metrics(pi, q_p1v1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0)
+                except RuntimeWarning as rw:
+                    print(rw, state, district, phi, vax_policy)
                 
                 save_metrics((D_p1[-1] - D_p1[0]).sum(axis = 1), f"evaluated_deaths_{state}_{district}_{phi}_{vax_policy}")
-                save_metrics((D_p1[-1] - D_p1[0]) @ state_YLLs, f"evaluated_YLL_{state}_{district}_{phi}_{vax_policy}")
+                save_metrics((D_p1[-1] - D_p1[0]) @ state_YLLs,  f"evaluated_YLL_{state}_{district}_{phi}_{vax_policy}")
+                save_metrics(VSLY_daily_1,                       f"evaluated_VSLYd1_{state}_{district}_{phi}_{vax_policy}")
+                save_metrics(vax_hazard,                         f"evaluated_vh_{state}_{district}_{phi}_{vax_policy}")
+                save_metrics(VSLY_no_discount,                   f"evaluated_VSLYND_{state}_{district}_{phi}_{vax_policy}")
                 
-                save_metrics(N_jk * wtp, f"evaluated_WTP_{state}_{district}_{phi}_{vax_policy}")
+                save_metrics(N_jk * wtp,  f"evaluated_WTP_{state}_{district}_{phi}_{vax_policy}")
                 save_metrics(N_jk * vsly, f"evaluated_VSLY_{state}_{district}_{phi}_{vax_policy}")
                 
                 save_metrics(age_weight * wtp_health, f"evaluated_WTP_h_{state}_{district}_{phi}_{vax_policy}")
@@ -245,12 +232,19 @@ def process(district_data):
 
 if __name__ == "__main__":
     population_columns = ["state_code", "N_tot", 'N_0', 'N_1', 'N_2', 'N_3', 'N_4', 'N_5', 'N_6']
-    with dask.config.set({"scheduler.allowed-failures": 1}):
-        client = dask.distributed.Client()
-        print(client.dashboard_link)
-        with dask.distributed.get_task_stream(client) as ts:
-            futures = []
-            for district in districts_to_run[~districts_to_run.index.isin(["Andaman And Nicobar Islands"], level = 0)][population_columns].itertuples():
-                futures.append(client.submit(process, district, key = ":".join(district[:2])))
-        dask.distributed.progress(futures)
+    distribute = True
+
+    if distribute:
+        with dask.config.set({"scheduler.allowed-failures": 1}):
+            client = dask.distributed.Client()#(n_workers = 1, processes = False)
+            print(client.dashboard_link)
+            with dask.distributed.get_task_stream(client) as ts:
+                futures = []
+                # for district in districts_to_run[~districts_to_run.index.isin(["Andaman And Nicobar Islands"], level = 0)][population_columns].itertuples():
+                for district in districts_to_run[districts_to_run.index.isin(["Tamil Nadu"], level = 0)][population_columns].itertuples():
+                    futures.append(client.submit(process, district, key = ":".join(district[0])))
+            dask.distributed.progress(futures)
+    else:
+        for t in districts_to_run[districts_to_run.index.isin(["Tamil Nadu"], level = 0)][population_columns].itertuples():
+            process(t)
 
