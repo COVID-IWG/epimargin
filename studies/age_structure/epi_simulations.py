@@ -12,16 +12,14 @@ phi_points       = [_ * percent * annually for _ in (25, 50, 100, 200)]
 simulation_initial_conditions = pd.read_csv(data/f"all_india_simulation_initial_conditions{simulation_start.strftime('%b%d')}.csv")\
     .drop(columns = ["Unnamed: 0"])\
     .set_index(["state", "district"])
-districts_to_run = simulation_initial_conditions[simulation_initial_conditions.index.isin(["Tamil Nadu"], level = 0)]
+districts_to_run = simulation_initial_conditions#[simulation_initial_conditions.index.isin(["Tamil Nadu"], level = 0)]
 num_age_bins     = 7
 seed             = 0
 
 MORTALITY = [6, 5, 4, 3, 2, 1, 0]
 CONTACT   = [1, 2, 3, 4, 0, 5, 6]
 
-dst = sim_dst
-
-def save_metrics(policy, tag):
+def save_metrics(tag, policy, dst = epi_dst):
     np.savez_compressed(dst/f"{tag}.npz", 
         dT = policy.dT_total,
         dD = policy.dD_total,
@@ -68,6 +66,7 @@ def process(district_data):
     try:
         for phi in phi_points:
             num_doses = phi * (S0 + I0 + R0)
+            sim_tag = f"{state_code}_{district}_phi{int(phi * 365 * 100)}_"
             random_model, mortality_model, contact_model, no_vax_model = [get_model(seed) for _ in range(4)]
             for t in range(simulation_range):
                 if t <= 1/phi:
@@ -83,19 +82,19 @@ def process(district_data):
                 no_vax_model   .parallel_forward_epi_step(dV = np.zeros((7, num_sims))[:, 0], num_sims = num_sims)
 
             if phi == phi_points[0]:
-                save_metrics(no_vax_model, f"{state_code}_{district}_phi{int(phi * 365 * 100)}_novax")
-            save_metrics(random_model,     f"{state_code}_{district}_phi{int(phi * 365 * 100)}_random")
-            save_metrics(mortality_model,  f"{state_code}_{district}_phi{int(phi * 365 * 100)}_mortality")
-            save_metrics(contact_model,    f"{state_code}_{district}_phi{int(phi * 365 * 100)}_contact")
+                save_metrics(sim_tag + "novax", no_vax_model   )
+            save_metrics(sim_tag + "random",    random_model   )
+            save_metrics(sim_tag + "mortality", mortality_model)
+            save_metrics(sim_tag + "contact",   contact_model  )
     except Exception as e:
         print(state, district, e)
         return
 
 if __name__ == "__main__":
-    distribute = False
+    distribute = True
     if distribute:
         with dask.config.set({"scheduler.allowed-failures": 1}):
-            client = dask.distributed.Client()#(n_workers = 1, processes = False)
+            client = dask.distributed.Client(n_workers = 4, threads_per_worker = 1)
             print(client.dashboard_link)
             with dask.distributed.get_task_stream(client) as ts:
                 futures = []

@@ -24,7 +24,7 @@ figs.mkdir(exist_ok=True)
 # define data versions for api files
 paths = {
     "v3": [data_path(i) for i in (1, 2)],
-    "v4": [data_path(i) for i in range(3, 25)]
+    "v4": [data_path(i) for i in range(3, 26)]
 }
 
 for target in paths['v3'] + paths['v4']:
@@ -42,11 +42,13 @@ run_date     = str(pd.Timestamp.now()).split()[0]
 
 ts = get_time_series(df, ["detected_state", "detected_district"])
 
-focus = ts.loc[["Maharashtra", "Madhya Pradesh", "Gujarat", "West Bengal", "Tamil Nadu"]]
+focus = ts.loc[["Maharashtra"]]#, "Madhya Pradesh", "Gujarat", "West Bengal", "Tamil Nadu"]]
 district_estimates = []
 
 for (state, district) in focus.index.droplevel(-1).unique():
-    if district in ["Unknown", "Other State"]:
+    # if district in ["Unknown", "Other State"]:
+    #     continue
+    if "Mumbai" not in district: 
         continue
     print(state, district)
     try: 

@@ -192,7 +192,7 @@ if __name__ == "__main__":
     figs_to_run = set(sys.argv[1:])
     run_all = len(figs_to_run) == 0 # if none specified, run all
     src = fig_src
-    params = list(chain([("no_vax",)], product([25, 50, 100, 200], ["contact", "random", "mortality"])))
+    params = list(chain([(25, "novax",)], product([25, 50, 100, 200], ["contact", "random", "mortality"])))
 
     # policy outcomes
     # 2A: deaths
@@ -207,12 +207,13 @@ if __name__ == "__main__":
     ## 2B: VSLY
     if "2B" in figs_to_run or "VSLY" in figs_to_run or run_all:
         VSLY_percentiles = {
-            p: aggregate_dynamic_percentiles(src, f"evaluated_VSLY_Tamil*{'_'.join(map(str, p))}.npz")
+            # p: aggregate_dynamic_percentiles(src, f"total_VSLY*{'_'.join(map(str, p))}.npz")
+            p: aggregate_dynamic_percentiles(src, f"evaluated_VSLY_*{'_'.join(map(str, p))}.npz")
             for p in tqdm(params)
         }
         outcomes_per_policy(
             {k: v * USD/(1e9) for (k, v) in VSLY_percentiles.items()}, "VSLY (USD, billions)", "D",
-            reference = ("no_vax",)
+            reference = (25, "novax")
         ) 
         plt.gca().ticklabel_format(axis = "y", useOffset = False)
         plt.show()
@@ -220,11 +221,11 @@ if __name__ == "__main__":
     ## 2C: TEV
     if "2C" in figs_to_run or "TEV" in figs_to_run or "WTP" in figs_to_run or run_all:
         TEV_percentiles = {
-            p: aggregate_dynamic_percentiles(src, f"evaluated_WTP_[A-Z]*{'_'.join(map(str, p))}.npz")
+            p: aggregate_dynamic_percentiles(src, f"total_TEV*{'_'.join(map(str, p))}.npz")
             for p in tqdm(params)
         }
 
-        outcomes_per_policy({k: v * USD/(1e9) for (k, v) in TEV_percentiles.items()}, "TEV (USD, billions)", "D", reference = ("no_vax",)) 
+        outcomes_per_policy({k: v * USD/(1e9) for (k, v) in TEV_percentiles.items()}, "TEV (USD, billions)", "D", reference = (25, "novax")) 
         plt.gca().ticklabel_format(axis = "y", useOffset = False)
         plt.show()
 
@@ -249,63 +250,63 @@ if __name__ == "__main__":
         outcomes_per_policy(YLL_percentiles, "YLLs", "o", reference = ("no_vax",))
         plt.show()
 
-    for state in ["Tamil Nadu"]:#tqdm(districts_to_run.index.get_level_values(0).unique()[1:]):
-        try: 
-            plt.figure()
-            state_WTP_percentiles = {
-                p: aggregate_dynamic_percentiles(src, f"evaluated_WTP_{state}*{'_'.join(map(str, p))}.npz")
-                for p in tqdm(params)
-            }
-            outcomes_per_policy(
-                {k: v * USD/(1e9) for (k, v) in state_VSLY_percentiles.items()}, "TEV (USD, billions)", "D",
-                reference = ("no_vax",)
-            ) 
+    # for state in ["Tamil Nadu"]:#tqdm(districts_to_run.index.get_level_values(0).unique()[1:]):
+    #     try: 
+    #         plt.figure()
+    #         state_WTP_percentiles = {
+    #             p: aggregate_dynamic_percentiles(src, f"evaluated_WTP_{state}*{'_'.join(map(str, p))}.npz")
+    #             for p in tqdm(params)
+    #         }
+    #         outcomes_per_policy(
+    #             {k: v * USD/(1e9) for (k, v) in state_VSLY_percentiles.items()}, "TEV (USD, billions)", "D",
+    #             reference = ("no_vax",)
+    #         ) 
 
-            outcomes_per_policy(
-                {k: v * USD/(1e9) for (k, v) in state_VSLY_percentiles.items()}, "VSLY (USD, billions)", "D",
-                reference = ("no_vax",)
-            ) 
-            plt.gca().ticklabel_format(axis = "y", useOffset = False)
-            plt.title(state, loc = "left")
-            plt.gcf().set_size_inches((16.8 ,  9.92))
-            plt.savefig(f"figs/statecheckvsly/VSLY_check_{state}.png")
-            plt.close("all")
+    #         outcomes_per_policy(
+    #             {k: v * USD/(1e9) for (k, v) in state_VSLY_percentiles.items()}, "VSLY (USD, billions)", "D",
+    #             reference = ("no_vax",)
+    #         ) 
+    #         plt.gca().ticklabel_format(axis = "y", useOffset = False)
+    #         plt.title(state, loc = "left")
+    #         plt.gcf().set_size_inches((16.8 ,  9.92))
+    #         plt.savefig(f"figs/statecheckvsly/VSLY_check_{state}.png")
+    #         plt.close("all")
 
 
-            plt.figure()
-            state_VSLY_percentiles = {
-                p: aggregate_dynamic_percentiles(src, f"evaluated_VSLY_{state}*{'_'.join(map(str, p))}.npz")
-                for p in tqdm(params)
-            }
-            outcomes_per_policy(
-                {k: v * USD/(1e9) for (k, v) in state_VSLY_percentiles.items()}, "VSLY (USD, billions)", "D",
-                reference = (25, "random")
-            ) 
-            plt.gca().ticklabel_format(axis = "y", useOffset = False)
-            plt.show()
-            plt.title(state, loc = "left")
-            plt.gcf().set_size_inches((16.8 ,  9.92))
-            plt.savefig(f"figs/statecheckvsly/VSLY_check_{state}.png")
-            plt.close("all")
+    #         plt.figure()
+    #         state_VSLY_percentiles = {
+    #             p: aggregate_dynamic_percentiles(src, f"evaluated_VSLY_{state}*{'_'.join(map(str, p))}.npz")
+    #             for p in tqdm(params)
+    #         }
+    #         outcomes_per_policy(
+    #             {k: v * USD/(1e9) for (k, v) in state_VSLY_percentiles.items()}, "VSLY (USD, billions)", "D",
+    #             reference = (25, "random")
+    #         ) 
+    #         plt.gca().ticklabel_format(axis = "y", useOffset = False)
+    #         plt.show()
+    #         plt.title(state, loc = "left")
+    #         plt.gcf().set_size_inches((16.8 ,  9.92))
+    #         plt.savefig(f"figs/statecheckvsly/VSLY_check_{state}.png")
+    #         plt.close("all")
 
-            plt.figure()
-            state_YLL_percentiles = {
-                p: aggregate_static_percentiles(src, f"evaluated_YLL*_{state}*{'_'.join(map(str, p))}.npz")
-                for p in tqdm(params)
-            }
-            state_YLL_percentiles = {}
-            for p in tqdm(params):
-                state_YLL_percentiles[p] = aggregate_static_percentiles(src, f"evaluated_YLLs_{state}*{'_'.join(map(str, p))}.npz")
-            outcomes_per_policy(state_YLL_percentiles, "YLLs", "o", reference = ("no_vax",))
-            plt.gca().ticklabel_format(axis = "y", useOffset = False)
-            plt.show()
-            plt.title(state, loc = "left")
-            plt.gcf().set_size_inches((16.8 ,  9.92))
-            plt.savefig(f"figs/statecheckvsly/YLL_check_{state}.png")
-            plt.close("all")
+    #         plt.figure()
+    #         state_YLL_percentiles = {
+    #             p: aggregate_static_percentiles(src, f"evaluated_YLL*_{state}*{'_'.join(map(str, p))}.npz")
+    #             for p in tqdm(params)
+    #         }
+    #         state_YLL_percentiles = {}
+    #         for p in tqdm(params):
+    #             state_YLL_percentiles[p] = aggregate_static_percentiles(src, f"evaluated_YLLs_{state}*{'_'.join(map(str, p))}.npz")
+    #         outcomes_per_policy(state_YLL_percentiles, "YLLs", "o", reference = ("no_vax",))
+    #         plt.gca().ticklabel_format(axis = "y", useOffset = False)
+    #         plt.show()
+    #         plt.title(state, loc = "left")
+    #         plt.gcf().set_size_inches((16.8 ,  9.92))
+    #         plt.savefig(f"figs/statecheckvsly/YLL_check_{state}.png")
+    #         plt.close("all")
 
-        except Exception as e:
-            print(state, e)
+        # except Exception as e:
+        #     print(state, e)
 
     # 3C: YLL per million choropleth
     if "3C" in figs_to_run or run_all:

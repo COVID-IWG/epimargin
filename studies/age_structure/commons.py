@@ -29,10 +29,10 @@ smooth = notched_smoothing(window)
 simulation_start = pd.Timestamp("April 1, 2021")
 
 num_sims = 100
-focus_states = ["Tamil Nadu"]#, "Punjab", "Maharashtra", "Bihar", "West Bengal"]
+focus_states = ["Tamil Nadu", "Punjab", "Maharashtra", "Bihar", "West Bengal"]
 
-experiment_tag = "10x_IFR"
-sim_dst = tev_src = mkdir(ext/f"{experiment_tag}_epi_{num_sims}_{simulation_start.strftime('%b%d')}")
+experiment_tag = "focus_run_TEV"
+epi_dst = tev_src = mkdir(ext/f"{experiment_tag}_epi_{num_sims}_{simulation_start.strftime('%b%d')}")
 tev_dst = fig_src = mkdir(ext/f"{experiment_tag}_tev_{num_sims}_{simulation_start.strftime('%b%d')}")
 
 # misc
@@ -74,25 +74,25 @@ TN_age_structure = {
 
 N_j = np.array([20504724, 15674833, 11875848, 9777265, 6804602, 4650978, 2858780])
 
-# TN_IFRs = { 
-#     "0-17" : 0.00003,
-#     "18-29": 0.00003,
-#     "30-39": 0.00010,
-#     "40-49": 0.00032,
-#     "50-59": 0.00111,
-#     "60-69": 0.00264,
-#     "70+"  : 0.00588,
-# }
-
 TN_IFRs = { 
-    "0-17" : 0.003,
-    "18-29": 0.003,
-    "30-39": 0.010,
-    "40-49": 0.032,
-    "50-59": 0.111,
-    "60-69": 0.264,
-    "70+"  : 0.588,
+    "0-17" : 0.00003,
+    "18-29": 0.00003,
+    "30-39": 0.00010,
+    "40-49": 0.00032,
+    "50-59": 0.00111,
+    "60-69": 0.00264,
+    "70+"  : 0.00588,
 }
+
+# TN_IFRs = { 
+#     "0-17" : 0.003,
+#     "18-29": 0.003,
+#     "30-39": 0.010,
+#     "40-49": 0.032,
+#     "50-59": 0.111,
+#     "60-69": 0.264,
+#     "70+"  : 0.588,
+# }
 
 TN_age_structure_norm = sum(TN_age_structure.values())
 TN_age_ratios = np.array([v/TN_age_structure_norm for v in TN_age_structure.values()])
