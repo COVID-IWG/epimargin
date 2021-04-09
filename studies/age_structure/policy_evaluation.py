@@ -6,11 +6,11 @@ from studies.age_structure.commons import *
 from studies.age_structure.epi_simulations import *
 from tqdm import tqdm
 
-# src = tev_src
-# dst = tev_dst 
+src = tev_src
+dst = tev_dst 
 
-src = tev_src = mkdir(Path("/Volumes/dedomeno/covid/vax-nature/focus_states_epi_1000_Apr01"))
-dst = tev_dst = mkdir(Path("/Volumes/dedomeno/covid/vax-nature/focus_states_tev_1000_Apr01"))
+# src = tev_src = mkdir(Path("/Volumes/dedomeno/covid/vax-nature/focus_states_epi_1000_Apr01"))
+# dst = tev_dst = mkdir(Path("/Volumes/dedomeno/covid/vax-nature/focus_states_tev_1000_Apr01"))
 
 # coefficients of consumption ~ prevalence regression
 coeffs = pd.read_stata(data/"reg_estimates_india_TRYTHIS.dta")\
@@ -38,6 +38,10 @@ years_life_remaining = pd.read_stata(data/"life_expectancy_2009_2013_collapsed.d
     .assign(state = lambda _: _["state"].str.replace("&", "And"))\
     .set_index("state")\
     .rename(columns = {f"life_expectancy{i+1}": agebin_labels[i] for i in range(7)})
+
+median_ages  = np.array([9, 24, 35, 45, 55, 65, 75])
+years_in_bin = np.tile(np.array([27, 29, 39, 49, 59, 69, 79]) - median_ages, (num_age_bins, 1))
+years_in_bin *= (1 - np.tri(*years_in_bin.shape, k = -1)).astype(int)
 
 def rc_hat(state, district, dI_pc, dD_pc):
     """ estimate consumption decline """
@@ -95,7 +99,8 @@ def process(district_data):
     """ run and save policy evaluation metrics """
     (state, district), state_code, N_district, N_0, N_1, N_2, N_3, N_4, N_5, N_6 = district_data
     N_jk = np.array([N_0, N_1, N_2, N_3, N_4, N_5, N_6])
-    age_weight = N_jk/(N_j)
+    # age_weight = N_jk/(N_j) # national level 
+    age_weight = N_jk/(N_jk.sum()) # state level 
     rc_hat_p1v1 = rc_hat(state, district, np.zeros((simulation_range + 1, 1)), np.zeros((simulation_range + 1, 1)))
     c_p1v1 = np.transpose(
         (1 + rc_hat_p1v1)[:, None] * consumption_2019.loc[state, district].values[:, None],
@@ -120,14 +125,14 @@ def process(district_data):
     TEV_p0, VSLY_p0 = counterfactual_metrics(q_p0v0, c_p0v0)
     save_metrics("deaths_" + cf_tag, (D_p0[-1] - D_p0[0]).sum(axis = 1))
     save_metrics("YLL_"    + cf_tag, (D_p0[-1] - D_p0[0]) @ state_years_life_remaining)
-    save_metrics("per_capita_TEV"  + cf_tag,  TEV_p0)
-    save_metrics("per_capita_VSLY" + cf_tag, VSLY_p0)
-    save_metrics("total_TEV"  + cf_tag, N_jk *  TEV_p0)
-    save_metrics("total_VSLY" + cf_tag, N_jk * VSLY_p0)
+    save_metrics("per_capita_TEV_"  + cf_tag,  TEV_p0)
+    save_metrics("per_capita_VSLY_" + cf_tag, VSLY_p0)
+    save_metrics("total_TEV_"  + cf_tag, N_jk *  TEV_p0)
+    save_metrics("total_VSLY_" + cf_tag, N_jk * VSLY_p0)
 
     for (phi, vax_policy) in product(
         [int(_*365*100) for _ in phi_points], 
-        ["random"]#, "contact"]#, "mortality"]
+        ["random", "contact", "mortality", "cons"]
     ):
         p1_tag = f"{state_code}_{district}_phi{phi}_{vax_policy}"
         with np.load(src/(p1_tag + ".npz")) as policy:
@@ -143,7 +148,8 @@ def process(district_data):
             [1, 2, 0]
         )
 
-        TEV_p1, *_ = policy_TEV( pi, q_p1v1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0)
+        TEV_p1, dTEV_health, dTEV_cons, dTEV_priv =\
+            policy_TEV( pi, q_p1v1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0)
         VSLY_p1    = policy_VSLY(pi, q_p1v1, q_p1v0, c_p0v0)
         save_metrics("deaths_"          + p1_tag, (D_p1[-1] - D_p1[0]).sum(axis = 1))
         save_metrics("YLL_"             + p1_tag, (D_p1[-1] - D_p1[0]) @ state_years_life_remaining)
@@ -151,10 +157,14 @@ def process(district_data):
         save_metrics("per_capita_VSLY_" + p1_tag, VSLY_p1)
         save_metrics("total_TEV_"       + p1_tag,  TEV_p1 * N_jk)
         save_metrics("total_VSLY_"      + p1_tag, VSLY_p1 * N_jk)
+        if phi == 50 and vax_policy == "random":
+            save_metrics("dTEV_health_" + p1_tag, age_weight * dTEV_health)
+            save_metrics("dTEV_cons_"   + p1_tag, age_weight * dTEV_cons)
+            save_metrics("dTEV_priv_"   + p1_tag, age_weight * dTEV_priv)
 
 if __name__ == "__main__":
     population_columns = ["state_code", "N_tot", 'N_0', 'N_1', 'N_2', 'N_3', 'N_4', 'N_5', 'N_6']
-    distribute = True
+    distribute = False
 
     if distribute:
         with dask.config.set({"scheduler.allowed-failures": 5}):
@@ -167,5 +177,5 @@ if __name__ == "__main__":
                     futures.append(client.submit(process, district, key = ":".join(district[0])))
             dask.distributed.progress(futures)
     else:
-        for t in tqdm(districts_to_run[districts_to_run.index.isin(["Ariyalur"], level = 1)][population_columns].itertuples()):
+        for t in tqdm(districts_to_run[population_columns].itertuples(), total = len(districts_to_run)):
             process(t)

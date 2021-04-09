@@ -109,7 +109,7 @@ def outcomes_per_policy(percentiles, metric_label, fmt,
     *_, bars = plt.errorbar(x = [0], y = [md], yerr = [[md - lo], [hi - md]], figure = fig,
         fmt = fmt, color = reference_color, label = "no vaccination", ms = 12, elinewidth = 5)
     [_.set_alpha(0.5) for _ in bars]
-    plt.hlines(md, xmin = -1, xmax = 5, linestyles = "dotted", colors = reference_color)
+    plt.hlines(md, xmin = -1, xmax = len(phis) + 0.5, linestyles = "dotted", colors = reference_color)
 
     for (i, phi) in enumerate(phis, start = 1):
         for (j, (vax_policy, color, label)) in enumerate(zip(vax_policies, policy_colors, policy_labels)):
@@ -125,7 +125,7 @@ def outcomes_per_policy(percentiles, metric_label, fmt,
             )
             [_.set_alpha(0.5) for _ in bars]
 
-    plt.legend(ncol = 4, fontsize = "20", loc = "lower center", bbox_to_anchor = (0.5, 1))
+    plt.legend(ncol = 1 + len(vax_policies), fontsize = "20", loc = "lower center", bbox_to_anchor = (0.5, 1))
     plt.xticks(range(len(phis) + 1), [f"$\phi = {phi}$%" for phi in ([0] + phis)], fontsize = "20")
     plt.yticks(fontsize = "20")
     plt.PlotDevice().ylabel(f"{metric_label}\n")
@@ -192,42 +192,98 @@ if __name__ == "__main__":
     figs_to_run = set(sys.argv[1:])
     run_all = len(figs_to_run) == 0 # if none specified, run all
     src = fig_src
-    params = list(chain([(25, "novax",)], product([25, 50, 100, 200], ["contact", "random", "mortality"])))
+    phis = [int(_ * 365 * 100) for _ in phi_points]
+    params = list(chain([(phis[0], "novax",)], product(phis, ["contact", "random", "mortality", "cons"])))
 
     # policy outcomes
     # 2A: deaths
     if "2A" in figs_to_run or "deaths" in figs_to_run or run_all:
         death_percentiles = {
-            p: aggregate_static_percentiles(src, f"evaluated_deaths_Maha*{'_'.join(map(str, p))}.npz")
+            p: aggregate_static_percentiles(src, f"deaths*phi{'_'.join(map(str, p))}.npz")
             for p in params 
         }
-        outcomes_per_policy(death_percentiles, "deaths", "o", reference = ("no_vax",)) 
+        outcomes_per_policy(death_percentiles, "deaths", "o", 
+            reference = (1, "novax"), 
+            phis = phis, 
+            vax_policies = ["contact", "cons", "random", "mortality"], 
+            policy_colors = [contactrate_vax_color, "purple", random_vax_color, mortality_vax_color], 
+            policy_labels = ["contact rate", "consumption", "random", "mortality"])
+        plt.show()
+        outcomes_per_policy(death_percentiles, "deaths", "o", 
+            reference = (1, "novax"), 
+            phis = [25, 50, 100, 200], 
+            vax_policies = ["contact", "random", "mortality"], 
+            policy_colors = [contactrate_vax_color, random_vax_color, mortality_vax_color], 
+            policy_labels = ["contact rate", "random", "mortality"]
+        )
         plt.show()
 
     ## 2B: VSLY
     if "2B" in figs_to_run or "VSLY" in figs_to_run or run_all:
         VSLY_percentiles = {
-            # p: aggregate_dynamic_percentiles(src, f"total_VSLY*{'_'.join(map(str, p))}.npz")
-            p: aggregate_dynamic_percentiles(src, f"evaluated_VSLY_*{'_'.join(map(str, p))}.npz")
+            p: aggregate_dynamic_percentiles(src, f"total_VSLY_TN*phi{'_'.join(map(str, p))}.npz")
             for p in tqdm(params)
         }
         outcomes_per_policy(
             {k: v * USD/(1e9) for (k, v) in VSLY_percentiles.items()}, "VSLY (USD, billions)", "D",
-            reference = (25, "novax")
-        ) 
-        plt.gca().ticklabel_format(axis = "y", useOffset = False)
+            reference = (1, "novax"), 
+            phis = phis, 
+            vax_policies = ["contact", "cons", "random", "mortality"], 
+            policy_colors = [contactrate_vax_color, "purple", random_vax_color, mortality_vax_color], 
+            policy_labels = ["contact rate", "consumption", "random", "mortality"]
+        )
         plt.show()
+
+        outcomes_per_policy(
+            {k: v * USD/(1e9) for (k, v) in VSLY_percentiles.items()}, "VSLY (USD, billions)", "D",
+            reference = (1, "novax"), 
+            phis = [25, 50, 100, 200], 
+            vax_policies = ["contact", "random", "mortality"], 
+            policy_colors = [contactrate_vax_color, random_vax_color, mortality_vax_color], 
+            policy_labels = ["contact rate", "random", "mortality"]
+        )
+        plt.show()
+
+        for i in range(7):
+            plt.figure()
+            outcomes_per_policy(
+                {k: v[:, i] * USD/(1e9) for (k, v) in VSLY_percentiles.items()}, "VSLY (USD, billions)", "D",
+                reference = (25, "contact")
+            ) 
+            plt.gca().ticklabel_format(axis = "y", useOffset = False)
+            plt.title(agebin_labels[i])
+            plt.gcf().set_size_inches((16.8 ,  9.92))
+            plt.savefig(f"figs/agebin_debugging_TN_rightcons_VSLY{agebin_labels[i]}.png")
+        plt.close("all")
+
 
     ## 2C: TEV
     if "2C" in figs_to_run or "TEV" in figs_to_run or "WTP" in figs_to_run or run_all:
         TEV_percentiles = {
-            p: aggregate_dynamic_percentiles(src, f"total_TEV*{'_'.join(map(str, p))}.npz")
+            p: aggregate_dynamic_percentiles(src, f"total_TEV*phi{'_'.join(map(str, p))}.npz")
             for p in tqdm(params)
         }
-
-        outcomes_per_policy({k: v * USD/(1e9) for (k, v) in TEV_percentiles.items()}, "TEV (USD, billions)", "D", reference = (25, "novax")) 
+        outcomes_per_policy({k: v * USD/(1e9) for (k, v) in TEV_percentiles.items()}, "TEV (USD, billions)", "D", 
+            reference = (1, "novax"), 
+            phis = phis, 
+            vax_policies = ["contact", "cons", "random", "mortality"], 
+            policy_colors = [contactrate_vax_color, "purple", random_vax_color, mortality_vax_color], 
+            policy_labels = ["contact rate", "consumption", "random", "mortality"]
+        ) 
         plt.gca().ticklabel_format(axis = "y", useOffset = False)
         plt.show()
+
+        outcomes_per_policy({k: v * USD/(1e9) for (k, v) in TEV_percentiles.items()}, "TEV (USD, billions)", "D", 
+            reference = (1, "novax"), 
+            phis = [25, 50, 100, 200], 
+            vax_policies = ["contact", "random", "mortality"], 
+            policy_colors = [contactrate_vax_color, random_vax_color, mortality_vax_color], 
+            policy_labels = ["contact rate", "random", "mortality"]
+        ) 
+        plt.gca().ticklabel_format(axis = "y", useOffset = False)
+        plt.show()
+
+
 
     ## 2D: state x age 
     if "2D" in figs_to_run or "TEV_state_age" in figs_to_run or run_all:
@@ -244,10 +300,16 @@ if __name__ == "__main__":
     # appendix: YLL
     if "YLL" in figs_to_run or run_all:
         YLL_percentiles = {
-            p: aggregate_static_percentiles(src, f"evaluated_YLL*Punjab*{'_'.join(map(str, p))}.npz")
+            p: aggregate_static_percentiles(src, f"YLL_*phi{'_'.join(map(str, p))}.npz")
             for p in tqdm(params)
         }
-        outcomes_per_policy(YLL_percentiles, "YLLs", "o", reference = ("no_vax",))
+        outcomes_per_policy(YLL_percentiles, "YLLs", "o", 
+            reference = (1, "novax"), 
+            phis = [25, 50, 100, 200], 
+            vax_policies = ["contact", "random", "mortality"], 
+            policy_colors = [contactrate_vax_color, random_vax_color, mortality_vax_color], 
+            policy_labels = ["contact rate", "random", "mortality"]
+        )
         plt.show()
 
     # for state in ["Tamil Nadu"]:#tqdm(districts_to_run.index.get_level_values(0).unique()[1:]):
@@ -369,11 +431,14 @@ if __name__ == "__main__":
     # vsly_random_inf, vsly_contact_inf, vsly_mortality_inf = map(lambda p: np.load(p)['arr_0'], src.glob("district_VSLY*Chennai*1*.npz"))
 
     # 3A: health/consumption
-    # if "__3A" in figs_to_run:
-    #     summed_wtp_health = np.median(evaluated_WTP_h[state, "50_random"], axis = 0)
-    #     summed_wtp_income = np.median(evaluated_WTP_pc[state, "50_random"] - evaluated_WTP_h[state, "50_random"], axis = 0)
-    #     plot_component_breakdowns(summed_wtp_health, summed_wtp_income, "health", "consumption", semilogy = True)
-    #     plt.show()
+    if "__3A" in figs_to_run:
+        
+        # summed_wtp_health = np.median(evaluated_WTP_h[state, "50_random"], axis = 0)
+        # summed_wtp_income = np.median(evaluated_WTP_pc[state, "50_random"] - evaluated_WTP_h[state, "50_random"], axis = 0)
+        summed_TEV_hlth = np.mean(sum(np.load(_)['arr_0'][0] for _ in src.glob("dTEV_health*")), axis = 0)
+        summed_TEV_cons = np.mean(sum(np.load(_)['arr_0'][0] for _ in src.glob("dTEV_cons*")), axis = 0)
+        plot_component_breakdowns(summed_TEV_hlth, summed_TEV_cons, "health", "consumption", semilogy = True, ylabel = "age-weighted TEV (USD)")
+        # plt.show()
 
     #     # demand curves
     #     demand_curve = get_within_state_wtp_ranking(state, {(k, "50_random"): v for (k, v) in state_WTP_by_district.items()}, 50, "random") 

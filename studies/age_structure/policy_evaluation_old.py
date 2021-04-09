@@ -5,9 +5,12 @@ import dask
 
 """ Calculate WTP, VSLY, and other policy evaluation metrics """ 
 
-src = mkdir(Path("/Volumes/dedomeno/covid/vax-nature/all_india_sim_metrics1000"))
-dst = mkdir(Path("/Volumes/dedomeno/covid/vax-nature/all_india_tev_wrongcons_metrics1000"))
+# src = mkdir(Path("/Volumes/dedomeno/covid/vax-nature/all_india_sim_metrics1000"))
+# dst = mkdir(Path("/Volumes/dedomeno/covid/vax-nature/all_india_tev_wrongcons_metrics1000"))
 # dst = mkdir(Path("/Volumes/dedomeno/covid/vax-nature/focus_states_wrongcons_tev_100_Apr01"))
+
+src = tev_src
+dst = tev_dst
 
 # coefficients of consumption ~ prevalence regression
 coeffs = pd.read_stata(data/"reg_estimates_india_TRYTHIS.dta")\

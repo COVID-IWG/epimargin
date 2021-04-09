@@ -29,9 +29,9 @@ smooth = notched_smoothing(window)
 simulation_start = pd.Timestamp("April 1, 2021")
 
 num_sims = 100
-focus_states = ["Tamil Nadu", "Punjab", "Maharashtra", "Bihar", "West Bengal"]
+focus_states = ["Tamil Nadu"]#, "Punjab", "Maharashtra", "Bihar", "West Bengal"]
 
-experiment_tag = "focus_run_TEV"
+experiment_tag = "TN_most_recent"
 epi_dst = tev_src = mkdir(ext/f"{experiment_tag}_epi_{num_sims}_{simulation_start.strftime('%b%d')}")
 tev_dst = fig_src = mkdir(ext/f"{experiment_tag}_tev_{num_sims}_{simulation_start.strftime('%b%d')}")
 
@@ -129,7 +129,7 @@ fI = (TN_infection_structure / TN_infection_structure.sum())[:, None]
 
 def get_state_timeseries(states = "*", download: bool = False) -> pd.DataFrame:
     """ load state- and district-level data, downloading source files if specified """
-    paths = {"v3": [data_path(i) for i in (1, 2)], "v4": [data_path(i) for i in range(3, 25)]}
+    paths = {"v3": [data_path(i) for i in (1, 2)], "v4": [data_path(i) for i in range(3, 26)]}
     if download:
         for target in paths['v3'] + paths['v4']: 
             download_data(data, target)
@@ -274,4 +274,4 @@ if __name__ == "__main__":
     #         data/"focus_states_simulation_initial_conditions.csv")
     # assemble_initial_conditions()\
     assemble_initial_conditions(focus_states, download = True)\
-        .to_csv(data/f"all_india_simulation_initial_conditions{simulation_start.strftime('%b%d')}.csv")
+        .to_csv(data/f"TN_simulation_initial_conditions{simulation_start.strftime('%b%d')}.csv")
