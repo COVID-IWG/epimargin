@@ -4,7 +4,8 @@ import numpy as np
 import pandas as pd
 from adaptive.estimators import analytical_MPVS
 from adaptive.etl.commons import download_data
-from adaptive.etl.covid19india import data_path, get_time_series, load_all_data, state_name_lookup
+from adaptive.etl.covid19india import (data_path, get_time_series,
+                                       load_all_data, state_name_lookup)
 from adaptive.smoothing import notched_smoothing
 from adaptive.utils import mkdir
 from tqdm import tqdm
@@ -28,10 +29,12 @@ smooth = notched_smoothing(window)
 # simulation parameters
 simulation_start = pd.Timestamp("April 1, 2021")
 
-num_sims = 100
-focus_states = ["Tamil Nadu"]#, "Punjab", "Maharashtra", "Bihar", "West Bengal"]
+num_sims = 1000
+focus_states = ["Tamil Nadu", "Punjab", "Maharashtra", "Bihar", "West Bengal"]
+# states to evaluate at state level (no district level data)
+coalesce_states = ["Delhi", "Manipur", "Mizoram", "Dadra And Nagar Haveli And Daman And Diu", "Andaman And Nicobar Islands"]
 
-experiment_tag = "TN_most_recent"
+experiment_tag = "all_india_coalesced"
 epi_dst = tev_src = mkdir(ext/f"{experiment_tag}_epi_{num_sims}_{simulation_start.strftime('%b%d')}")
 tev_dst = fig_src = mkdir(ext/f"{experiment_tag}_tev_{num_sims}_{simulation_start.strftime('%b%d')}")
 
@@ -84,16 +87,6 @@ TN_IFRs = {
     "70+"  : 0.00588,
 }
 
-# TN_IFRs = { 
-#     "0-17" : 0.003,
-#     "18-29": 0.003,
-#     "30-39": 0.010,
-#     "40-49": 0.032,
-#     "50-59": 0.111,
-#     "60-69": 0.264,
-#     "70+"  : 0.588,
-# }
-
 TN_age_structure_norm = sum(TN_age_structure.values())
 TN_age_ratios = np.array([v/TN_age_structure_norm for v in TN_age_structure.values()])
 
@@ -127,15 +120,19 @@ fI = (TN_infection_structure / TN_infection_structure.sum())[:, None]
 
 # vaccin policies 
 
-def get_state_timeseries(states = "*", download: bool = False) -> pd.DataFrame:
+def get_state_timeseries(
+    states = "*", 
+    download: bool = False, 
+    aggregation_cols = ["detected_state", "detected_district"], 
+    last_API_file: int = 26) -> pd.DataFrame:
     """ load state- and district-level data, downloading source files if specified """
-    paths = {"v3": [data_path(i) for i in (1, 2)], "v4": [data_path(i) for i in range(3, 26)]}
+    paths = {"v3": [data_path(i) for i in (1, 2)], "v4": [data_path(i) for i in range(3, last_API_file)]}
     if download:
         for target in paths['v3'] + paths['v4']: 
             download_data(data, target)
     return load_all_data(v3_paths = [data/filepath for filepath in paths['v3']],  v4_paths = [data/filepath for filepath in paths['v4']])\
-        .query("detected_state in @states" if states != "*" else "detected_state != 'NULL'", engine = "python")\
-        .pipe(lambda _: get_time_series(_, ["detected_state", "detected_district"]))\
+        .query("detected_state in @states" if states != "*" else "detected_state != 'NULL'")\
+        .pipe(lambda _: get_time_series(_, aggregation_cols))\
         .drop(columns = ["date", "time", "delta", "logdelta"])\
         .rename(columns = {
             "Deceased":     "dD",
@@ -143,8 +140,7 @@ def get_state_timeseries(states = "*", download: bool = False) -> pd.DataFrame:
             "Recovered":    "dR"
         })
 
-
-def case_death_timeseries(states = "*", download = False):
+def case_death_timeseries(states = "*", download = False, aggregation_cols = ["detected_state", "detected_district"], last_API_file: int = 26):
     """ assemble a list of daily deaths and cases for consumption prediction """
     ts = get_state_timeseries(states, download)
     ts_index = pd.date_range(start = ts.index.get_level_values(-1).min(), end = ts.index.get_level_values(-1).max(), freq = "D")
@@ -183,7 +179,7 @@ def load_vax_data(download = False):
     vax.columns = vax.columns.str.title()
     return vax.set_index(pd.to_datetime(vax.index, format = "%d/%m/%Y"))
 
-def assemble_initial_conditions(states = "*", simulation_start = simulation_start, survey_date = survey_date, download = False):
+def assemble_initial_conditions(states = "*", coalesce_states = coalesce_states, simulation_start = simulation_start, survey_date = survey_date, download = False):
     rows = []
     district_age_pop = pd.read_csv(data/"all_india_sero_pop.csv").set_index(["state", "district"])
     if states == "*":
@@ -195,6 +191,34 @@ def assemble_initial_conditions(states = "*", simulation_start = simulation_star
     progress.set_description(f"{'loading case data':<20}")
     
     ts  = get_state_timeseries(states, download)
+    if coalesce_states:
+        # sum data for states to coalesce across districts
+        coalesce_ts = get_state_timeseries(coalesce_states, download = download, aggregation_cols = ["detected_state"])\
+            .reset_index()\
+            .assign(detected_district = lambda _:_["detected_state"])\
+            .set_index(["detected_state", "detected_district", "status_change_date"])
+        
+        # replace original entries
+        ts = pd.concat([
+            ts.drop(labels = coalesce_states, axis = 0, level = 0),
+            coalesce_ts
+        ]).sort_index()
+
+        # sum up seroprevalence in coalesced states
+        districts_to_run = pd.concat(
+            [districts_to_run.drop(labels = coalesce_states, axis = 0, level = 0)] + 
+            [districts_to_run.loc[state]\
+                .assign(**{f"infected_{i}": (lambda i: lambda _: _[f"sero_{i}"] * _[f"N_{i}"])(i) for i in range(7)})\
+                .drop(columns = [f"sero_{i}" for i in range(7)])\
+                .sum(axis = 0)\
+                .to_frame().T\
+                .assign(**{f"sero_{i}": (lambda i: lambda _: _[f"infected_{i}"] / _[f"N_{i}"])(i) for i in range(7)})\
+                [districts_to_run.columns]\
+                .assign(state = state, district = state)\
+                .set_index(["state", "district"])
+            for state in coalesce_states]
+        ).sort_index()
+
     vax = load_vax_data(download)
     progress.update(10)
     for ((state, district), 
@@ -213,7 +237,7 @@ def assemble_initial_conditions(states = "*", simulation_start = simulation_star
         R_conf_smooth  = dR_conf_smooth.cumsum().astype(int)
         R_conf = R_conf_smooth[survey_date if survey_date in R_conf_smooth.index else -1]
         R_sero = (sero_0*N_0 + sero_1*N_1 + sero_2*N_2 + sero_3*N_3 + sero_4*N_4 + sero_5*N_5 + sero_6*N_6)
-        R_ratio = R_sero/R_conf 
+        R_ratio = R_sero/R_conf if R_conf != 0 else 1 
         R0 = R_conf_smooth[simulation_start if simulation_start in R_conf_smooth.index else -1] * R_ratio
         progress.update(1)
         
@@ -236,7 +260,7 @@ def assemble_initial_conditions(states = "*", simulation_start = simulation_star
         T_conf_smooth  = dT_conf_smooth.cumsum().astype(int)
         T_conf = T_conf_smooth[survey_date if survey_date in T_conf_smooth.index else -1]
         T_sero = R_sero + D0 
-        T_ratio = T_sero/T_conf
+        T_ratio = T_sero/T_conf if T_conf != 0 else 1 
         T0 = T_conf_smooth[simulation_start if simulation_start in T_conf_smooth.index else -1] * T_ratio
         progress.update(1)
 
@@ -245,24 +269,30 @@ def assemble_initial_conditions(states = "*", simulation_start = simulation_star
         dT0 = dT_conf_smooth[simulation_start if simulation_start in dT_conf_smooth.index else -1] * T_ratio
         I0 = max(0, (T0 - R0 - D0))
 
-        (Rt_dates, Rt_est, *_) = analytical_MPVS(
+        (Rt_dates, Rt_est, Rt_CI_upper, Rt_CI_lower, *_) = analytical_MPVS(
             T_ratio * dT_conf_smooth, 
             CI = CI, 
             smoothing = lambda _:_, 
             infectious_period = infectious_period, 
             totals = False
         )
-        Rt = dict(zip(Rt_dates, Rt_est))
+        Rt_timeseries       = dict(zip(Rt_dates, Rt_est))
+        Rt_upper_timeseries = dict(zip(Rt_dates, Rt_CI_upper))
+        Rt_lower_timeseries = dict(zip(Rt_dates, Rt_CI_lower))
+
+        Rt       = Rt_timeseries      .get(simulation_start, Rt_timeseries      [max(Rt_timeseries      .keys())]) if Rt_timeseries       else 0
+        Rt_upper = Rt_upper_timeseries.get(simulation_start, Rt_upper_timeseries[max(Rt_upper_timeseries.keys())]) if Rt_upper_timeseries else 0
+        Rt_lower = Rt_lower_timeseries.get(simulation_start, Rt_lower_timeseries[max(Rt_lower_timeseries.keys())]) if Rt_lower_timeseries else 0
 
         V0 = vax.loc[simulation_start][state] * N_tot / districts_to_run.loc[state].N_tot.sum()
 
         rows.append((state_name_lookup[state], state, district, 
             sero_0, N_0, sero_1, N_1, sero_2, N_2, sero_3, N_3, sero_4, N_4, sero_5, N_5, sero_6, N_6, N_tot, 
-            Rt.get(simulation_start, Rt[max(Rt.keys())]) if Rt else 0, S0, I0, R0, D0, dT0, dD0, V0
+            Rt, Rt_upper, Rt_lower, S0, I0, R0, D0, dT0, dD0, V0
         ))
         progress.update(1)
     out = pd.DataFrame(rows, 
-        columns = ["state_code", "state", "district", "sero_0", "N_0", "sero_1", "N_1", "sero_2", "N_2", "sero_3", "N_3", "sero_4", "N_4", "sero_5", "N_5", "sero_6", "N_6", "N_tot", "Rt", "S0", "I0", "R0", "D0", "dT0", "dD0", "V0"]
+        columns = ["state_code", "state", "district", "sero_0", "N_0", "sero_1", "N_1", "sero_2", "N_2", "sero_3", "N_3", "sero_4", "N_4", "sero_5", "N_5", "sero_6", "N_6", "N_tot", "Rt", "Rt_upper", "Rt_lower", "S0", "I0", "R0", "D0", "dT0", "dD0", "V0"]
     )
     progress.update(1)
     return out 
@@ -273,5 +303,5 @@ if __name__ == "__main__":
     #     .to_csv(
     #         data/"focus_states_simulation_initial_conditions.csv")
     # assemble_initial_conditions()\
-    assemble_initial_conditions(focus_states, download = True)\
-        .to_csv(data/f"TN_simulation_initial_conditions{simulation_start.strftime('%b%d')}.csv")
+    assemble_initial_conditions(download = True)\
+        .to_csv(data/f"all_india_coalesced_initial_conditions{simulation_start.strftime('%b%d')}.csv")

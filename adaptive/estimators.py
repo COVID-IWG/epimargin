@@ -59,7 +59,7 @@ def analytical_MPVS(
 
     v_alpha, v_beta = [], []
 
-    RR_pred, RR_CI_upper, RR_CI_lower = [], [], []
+    Rt_pred, Rt_CI_upper, Rt_CI_lower = [], [], []
 
     T_pred, T_CI_upper, T_CI_lower = [], [], []
 
@@ -77,12 +77,12 @@ def analytical_MPVS(
         v_alpha.append(alpha)
         v_beta.append(beta)
 
-        RR_est   = max(0, 1 + infectious_period*np.log(Gamma.mean(     a = alpha, scale = 1/beta)))
-        RR_upper = max(0, 1 + infectious_period*np.log(Gamma.ppf(CI,   a = alpha, scale = 1/beta)))
-        RR_lower = max(0, 1 + infectious_period*np.log(Gamma.ppf(1-CI, a = alpha, scale = 1/beta)))
-        RR_pred.append(RR_est)
-        RR_CI_upper.append(RR_upper)
-        RR_CI_lower.append(RR_lower)
+        Rt_est   = max(0, 1 + infectious_period*np.log(Gamma.mean(     a = alpha, scale = 1/beta)))
+        Rt_upper = max(0, 1 + infectious_period*np.log(Gamma.ppf(CI,   a = alpha, scale = 1/beta)))
+        Rt_lower = max(0, 1 + infectious_period*np.log(Gamma.ppf(1-CI, a = alpha, scale = 1/beta)))
+        Rt_pred.append(Rt_est)
+        Rt_CI_upper.append(Rt_upper)
+        Rt_CI_lower.append(Rt_lower)
 
         if (new_cases == 0 or old_new_cases == 0):
             if new_cases == 0:
@@ -138,15 +138,15 @@ def analytical_MPVS(
                     T_CI_upper[-1] = nbinom.ppf(1-CI, _nr, _np)
 
                     # annealing leaves the RR mean unchanged, but we need to adjust its widened CI
-                    RR_upper = max(0, 1 + infectious_period * np.log(Gamma.ppf(CI    , a = alpha, scale = 1/beta)))
-                    RR_lower = max(0, 1 + infectious_period * np.log(Gamma.ppf(1 - CI, a = alpha, scale = 1/beta)))
+                    Rt_upper = max(0, 1 + infectious_period * np.log(Gamma.ppf(CI    , a = alpha, scale = 1/beta)))
+                    Rt_lower = max(0, 1 + infectious_period * np.log(Gamma.ppf(1 - CI, a = alpha, scale = 1/beta)))
 
                     # replace latest CI time series entries with adjusted CI 
-                    RR_CI_upper[-1] = RR_upper
-                    RR_CI_lower[-1] = RR_lower
+                    Rt_CI_upper[-1] = Rt_upper
+                    Rt_CI_lower[-1] = Rt_lower
     return (
         dates[2:], 
-        RR_pred, RR_CI_upper, RR_CI_lower, 
+        Rt_pred, Rt_CI_upper, Rt_CI_lower, 
         T_pred, T_CI_upper, T_CI_lower, 
         total_cases, new_cases_ts, 
         anomalies, anomaly_dates

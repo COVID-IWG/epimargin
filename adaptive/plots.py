@@ -1,5 +1,4 @@
 import datetime
-from itertools import cycle
 from pathlib import Path
 from typing import Optional, Sequence, Tuple
 
@@ -57,6 +56,7 @@ sns.set(style = "whitegrid", palette = "bright", font = "Helvetica Neue")
 
 plt.rcParams['mathtext.default'] = 'regular'
 DATE_FMT = mdates.DateFormatter('%d %b')
+bY_FMT   = mdates.DateFormatter('%b %Y')
 
 # from https://towardsdatascience.com/beautiful-custom-colormaps-with-matplotlib-5bab3d1f0e72
 def hex_to_rgb(value):
@@ -288,10 +288,10 @@ def simulations(
 
 def Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, CI, ymin = 0.5, ymax = 3, yaxis_colors = True, format_dates = True, critical_threshold = True, legend = True):
     # dates = normalize_dates(dates)
-    CI_marker  = plt.fill_between(dates, Rt_CI_lower, Rt_CI_upper, color = BLK_CI, alpha = 0.5)
+    CI_marker  = plt.fill_between(dates, Rt_CI_lower, Rt_CI_upper, color = BLK, alpha = 0.3)
     Rt_marker, = plt.plot(dates, Rt_pred, color = BLK, linewidth = 2, zorder = 5, solid_capstyle = "butt")
-    plt.plot(dates, Rt_CI_lower, color = BLK, linewidth = 0.5, zorder = 5, solid_capstyle = "butt")
-    plt.plot(dates, Rt_CI_upper, color = BLK, linewidth = 0.5, zorder = 5, solid_capstyle = "butt")
+    # plt.plot(dates, Rt_CI_lower, color = BLK, linewidth = 0.5, zorder = 5, solid_capstyle = "butt")
+    # plt.plot(dates, Rt_CI_upper, color = BLK, linewidth = 0.5, zorder = 5, solid_capstyle = "butt")
     if yaxis_colors: 
         plt.plot([dates[0], dates[0]], [2.5, ymax], color = RED, linewidth = 6, alpha = 0.9, solid_capstyle="butt", zorder = 10)
         plt.plot([dates[0], dates[0]], [1,    2.5], color = YLW, linewidth = 6, alpha = 0.9, solid_capstyle="butt", zorder = 10)

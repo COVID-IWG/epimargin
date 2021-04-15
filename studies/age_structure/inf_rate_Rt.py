@@ -3,82 +3,170 @@ import pandas as pd
 from adaptive.estimators import analytical_MPVS
 from adaptive.etl.covid19india import state_code_lookup
 from studies.age_structure.commons import *
-from studies.age_structure.palette import *
 
 import seaborn as sns
 sns.set(style = "white")
-# state
-TN_N = india_pop[state_code_lookup[state].replace("&", "and")]
-TN_dT_conf = df["TN"].loc[:, "delta", "confirmed"] 
-TN_dT_conf_smooth = pd.Series(smooth(TN_dT_conf), index = TN_dT_conf.index)
-TN_T_conf_smooth = dT_conf_smooth.cumsum().astype(int)
-TN_T = TN_T_conf_smooth[date]
-TN_T_sero = (N * TN_seropos)
-T_ratio = TN_T_sero/TN_T
+
+ts = case_death_timeseries(download = False)
+district_age_pop = pd.read_csv(data/"all_india_sero_pop.csv").set_index(["state", "district"])
 
 
-# national
-IN_dT_conf = df["TT"].loc[:, "delta", "confirmed"] 
-IN_dT_conf_smooth = pd.Series(smooth(IN_dT_conf), index = IN_dT_conf.index)
-IN_T_conf_smooth = dT_conf_smooth.cumsum().astype(int)
-IN_T = IN_T_conf_smooth[date]
+# supplement: Rt distribution
 
-# run Rt estimation on scaled timeseries 
-(TN_dates, TN_Rt_est, TN_CI_l, TN_CI_u, *_) =\
-    analytical_MPVS(T_ratio * TN_dT_conf_smooth["March 1, 2020":simulation_start], CI = CI, smoothing = lambda _:_, totals = False)
-
-(IN_dates, IN_Rt_est, IN_CI_l, IN_CI_u, *_) =\
-    analytical_MPVS(T_ratio * IN_dT_conf_smooth["March 1, 2020":simulation_start], CI = CI, smoothing = lambda _:_, totals = False)
+simulation_initial_conditions = pd.read_csv(data/f"all_india_coalesced_initial_conditions{simulation_start.strftime('%b%d')}.csv")\
+    .drop(columns = ["Unnamed: 0"])\
+    .set_index(["state", "district"])
 
 
-TN_CI_marker  = plt.fill_between(TN_dates, TN_CI_l, TN_CI_u, color = TN_color, alpha = 0.5, zorder = 5)
-TN_Rt_marker, = plt.plot(TN_dates, TN_Rt_est, color = TN_color, linewidth = 2, zorder = 5, solid_capstyle = "butt")
-plt.plot(TN_dates, TN_CI_l, color = TN_color, linewidth = 0.5, zorder = 5, solid_capstyle = "butt")
-plt.plot(TN_dates, TN_CI_u, color = TN_color, linewidth = 0.5, zorder = 5, solid_capstyle = "butt")
+# fig 1A: infection rates for India and TN
+def sero_scaling(sero_pop, ts, survey_date = survey_date):
+    R_sero         = (sero_pop.filter(like = "sero", axis = 1).values * sero_pop.filter(regex = "N_[0-6]", axis = 1).values).sum()
 
-IN_CI_marker  = plt.fill_between(IN_dates, IN_CI_l, IN_CI_u, color = plt.BLK, alpha = 0.5, zorder = 10)
-IN_Rt_marker, = plt.plot(IN_dates, IN_Rt_est, color = plt.BLK, linewidth = 2, zorder = 10, solid_capstyle = "butt")
-plt.plot(IN_dates, IN_CI_l, color = plt.BLK, linewidth = 0.5, zorder = 10, solid_capstyle = "butt")
-plt.plot(IN_dates, IN_CI_u, color = plt.BLK, linewidth = 0.5, zorder = 10, solid_capstyle = "butt")
+    dD_conf        = ts.dD
+    dD_conf        = dD_conf.reindex(pd.date_range(dD_conf.index.min(), dD_conf.index.max()), fill_value = 0)
+    dD_conf_smooth = pd.Series(smooth(dD_conf), index = dD_conf.index).clip(0).astype(int)
+    D_conf_smooth  = dD_conf_smooth.cumsum().astype(int)
+    D0             = D_conf_smooth[simulation_start]
 
-plt.xticks(fontsize = "20", rotation = 45)
+    dT_conf        = ts.dT
+    dT_conf        = dT_conf.reindex(pd.date_range(dT_conf.index.min(), dT_conf.index.max()), fill_value = 0)
+    dT_conf_smooth = pd.Series(smooth(dT_conf), index = dT_conf.index).clip(0).astype(int)
+    T_conf_smooth  = dT_conf_smooth.cumsum().astype(int)
+    T_conf         = T_conf_smooth[survey_date if survey_date in T_conf_smooth.index else -1]
+    T_sero         = R_sero + D0 
+    T_ratio        = T_sero/T_conf
+
+    return (
+        T_ratio, 
+        T_ratio * dT_conf, 
+        T_ratio * dT_conf_smooth
+    )
+
+T_ratio_TT, dT_conf_scaled_TT, dT_conf_scaled_smooth_TT = sero_scaling(district_age_pop,                   ts.sum(level = -1))
+T_ratio_TN, dT_conf_scaled_TN, dT_conf_scaled_smooth_TN = sero_scaling(district_age_pop.loc["Tamil Nadu"], ts.loc["Tamil Nadu"].sum(level = -1))
+
+N_TT = district_age_pop.N_tot.sum()
+N_TN = district_age_pop.loc["Tamil Nadu"].N_tot.sum()
+
+idx = dT_conf_scaled_TT.index[("March 1, 2020" <= dT_conf_scaled_TT.index) & (dT_conf_scaled_TT.index <= simulation_start)]
+fig = plt.figure()
+scatter_TN = plt.scatter(idx, dT_conf_scaled_TN       [idx]/N_TN, color = TN_color, label = "Tamil Nadu (raw)",      figure = fig, alpha = 0.5, marker = "o", s = 10, zorder = 5)
+plot_TN,   = plt.plot   (idx, dT_conf_scaled_smooth_TN[idx]/N_TN, color = TN_color, label = "Tamil Nadu (smoothed)", figure = fig, zorder = 5,  linewidth = 2)
+scatter_TT = plt.scatter(idx, dT_conf_scaled_TT       [idx]/N_TT, color = IN_color, label = "India (raw)",           figure = fig, alpha = 0.5, marker = "o", s = 10, zorder = 10)
+plot_TT,   = plt.plot   (idx, dT_conf_scaled_smooth_TT[idx]/N_TT, color = IN_color, label = "India (smoothed)",      figure = fig, zorder = 10, linewidth = 2)
+plt.xticks(fontsize = "20", rotation = 0)
 plt.yticks(fontsize = "20")
 plt.legend(
-    [(TN_CI_marker, TN_Rt_marker), (IN_CI_marker, IN_Rt_marker)], 
-    [f"Tamil Nadu", "India"], 
-    framealpha = 1, handlelength = 0.75, fontsize = "20", 
-    loc = "lower center", bbox_to_anchor = (0.5, 1),
-    ncol = 2
-)
-plt.xlim(left = pd.Timestamp("March 1, 2020"), right = simulation_start)
-plt.ylim(bottom = 0.5, top = 3.25)
-plt.gca().xaxis.set_major_formatter(plt.DATE_FMT)
-plt.gca().xaxis.set_minor_formatter(plt.DATE_FMT)
-plt.PlotDevice().ylabel("reproductive rate\n")
-plt.gca().spines['right'].set_visible(False)
-plt.gca().spines['top'].set_visible(False)
+    [scatter_TN, plot_TN, scatter_TT, plot_TT], 
+    ["Tamil Nadu (raw)", "Tamil Nadu (smoothed)", "India (raw)", "India (smoothed)"],
+    fontsize = "20", ncol = 4,     
+    framealpha = 1, handlelength = 0.75,
+    loc = "lower center", bbox_to_anchor = (0.5, 1))
+plt.gca().xaxis.set_major_formatter(plt.bY_FMT)
+plt.gca().xaxis.set_minor_formatter(plt.bY_FMT)
+plt.xlim(left = pd.Timestamp("March 1, 2020"), right = pd.Timestamp("April 2, 2021"))
+plt.ylim(bottom = 0)
+plt.PlotDevice().ylabel("per-capita infection rate\n").xlabel("\ndate")
 plt.show()
 
 
-dT_slice = dT_conf_smooth["March 1, 2020":simulation_start]
-dT_idx = dT_slice.index
-fig = plt.figure()
-tn_scatter = plt.scatter(dT_slice.index, TN_dT_conf["March 1, 2020":simulation_start]        * T_ratio/TN_N, color = TN_color, label = "Tamil Nadu (raw)",      figure = fig, alpha = 0.5, marker = "o", s = 10, zorder = 5)
-tn_plot,   = plt.plot   (dT_slice.index, TN_dT_conf_smooth["March 1, 2020":simulation_start] * T_ratio/TN_N, color = TN_color, label = "Tamil Nadu (smoothed)", figure = fig, zorder = 5)
-in_scatter = plt.scatter(dT_slice.index, IN_dT_conf["March 1, 2020":simulation_start]        * T_ratio/(1.389e9), color = IN_color, label = "India (raw)",      figure = fig, alpha = 0.5, marker = "o", s = 10, zorder = 10)
-in_plot,   = plt.plot   (dT_slice.index, IN_dT_conf_smooth["March 1, 2020":simulation_start] * T_ratio/(1.389e9), color = IN_color, label = "India (smoothed)", figure = fig, zorder = 10)
-plt.xticks(fontsize = "20", rotation = 45)
+# 1B: per capita vaccination rates
+vax = load_vax_data().reindex(pd.date_range(start = pd.Timestamp("Jan 1, 2021"), end = simulation_start, freq = "D"), fill_value = 0)[pd.Timestamp("Jan 1, 2021"):simulation_start]
+
+plt.plot(vax.index, vax["Tamil Nadu"]/N_TN, color = TN_color, label = "Tamil Nadu", linewidth = 2)
+plt.plot(vax.index, vax["Total"]     /N_TT, color = IN_color, label = "India"     , linewidth = 2)
+plt.xticks(fontsize = "20", rotation = 0)
 plt.yticks(fontsize = "20")
 plt.legend(
-    [tn_scatter, tn_plot, in_scatter, in_plot], 
-    ["Tamil Nadu (raw)", "Tamil Nadu (smoothed)", "India (raw)", "India (smoothed)"],
     fontsize = "20", ncol = 4,     
     framealpha = 1, handlelength = 0.75,
     loc = "lower center", bbox_to_anchor = (0.5, 1))
 plt.gca().xaxis.set_major_formatter(plt.DATE_FMT)
 plt.gca().xaxis.set_minor_formatter(plt.DATE_FMT)
-plt.xlim(left = pd.Timestamp("March 1, 2020"), right = simulation_start)
-plt.PlotDevice().ylabel("per-capita infection rate\n")
-plt.gca().spines['right'].set_visible(False)
-plt.gca().spines['top'].set_visible(False)
+plt.xlim(left = pd.Timestamp("Jan 1, 2021"), right = pd.Timestamp("April 1, 2021"))
+plt.ylim(bottom = 0, top = 0.05)
+plt.PlotDevice().ylabel("per-capita vaccination rate\n").xlabel("\ndate")
+plt.show()
+
+# fig 1C: probability of death 
+dD_TN = np.array(0.0)
+for _ in epi_dst.glob("TN*novax.npz"):
+    dD_TN = dD_TN + np.diff(np.load(_)['Dj'].sum(axis = -1), axis = 0)
+
+dD_TT = dD_TN.copy()
+for _ in filter(lambda _: "TN" not in str(_), epi_dst.glob("novax.npz")):
+    dD_TT = dD_TT + np.diff(np.load(_)['Dj'].sum(axis = -1), axis = 0)
+
+percap_death_TN = 100 * np.percentile(dD_TN, [50, 2.5, 97.5], axis = 1)/N_TN
+percap_death_TT = 100 * np.percentile(dD_TT, [50, 2.5, 97.5], axis = 1)/N_TT
+
+x = pd.date_range(start = simulation_start, periods = len(percap_death_TN[0]) - 1, freq = "D")
+
+TN_md_marker, = plt.plot(x, percap_death_TN[0][1:], color = TN_color, linewidth = 2, label = "Tamil Nadu (median)")
+TN_CI_marker  = plt.fill_between(x, y1 = percap_death_TN[1][1:], y2 = percap_death_TN[2][1:], color = TN_color, alpha = 0.3)
+
+TT_md_marker, = plt.plot(x, percap_death_TT[0][1:], color = IN_color, linewidth = 2, label = "India (median)")
+TT_CI_marker  = plt.fill_between(x, y1 = percap_death_TT[1][1:], y2 = percap_death_TT[2][1:], color = IN_color, alpha = 0.3)
+
+plt.legend(
+    [(TN_CI_marker, TN_md_marker), (TT_CI_marker, TT_md_marker)], 
+    ["Tamil Nadu, median (95% simulation range)", "India, median (95% simulation range)"],
+    fontsize = "20", ncol = 2,
+    framealpha = 1, handlelength = 0.75,
+    loc = "lower center", bbox_to_anchor = (0.5, 1)
+)
+plt.ylim(bottom = 0)
+plt.xlim(left=x[0], right=pd.Timestamp("July 15, 2021"))
+plt.gca().xaxis.set_major_formatter(plt.DATE_FMT)
+plt.gca().xaxis.set_minor_formatter(plt.DATE_FMT)
+plt.xticks(fontsize = "20")
+plt.yticks(fontsize = "20")
+plt.PlotDevice().xlabel("\ndate").ylabel("incremental death probability (percentage)\n")
+plt.show()
+
+
+# supplement: Rt distribution
+state_ts = ts.sum(level = [0, 2]).sort_index().drop(labels = 
+    ["State Unassigned", "Lakshadweep", "Andaman And Nicobar Islands", "Goa"] + 
+    ["Sikkim", "Chandigarh", "Mizoram", "Puducherry", "Arunachal Pradesh", 
+    "Nagaland", "Manipur", "Meghalaya", "Tripura", "Himachal Pradesh"] + 
+    ["Dadra And Nagar Haveli And Daman And Diu"]
+)
+
+india_ts = ts.sum(level = -1)
+
+_, Rt_TT, Rt_CI_upper_TT, Rt_CI_lower_TT, *_ =\
+    analytical_MPVS(dT_conf_scaled_smooth_TT.loc["Jan 1, 2021":simulation_start], smoothing = lambda _:_, infectious_period = infectious_period, totals = False) 
+Rt_TTn, Rt_CI_upper_TTn, Rt_CI_lower_TTn = [np.mean(_[-7:]) for _ in (Rt_TT, Rt_CI_upper_TT, Rt_CI_lower_TT)]
+
+Rt_dist = {}
+for state in state_ts.index.get_level_values(0).unique():
+    *_, dT_conf_scaled_smooth = sero_scaling(district_age_pop.loc[state], ts.loc[state].sum(level = -1))
+    _, Rt, Rt_CI_upper, Rt_CI_lower, *_ =\
+        analytical_MPVS(state_ts.loc[state].loc["Jan 1, 2021":simulation_start].dT, smoothing = lambda _:_, infectious_period = infectious_period, totals = False) 
+    Rt_dist[state] = [np.mean(_[-7:]) for _ in (Rt, Rt_CI_upper, Rt_CI_lower)]
+
+Rt_dist = {k:v for (k, v) in sorted(Rt_dist.items(), key = lambda e: e[1][0], reverse = True) if v != [0, 0, 0]}
+
+md, hi, lo = map(np.array, list(zip(*Rt_dist.values())))
+*_, bars = plt.errorbar(
+    x = [-2] + list(range(len(md))), 
+    y = np.r_[Rt_TTn, md], 
+    yerr = [
+        np.r_[Rt_TTn - Rt_CI_lower_TTn, md - lo], 
+        np.r_[Rt_CI_upper_TTn - Rt_TTn, hi - md]
+    ], 
+    fmt = "s", color = plt.BLK, ms = 8, elinewidth = 10, label = "$R_t$ (95% CI)")
+[_.set_alpha(0.3) for _ in bars]
+plt.hlines(Rt_TTn, xmin = -3, xmax = len(md) + 1, linestyles = "dotted", colors = plt.BLK)
+plt.vlines(-1, ymin = 0, ymax = 6, linewidth = 3, colors = "black")
+plt.ylim(bottom = 0, top = 6)
+plt.xlim(left = -3, right = len(md))
+plt.PlotDevice().ylabel("reproductive rate ($R_t$)\n").xlabel("\nstate")
+plt.xticks(ticks = [-2] + list(range(len(md))), labels = ["India"] + [state_name_lookup[_][:2] for _ in Rt_dist.keys()], fontsize = "20")
+plt.yticks(fontsize = "20")
+plt.subplots_adjust(left = 0.06, right = 0.94 )
+plt.gca().grid(False, axis = "y")
+plt.legend(fontsize = "20")
+plt.gcf().set_size_inches((16.8 * 2,  9.92))
 plt.show()
