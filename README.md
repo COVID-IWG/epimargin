@@ -1,25 +1,20 @@
-<h1 align="center">adaptive-control</h1>
+<h1 align="center">epimargin</h1>
 
 <div align="center"> <img src="./docs/logo.svg" height="250"> </div>
 
-<div align="center"> <img alt="Made With Python" src="https://img.shields.io/badge/made%20with-python-%233776AB.svg?style=for-the-badge&logo=python&logoColor=ffdf76"> <a href="https://twitter.com/miurbanchicago"><img alt="Twitter Follow" src="https://img.shields.io/twitter/follow/miurbanchicago?logo=twitter&style=for-the-badge"></a> <a href="https://travis-ci.com/github/mansueto-institute/adaptive-control"><img alt="build status" src="https://img.shields.io/travis/com/mansueto-institute/adaptive-control/master?color=green&style=for-the-badge"></a> </div>
+<!-- <div align="center"> <img alt="Made With Python" src="https://img.shields.io/badge/made%20with-python-%233776AB.svg?style=for-the-badge&logo=python&logoColor=ffdf76"> </div> -->
 
-
-
-# summary
-a pandemic tracking toolkit that: 
-1. runs a Bayesian update process to obtain a real time estimate of <i>R<sub>t</sub></i>
-2. builds a graph of interactions between geographic units accounting for migratory (re-)introductions
-3. at each <i>t</i> from <i>t<sub>i</sub></i> to <i>t<sub>f</sub></i>:
-
-   - runs the standard SIRD forward epidemiological model 
-
-   - simulates a migration out of each state to all other states (used as introductions at time <i>t</i>+1)
-4. (optionally) projects SIRD curves under various policy scenarios and epidemiological parameters 
+a public health policy analysis toolkit consisting of: 
+1. Bayesian simulated annealing estimator for the reproductive rate (<i>R<sub>t</sub></i>)
+2. a stochastic compartmental model class supporting multiple compartments schemes (SIR, SEIR, SIRV, etc.)
+3. policy impact evaluation that calculates longevity benefits and economic activity disruption/resumption under scenarios including: 
+    - targeted lockdowns
+    - urban-rural migration and reverse-migration flows
+    - multiple vaccine allocation prioritizations 
 
 # organization
 - `adaptive` - core package with model and estimator classes 
-- `studies` - specific applications to geographies for which we have data
+- `studies` - specific applications to geographies and policy evaluation exercises
 
 # data source notes
 - India base demographic data provided by Anand Sahasranaman (Krea)
