@@ -1,5 +1,4 @@
 from itertools import product
-from re import X
 
 import dask.distributed
 import pandas as pd
@@ -9,6 +8,9 @@ from tqdm import tqdm
 
 src = tev_src
 dst = tev_dst 
+
+N_j_state = districts_to_run.filter(regex = "N_[0-6]").sum(level = 0)
+N_j_natl  = districts_to_run.filter(regex = "N_[0-6]").sum().values
 
 # coefficients of consumption ~ prevalence regression
 coeffs = pd.read_stata(data/"reg_estimates_india_TRYTHIS.dta")\
@@ -97,9 +99,9 @@ def policy_TEV(pi, q_p1v1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0):
 
     return (
         NPV(TEV_daily),
-        NPV(dTEV_hlth, n = 1),
-        NPV(dTEV_cons, n = 1),
-        NPV(dTEV_priv, n = 1)
+        NPV(dTEV_hlth)[0],
+        NPV(dTEV_cons)[0],
+        NPV(dTEV_priv)[0]
     )
 
 def policy_VSLY(pi, q_p1v1, q_p1v0, c_p0v0):
@@ -112,12 +114,16 @@ def policy_VSL(LS, age_weight, c_p0v0):
 def save_metrics(name, metrics, dst = tev_dst):
     np.savez_compressed(dst/f"{name}.npz", metrics)
 
-def process(district_data):
+def process(district_data, level = "national"):
     """ run and save policy evaluation metrics """
     (state, district), state_code, N_district, N_0, N_1, N_2, N_3, N_4, N_5, N_6 = district_data
     N_jk = np.array([N_0, N_1, N_2, N_3, N_4, N_5, N_6])
-    # age_weight = N_jk/(N_j) # national level 
-    age_weight = N_jk/(N_jk.sum()) # state level 
+    if level == "district":
+        age_weight = N_jk/(N_jk.sum())
+    elif level == "state":
+        age_weight = N_jk/N_j_state.loc[state].values
+    else:
+        age_weight = N_jk/N_j_natl
     rc_hat_p1v1 = rc_hat(state, district, np.zeros((simulation_range + 1, 1)), np.zeros((simulation_range + 1, 1)))
     c_p1v1 = np.transpose(
         (1 + rc_hat_p1v1)[:, None] * consumption_2019.loc[state, district].values[:, None],
@@ -177,12 +183,12 @@ def process(district_data):
         save_metrics("total_TEV_"        + p1_tag,  TEV_p1 * N_jk)
         save_metrics("total_VSLY_"       + p1_tag, VSLY_p1 * N_jk)
         save_metrics("VSL_"              + p1_tag, VSL)
-        save_metrics("c_p0v0"            + p1_tag, c_p0v0)
-        save_metrics("c_p1v0"            + p1_tag, c_p1v0)
-        save_metrics("c_p1v1"            + p1_tag, c_p1v1)
-        save_metrics("age_weight_c_p0v0" + p1_tag, age_weight * c_p0v0)
-        save_metrics("age_weight_c_p1v0" + p1_tag, age_weight * c_p1v0)
-        save_metrics("age_weight_c_p1v1" + p1_tag, age_weight * c_p1v1)
+        # save_metrics("c_p0v0"            + p1_tag, c_p0v0)
+        # save_metrics("c_p1v0"            + p1_tag, c_p1v0)
+        # save_metrics("c_p1v1"            + p1_tag, c_p1v1)
+        # save_metrics("age_weight_c_p0v0" + p1_tag, age_weight * c_p0v0)
+        # save_metrics("age_weight_c_p1v0" + p1_tag, age_weight * c_p1v0)
+        # save_metrics("age_weight_c_p1v1" + p1_tag, age_weight * c_p1v1)
 
         if phi == 50 and vax_policy == "random":
             save_metrics("dTEV_health_" + p1_tag, age_weight * dTEV_health)
@@ -205,7 +211,7 @@ if __name__ == "__main__":
                     futures.append(client.submit(process, district, key = ":".join(district[0])))
             dask.distributed.progress(futures)
     else:
-        tasks = districts_to_run[districts_to_run.index.isin(rerun, level = 0)]
+        tasks = districts_to_run
         failures = []
         for t in tqdm(tasks[population_columns].itertuples(), total = len(tasks)):
             try: 

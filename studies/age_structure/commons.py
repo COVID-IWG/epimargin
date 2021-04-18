@@ -36,7 +36,7 @@ coalesce_states = ["Delhi", "Manipur", "Mizoram", "Dadra And Nagar Haveli And Da
 
 experiment_tag = "all_india_coalesced"
 epi_dst = tev_src = mkdir(ext/f"{experiment_tag}_epi_{num_sims}_{simulation_start.strftime('%b%d')}")
-tev_dst = fig_src = mkdir(ext/f"{experiment_tag}_tev_{num_sims}_{simulation_start.strftime('%b%d')}")
+tev_dst = fig_src = mkdir(ext/f"{experiment_tag}_reweight_tev_{num_sims}_{simulation_start.strftime('%b%d')}")
 
 # misc
 survey_date = "October 23, 2020"

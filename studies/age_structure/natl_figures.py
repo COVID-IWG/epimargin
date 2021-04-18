@@ -1,10 +1,10 @@
 import sys
-from itertools import Predicate, chain, islice, product
+from itertools import chain, islice, product
 
 import adaptive.plots as plt
 import geopandas as gpd
 import mapclassify
-from adaptive.etl.covid19india import state_name_lookup, state_code_lookup
+from adaptive.etl.covid19india import state_name_lookup
 from studies.age_structure.commons import *
 from studies.age_structure.epi_simulations import *
 from tqdm import tqdm
@@ -289,63 +289,19 @@ if __name__ == "__main__":
         )
         plt.show()
 
-    # for state in ["Tamil Nadu"]:#tqdm(districts_to_run.index.get_level_values(0).unique()[1:]):
-    #     try: 
-    #         plt.figure()
-    #         state_WTP_percentiles = {
-    #             p: aggregate_dynamic_percentiles(src, f"evaluated_WTP_{state}*{'_'.join(map(str, p))}.npz")
-    #             for p in tqdm(params)
-    #         }
-    #         outcomes_per_policy(
-    #             {k: v * USD/(1e9) for (k, v) in state_VSLY_percentiles.items()}, "TEV (USD, billions)", "D",
-    #             reference = ("no_vax",)
-    #         ) 
+    # 3A: health/consumption
+    if "3A" in figs_to_run or run_all:
+        
+        summed_TEV_hlth = np.mean(sum(np.load(_)['arr_0'][0] for _ in src.glob("dTEV_health*")), axis = 0)
+        summed_TEV_cons = np.mean(sum(np.load(_)['arr_0'][0] for _ in src.glob("dTEV_cons*")), axis = 0)
+        plot_component_breakdowns(summed_TEV_hlth, summed_TEV_cons, "health", "consumption", semilogy = False, ylabel = "age-weighted TEV (USD)")
+        plt.show()
 
-    #         outcomes_per_policy(
-    #             {k: v * USD/(1e9) for (k, v) in state_VSLY_percentiles.items()}, "VSLY (USD, billions)", "D",
-    #             reference = ("no_vax",)
-    #         ) 
-    #         plt.gca().ticklabel_format(axis = "y", useOffset = False)
-    #         plt.title(state, loc = "left")
-    #         plt.gcf().set_size_inches((16.8 ,  9.92))
-    #         plt.savefig(f"figs/statecheckvsly/VSLY_check_{state}.png")
-    #         plt.close("all")
+        summed_TEV_priv = np.mean(sum(np.load(_)['arr_0'][0] for _ in src.glob("dTEV_priv*")), axis = 0)
+        summed_TEV_extn = np.mean(sum(np.load(_)['arr_0'][0] for _ in src.glob("dTEV_extn*")), axis = 0)
+        plot_component_breakdowns(summed_TEV_priv, summed_TEV_extn, "private", "external", semilogy = False, ylabel = "age-weighted TEV (USD)")
+        plt.show()
 
-
-    #         plt.figure()
-    #         state_VSLY_percentiles = {
-    #             p: aggregate_dynamic_percentiles(src, f"evaluated_VSLY_{state}*{'_'.join(map(str, p))}.npz")
-    #             for p in tqdm(params)
-    #         }
-    #         outcomes_per_policy(
-    #             {k: v * USD/(1e9) for (k, v) in state_VSLY_percentiles.items()}, "VSLY (USD, billions)", "D",
-    #             reference = (25, "random")
-    #         ) 
-    #         plt.gca().ticklabel_format(axis = "y", useOffset = False)
-    #         plt.show()
-    #         plt.title(state, loc = "left")
-    #         plt.gcf().set_size_inches((16.8 ,  9.92))
-    #         plt.savefig(f"figs/statecheckvsly/VSLY_check_{state}.png")
-    #         plt.close("all")
-
-    #         plt.figure()
-    #         state_YLL_percentiles = {
-    #             p: aggregate_static_percentiles(src, f"evaluated_YLL*_{state}*{'_'.join(map(str, p))}.npz")
-    #             for p in tqdm(params)
-    #         }
-    #         state_YLL_percentiles = {}
-    #         for p in tqdm(params):
-    #             state_YLL_percentiles[p] = aggregate_static_percentiles(src, f"evaluated_YLLs_{state}*{'_'.join(map(str, p))}.npz")
-    #         outcomes_per_policy(state_YLL_percentiles, "YLLs", "o", reference = ("no_vax",))
-    #         plt.gca().ticklabel_format(axis = "y", useOffset = False)
-    #         plt.show()
-    #         plt.title(state, loc = "left")
-    #         plt.gcf().set_size_inches((16.8 ,  9.92))
-    #         plt.savefig(f"figs/statecheckvsly/YLL_check_{state}.png")
-    #         plt.close("all")
-
-        # except Exception as e:
-        #     print(state, e)
 
     # 3C: YLL per million choropleth
     if "3C" in figs_to_run or run_all:
@@ -354,6 +310,14 @@ if __name__ == "__main__":
             .rename(columns = {"st_nm": "state"})\
             .set_index(["state", "district"])\
             .rename(index = lambda s: s.replace(" and ", " And "))\
+            .assign(
+                dissolve_state    = lambda _:_.index.get_level_values(0), 
+                dissolve_district = lambda _:np.where(
+                    _.index.isin(coalesce_states, level = 0),
+                    _.index.get_level_values(0), 
+                    _.index.get_level_values(1)))\
+            .dissolve(["dissolve_state", "dissolve_district"])\
+            .pipe(lambda _:_.reindex(_.index.set_names(["state", "district"])))\
             .sort_index()
         def load_median_YLL(state_district, phi = 50, vax_policy = "random", src = src):
             state, district = state_district
@@ -367,100 +331,69 @@ if __name__ == "__main__":
         districts = districts_to_run.copy()\
             .assign(YLL = districts_to_run.index.map(load_median_YLL))\
             .assign(YLL_per_mn = lambda df: df["YLL"]/(df["N_tot"]/1e6))
-            # scheme = mapclassify.UserDefined(districts.YLL_per_mn, [0, 100, 250, 500, 1000, 1750, 2500, 5000, 10000])  # natural breaks 1
-            # scheme = mapclassify.UserDefined(districts.YLL_per_mn, [0, 250, 500, 1000, 1500, 2000, 3000, 5000, 10000]) # natural breaks 2
-            # scheme = mapclassify.UserDefined(districts.YLL_per_mn, [0, 250, 500, 1000, 1500, 2000, 3000, 5000, 10000])   # quintiles
 
-        def plot_YLL_choro(colorscheme = "plasma", size = False):
-            fig, ax = plt.subplots(1, 1)
-            scheme = mapclassify.UserDefined(districts.YLL_per_mn, [0, 125, 250, 400, 600, 900, 1200, 1600, 2500, 5000, 7500])  # ~deciles
-            districts["category"] = scheme.yb
-            india.join(districts["category"].astype(int))\
-                .drop(labels = "Andaman And Nicobar Islands")\
-                .plot(
-                column = "category", 
-                linewidth = 0.1,
-                edgecolor = "k",
-                ax = ax, 
-                legend = True,
-                categorical = True,
-                cmap = colorscheme,
-                missing_kwds = { 
-                    "color": "lightgrey",
-                    "label": "not available"
-                }, 
-                legend_kwds = { 
-                    "title": "YLL per million",
-                    "title_fontsize": "20", 
-                    "fontsize": "20",
-                    "ncol": 3
-                }
-            )
-            plt.gca().axis("off")
-            plt.subplots_adjust(left=0, bottom=0, right=1, top=1)
-            texts = plt.gca().get_legend().texts
-            lc = scheme.get_legend_classes()
-            print(scheme)
-            print(texts)
-            texts[0].set_text("0")
-            for (i, txt) in enumerate(texts[1:-1]):
-                idx = int(txt.get_text().replace(".0", ""))
-                txt.set_text(lc[idx].replace(".00", ""))
-            if size: fig.set_size_inches((16.8 ,  9.92*2))
-            plt.show()
-        plot_YLL_choro(size = True)
-
-    # vslyd1Chennai_random, vslyd1Chennai_contact, vslyd1Chennai_mortality = map(lambda p: np.load(p)['arr_0'], src.glob("*VSLYd1*Chennai*200*.npz"))
-    # vslyChennai_random, vslyChennai_contact, vslyChennai_mortality = map(lambda p: np.load(p)['arr_0'], src.glob("district_VSLY*Chennai*200*.npz"))
-    # vslyndChennai_random, vslyndChennai_contact, vslyndChennai_mortality = map(lambda p: np.load(p)['arr_0'], src.glob("evaluated_VSLYND*Chennai*200*.npz"))
-    # vhChennai_random, vhChennai_contact, vhChennai_mortality = map(lambda p: np.load(p)['arr_0'], src.glob("evaluated_vh*Chennai*200*.npz"))
-    # deaths_random, deaths_contact, deaths_mortality = map(lambda p: np.load(p)['arr_0'], src.glob("evaluated_deaths*Chennai*200*.npz"))
-    
-    # deaths_random_inf, deaths_contact_inf, deaths_mortality_inf = map(lambda p: np.load(p)['arr_0'], src.glob("evaluated_deaths*Chennai*1*.npz"))
-    # vsly_random_inf, vsly_contact_inf, vsly_mortality_inf = map(lambda p: np.load(p)['arr_0'], src.glob("district_VSLY*Chennai*1*.npz"))
-
-    # 3A: health/consumption
-    if "__3A" in figs_to_run:
-        
-        # summed_wtp_health = np.median(evaluated_WTP_h[state, "50_random"], axis = 0)
-        # summed_wtp_income = np.median(evaluated_WTP_pc[state, "50_random"] - evaluated_WTP_h[state, "50_random"], axis = 0)
-        summed_TEV_hlth = np.mean(sum(np.load(_)['arr_0'][0] for _ in src.glob("dTEV_health*")), axis = 0)
-        summed_TEV_cons = np.mean(sum(np.load(_)['arr_0'][0] for _ in src.glob("dTEV_cons*")), axis = 0)
-        # plot_component_breakdowns(summed_TEV_hlth, summed_TEV_cons, "health", "consumption", semilogy = True, ylabel = "age-weighted TEV (USD)")
-        plot_component_breakdowns(summed_TEV_hlth, summed_TEV_cons, "health", "consumption", semilogy = False, ylabel = "age-weighted TEV (USD)")
-        plt.show()
-
-        summed_TEV_priv = np.mean(sum(np.load(_)['arr_0'][0] for _ in src.glob("dTEV_priv*")), axis = 0)
-        summed_TEV_extn = np.mean(sum(np.load(_)['arr_0'][0] for _ in src.glob("dTEV_extn*")), axis = 0)
-        plot_component_breakdowns(summed_TEV_priv, summed_TEV_extn, "private", "external", semilogy = False, ylabel = "age-weighted TEV (USD)")
+        fig, ax = plt.subplots(1, 1)
+        scheme = mapclassify.UserDefined(districts.YLL_per_mn, [0, 125, 250, 400, 600, 900, 1200, 1600, 2500, 5000, 7500])  # ~deciles
+        districts["category"] = scheme.yb
+        india.join(districts["category"].astype(int))\
+            .drop(labels = "Andaman And Nicobar Islands")\
+            .plot(
+            column = "category", 
+            linewidth = 0.1,
+            edgecolor = "k",
+            ax = ax, 
+            legend = True,
+            categorical = True,
+            cmap = "plasma",
+            missing_kwds = { 
+                "color": "lightgrey",
+                "label": "not available"
+            }, 
+            legend_kwds = { 
+                "title": "YLL per million",
+                "title_fontsize": "20", 
+                "fontsize": "20",
+                "ncol": 3
+            }
+        )
+        plt.gca().axis("off")
+        plt.subplots_adjust(left=0, bottom=0, right=1, top=1)
+        texts = plt.gca().get_legend().texts
+        lc = scheme.get_legend_classes()
+        print(scheme)
+        print(texts)
+        texts[0].set_text("0")
+        for (i, txt) in enumerate(texts[1:-1]):
+            idx = int(txt.get_text().replace(".0", ""))
+            txt.set_text(lc[idx].replace(".00", ""))
+        fig.set_size_inches((16.8 ,  9.92*2))
         plt.show()
 
     # consumption graph
-    c_p0v0_200_mortality = np.mean(sum(np.load(_)['arr_0'] for _ in src.glob("age_weight_c_p0v0*phi200_mortality*")), axis = 1)
-    c_p1v0_200_mortality = np.mean(sum(np.load(_)['arr_0'] for _ in src.glob("age_weight_c_p1v0*phi200_mortality*")), axis = 1)
-    c_p1v1_200_mortality = np.mean(sum(np.load(_)['arr_0'] for _ in src.glob("age_weight_c_p1v1*phi200_mortality*")), axis = 1)
+    if "consumption" in figs_to_run:
+        c_p0v0_200_mortality = np.mean(sum(np.load(_)['arr_0'] for _ in src.glob("age_weight_c_p0v0*phi200_mortality*")), axis = 1)
+        c_p1v0_200_mortality = np.mean(sum(np.load(_)['arr_0'] for _ in src.glob("age_weight_c_p1v0*phi200_mortality*")), axis = 1)
+        c_p1v1_200_mortality = np.mean(sum(np.load(_)['arr_0'] for _ in src.glob("age_weight_c_p1v1*phi200_mortality*")), axis = 1)
 
-    fig = plt.figure()
-    for (i, (color, label)) in enumerate(zip(agebin_colors, agebin_labels)):
-        plt.plot(c_p0v0_200_mortality[:, i], color = color, figure = fig, label = label)
-    plt.title("c_p0v0", loc = "left", fontsize = 20)
-    plt.legend()
+        fig = plt.figure()
+        for (i, (color, label)) in enumerate(zip(agebin_colors, agebin_labels)):
+            plt.plot(c_p0v0_200_mortality[:, i], color = color, figure = fig, label = label)
+        plt.title("c_p0v0", loc = "left", fontsize = 20)
+        plt.legend()
 
-    fig = plt.figure()
-    for (i, (color, label)) in enumerate(zip(agebin_colors, agebin_labels)):
-        plt.plot(c_p1v0_200_mortality[:, i], color = color, figure = fig, label = label)
-    plt.title("c_p1v0", loc = "left", fontsize = 20)
-    plt.legend()
-    
-    fig = plt.figure()
-    for (i, (color, label)) in enumerate(zip(agebin_colors, agebin_labels)):
-        plt.plot(c_p1v1_200_mortality[:, i], color = color, figure = fig, label = label)
-    plt.title("c_p1v1", loc = "left", fontsize = 20)
-    plt.legend()
-    plt.show()
+        fig = plt.figure()
+        for (i, (color, label)) in enumerate(zip(agebin_colors, agebin_labels)):
+            plt.plot(c_p1v0_200_mortality[:, i], color = color, figure = fig, label = label)
+        plt.title("c_p1v0", loc = "left", fontsize = 20)
+        plt.legend()
+        
+        fig = plt.figure()
+        for (i, (color, label)) in enumerate(zip(agebin_colors, agebin_labels)):
+            plt.plot(c_p1v1_200_mortality[:, i], color = color, figure = fig, label = label)
+        plt.title("c_p1v1", loc = "left", fontsize = 20)
+        plt.legend()
+        plt.show()
 
-
-    plt.show()
 
     #     # demand curves
     #     demand_curve = get_within_state_wtp_ranking(state, {(k, "50_random"): v for (k, v) in state_WTP_by_district.items()}, 50, "random") 

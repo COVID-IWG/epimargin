@@ -1,11 +1,7 @@
 import adaptive.plots as plt
 import pandas as pd
 from adaptive.estimators import analytical_MPVS
-from adaptive.etl.covid19india import state_code_lookup
 from studies.age_structure.commons import *
-
-import seaborn as sns
-sns.set(style = "white")
 
 ts = case_death_timeseries(download = False)
 district_age_pop = pd.read_csv(data/"all_india_sero_pop.csv").set_index(["state", "district"])
@@ -125,7 +121,38 @@ plt.PlotDevice().xlabel("\ndate").ylabel("incremental death probability (percent
 plt.show()
 
 
-# supplement: Rt distribution
+# prob of death by age bin, TN
+# epi_src = ext/f"{experiment_tag}_tev_{num_sims}_{simulation_start.strftime('%b%d')}"
+dDj_TN = np.array(0.0)
+for _ in epi_dst.glob("TN*novax.npz"):
+    dDj_TN = dDj_TN + np.diff(np.load(_)['Dj'], axis = 0)
+percap_death_j_TN = 100 * np.percentile(dDj_TN, [50, 2.5, 97.5], axis = 1)/\
+    district_age_pop.loc["Tamil Nadu"][[f"N_{i}" for i in range(7)]].sum().values
+
+x = pd.date_range(start = simulation_start, periods = 365 - 1, freq = "D")
+
+markers = []
+for i in range(7):
+    md_marker, = plt.plot(x, percap_death_j_TN[0][1:, i], color = agebin_colors[i], linewidth = 2, label = "Tamil Nadu (median)")
+    CI_marker  = plt.fill_between(x, y1 = percap_death_j_TN[1][1:, i], y2 = percap_death_j_TN[2][1:, i], color = agebin_colors[i], alpha = 0.3)
+    markers.append((md_marker, CI_marker))
+plt.legend(
+    markers, agebin_labels,
+    fontsize = "20", ncol = 7,
+    framealpha = 1, handlelength = 0.75,
+    loc = "lower center", bbox_to_anchor = (0.5, 1)
+)
+plt.ylim(bottom = 0.0000001)
+plt.xlim(left=x[0], right=pd.Timestamp("July 15, 2021"))
+plt.gca().xaxis.set_major_formatter(plt.DATE_FMT)
+plt.gca().xaxis.set_minor_formatter(plt.DATE_FMT)
+plt.xticks(fontsize = "20")
+plt.yticks(fontsize = "20")
+plt.PlotDevice().xlabel("\ndate").ylabel("incremental death probability (percentage)\n")
+# plt.semilogy()
+plt.show()
+
+# supplement: Rt distribution (state)
 state_ts = ts.sum(level = [0, 2]).sort_index().drop(labels = 
     ["State Unassigned", "Lakshadweep", "Andaman And Nicobar Islands", "Goa"] + 
     ["Sikkim", "Chandigarh", "Mizoram", "Puducherry", "Arunachal Pradesh", 
@@ -150,23 +177,40 @@ Rt_dist = {k:v for (k, v) in sorted(Rt_dist.items(), key = lambda e: e[1][0], re
 
 md, hi, lo = map(np.array, list(zip(*Rt_dist.values())))
 *_, bars = plt.errorbar(
-    x = [-2] + list(range(len(md))), 
-    y = np.r_[Rt_TTn, md], 
+    # x = [-2] + list(range(len(md))), 
+    x = list(range(len(md))), 
+    # y = np.r_[Rt_TTn, md], 
+    y = md, 
+    # yerr = [
+    #     np.r_[Rt_TTn - Rt_CI_lower_TTn, md - lo], 
+    #     np.r_[Rt_CI_upper_TTn - Rt_TTn, hi - md]
+    # ], 
     yerr = [
-        np.r_[Rt_TTn - Rt_CI_lower_TTn, md - lo], 
-        np.r_[Rt_CI_upper_TTn - Rt_TTn, hi - md]
+        md - lo, 
+        hi - md
     ], 
     fmt = "s", color = plt.BLK, ms = 8, elinewidth = 10, label = "$R_t$ (95% CI)")
 [_.set_alpha(0.3) for _ in bars]
-plt.hlines(Rt_TTn, xmin = -3, xmax = len(md) + 1, linestyles = "dotted", colors = plt.BLK)
-plt.vlines(-1, ymin = 0, ymax = 6, linewidth = 3, colors = "black")
+# plt.hlines(Rt_TTn, xmin = -3, xmax = len(md) + 1, linestyles = "dotted", colors = plt.BLK)
+# plt.vlines(-1, ymin = 0, ymax = 6, linewidth = 3, colors = "black")
 plt.ylim(bottom = 0, top = 6)
-plt.xlim(left = -3, right = len(md))
+# plt.xlim(left = -3, right = len(md))
+plt.xlim(left = -1, right = len(md))
 plt.PlotDevice().ylabel("reproductive rate ($R_t$)\n").xlabel("\nstate")
-plt.xticks(ticks = [-2] + list(range(len(md))), labels = ["India"] + [state_name_lookup[_][:2] for _ in Rt_dist.keys()], fontsize = "20")
+# plt.xticks(ticks = [-2] + list(range(len(md))), labels = ["India"] + [state_name_lookup[_][:2] for _ in Rt_dist.keys()], fontsize = "20")
+plt.xticks(list(range(len(md))), labels = [state_name_lookup[_][:2] for _ in Rt_dist.keys()], fontsize = "20")
 plt.yticks(fontsize = "20")
-plt.subplots_adjust(left = 0.06, right = 0.94 )
+plt.subplots_adjust(left = 0.06, right = 0.94)
 plt.gca().grid(False, axis = "y")
 plt.legend(fontsize = "20")
 plt.gcf().set_size_inches((16.8 * 2,  9.92))
+plt.show()
+
+# supplement: Rt distribution (district)
+sic = simulation_initial_conditions.sort_values("Rt", ascending = False)
+*_, bars = plt.errorbar(x = range(len(sic)), y = sic.Rt, yerr = [sic.Rt - sic.Rt_lower, sic.Rt_upper - sic.Rt], fmt = "s", color = plt.BLK, ms = 2)
+for _ in bars: _.set_alpha(0.3)
+plt.xlim(0, len(sic))
+plt.ylim(0, 8)
+plt.subplots_adjust(left = 0.02, bottom = 0.02, right = 0.98, top = 0.98)
 plt.show()
