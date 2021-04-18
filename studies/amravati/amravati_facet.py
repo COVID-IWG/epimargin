@@ -1,14 +1,19 @@
+import sys
 from itertools import product
-import pandas as pd
 
+import adaptive.plots as plt
+import pandas as pd
 from adaptive.estimators import analytical_MPVS
 from adaptive.etl.commons import download_data
 from adaptive.etl.covid19india import data_path, get_time_series, load_all_data
-import adaptive.plots as plt
 from adaptive.smoothing import notched_smoothing
 from adaptive.utils import cwd
 
 import seaborn as sns
+
+if len(sys.argv) > 1:
+    plt.set_theme(sys.argv[1])
+
 
 # model details
 CI        = 0.95
@@ -42,13 +47,11 @@ run_date     = str(pd.Timestamp.now()).split()[0]
 
 ts = get_time_series(df, ["detected_state", "detected_district"])
 
-focus = ts.loc[["Maharashtra"]]#, "Madhya Pradesh", "Gujarat", "West Bengal", "Tamil Nadu"]]
+focus = ts.loc[["Maharashtra", "Madhya Pradesh", "Gujarat", "West Bengal", "Tamil Nadu"]]
 district_estimates = []
 
 for (state, district) in focus.index.droplevel(-1).unique():
-    # if district in ["Unknown", "Other State"]:
-    #     continue
-    if "Mumbai" not in district: 
+    if district in ["Unknown", "Other State"]:
         continue
     print(state, district)
     try: 
@@ -148,49 +151,69 @@ xticks = {
 }
 
 pop_density = pd.read_csv(data/"popdensity.csv").set_index(["state", "district"])
-# fig, ax_nest = plt.subplots(ncols = ncols, nrows = nrows)
-# for (j, i) in product(range(nrows), range(ncols)):
-#     if (i + 1, j + 1) in coords.values():
-#         continue
-#     ax_nest[j, i].axis("off")
+fig, ax_nest = plt.subplots(ncols = ncols, nrows = nrows)
+for (j, i) in product(range(nrows), range(ncols)):
+    if (i + 1, j + 1) in coords.values():
+        continue
+    ax_nest[j, i].axis("off")
 
-# for ((state, district), (x, y)) in coords.items():
-#     plt.sca(ax_nest[y - 1, x - 1])
-#     urban_share = int((1 - serodist.loc[state, ("New " if district == "Delhi" else "") + district]["rural_share"].mean()) * 100)
-#     density = pop_density.loc[state, district].density
-#     rt_data = district_estimates.loc[state, district].set_index("dates")["Feb 1, 2021":]
-#     plt.Rt(rt_data.index, rt_data.Rt_pred, rt_data.RR_CI_upper, rt_data.RR_CI_lower, 0.95, yaxis_colors = False, ymin = 0.5, ymax = 2.0)
-#     plt.gca().get_legend().remove()
-#     plt.gca().set_xticks([pd.Timestamp("February 1, 2021"), pd.Timestamp("March 1, 2021"), pd.Timestamp("April 1, 2021")])
-#     plt.title(district, loc = "left", fontweight = "bold")
-#     plt.title(f"({urban_share}% urban, {density}/km$^2$)", loc = "right", fontsize = 10)
-#     if district not in xticks:
-#         plt.gca().set_xticklabels([])
-#     if district not in yticks:
-#         plt.gca().set_yticklabels([])
+for ((state, district), (x, y)) in coords.items():
+    plt.sca(ax_nest[y - 1, x - 1])
+    urban_share = int((1 - serodist.loc[state, ("New " if district == "Delhi" else "") + district]["rural_share"].mean()) * 100)
+    density = pop_density.loc[state, district].density
+    rt_data = district_estimates.loc[state, district].set_index("dates")["Feb 1, 2021":]
+    plt.Rt(rt_data.index, rt_data.Rt_pred, rt_data.RR_CI_upper, rt_data.RR_CI_lower, 0.95, yaxis_colors = False, ymin = 0.5, ymax = 2.0)
+    if (x, y) != (4, 1):
+        plt.gca().get_legend().remove()
+    plt.gca().set_xticks([pd.Timestamp("February 1, 2021"), pd.Timestamp("March 1, 2021"), pd.Timestamp("April 1, 2021")])
+    
+    plt.PlotDevice()\
+        .l_title(district, fontsize = 12)\
+        .r_title(f"{urban_share}% urban, {density}/km$^2$", fontsize = 10)
 
-# plt.subplots_adjust(hspace = 0.3, wspace = 0.25, left = 0.05, bottom = 0.05, right = 0.95, top = 0.95)
-# plt.show()
+    if district not in xticks:
+        plt.gca().set_xticklabels([])
+    if district not in yticks:
+        plt.gca().set_yticklabels([])
+
+plt.subplots_adjust(hspace = 0.3, wspace = 0.25, left = 0.05, bottom = 0.05, right = 0.95, top = 0.95)
+plt.show()
 
 ridge_districts = [
     "Amravati", 
     "Akola", "Washim",# "Yavatmal", "Wardha", 
-    "Nagpur", "Buldhana", "Hingoli",
+    "Nagpur", "Buldhana", 
+    #"Hingoli",
     "Parbhani", "Jalgaon", "Jalna",
-    "Dhule", "Aurangabad",
+    # "Dhule", 
+    "Aurangabad",
     "Nandurbar", "Nashik", "Ahmednagar",
-    "Pune", "Thane", "Mumbai"
+    "Pune", "Thane", "Mumbai",
+    "Delhi", "Kolkata", "Chennai"
 ]
+
+o = len(ridge_districts) - 3
+ridge_states = {o: "Delhi", o + 1: "West Bengal", o + 2: "Tamil Nadu"}
+ridge_codes  = {o: "NCT",   o + 1: "WB",          o + 2: "TN"}
 
 fig, axs = plt.subplots(nrows = len(ridge_districts), sharex = True)
 for (i, (ax, district)) in enumerate(zip(axs.flat, ridge_districts)):
-    rt_data = district_estimates.loc["Maharashtra", district]
-    rt_data = rt_data[rt_data.dates >= "Feb 01, 2021"]
+    state = ridge_states.get(i, "Maharashtra")
+    rt_data = district_estimates.loc[state, district]
+    rt_data = rt_data[(rt_data.dates >= "Jan 01, 2021") & (rt_data.dates < "Apr 01, 2021")]
     dates, Rt_pred, Rt_CI_upper, Rt_CI_lower = rt_data.dates, rt_data.Rt_pred, rt_data.RR_CI_upper, rt_data.RR_CI_lower
     plt.sca(ax)
     plt.grid(False, which = "both", axis = "both")
     sns.despine(ax = ax, top = True, left = True, right = True)
-    plt.Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, 0.95, yaxis_colors = False, ymin = 0.9, ymax = 2.5, legend = i == 0, critical_threshold = False)
-    plt.title("\n" + district, position = (0, 0.9), ha = "left", va = "top")
-plt.subplots_adjust(hspace = 0, left = 0.03, right = 0.97, bottom = 0.03, top = 0.97)
+    plt.Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, 0.95, yaxis_colors = False, ymin = 0.75, ymax = 2.25, legend = i == 0, legend_loc = "upper center", critical_threshold = False)
+    # plt.ylabel(district + ", " + ridge_codes.get(i, "MH"), fontsize = 14, fontdict = plt.theme.title, va = "center", ha = "right", rotation = 00, color = "black")
+    plt.PlotDevice().l_title("\n" + district + ", " + ridge_codes.get(i, "MH") +"     ", fontsize = 16, ha = "right", va = "top")
+    ax.yaxis.tick_right()
+    if i == 9:
+        ax.yaxis.set_label_position("right")
+        plt.PlotDevice().ylabel("reproductive rate ($R_t$)\n\n", rotation = -90, labelpad = 45)
+        # .l_title(district, position = (0, 0.90), ha = "left", va = "bottom", fontsize = 12)\
+
+plt.PlotDevice().xlabel("\ndate")
+plt.subplots_adjust(hspace = 0.1, left = 0.16, right = 0.90, bottom = 0.07, top = 0.97)
 plt.show()
