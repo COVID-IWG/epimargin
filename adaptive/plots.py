@@ -1,4 +1,5 @@
 import datetime
+from collections import namedtuple
 from pathlib import Path
 from typing import Optional, Sequence, Tuple
 
@@ -14,6 +15,7 @@ from matplotlib.pyplot import *
 
 from .models import SIR
 
+
 def normalize_dates(dates):
     try: 
         return [_.to_pydatetime().date() for _ in dates]
@@ -24,7 +26,7 @@ sns.despine()
 mpl.rcParams["savefig.dpi"]     = 300
 mpl.rcParams["xtick.labelsize"] = "large"
 mpl.rcParams["ytick.labelsize"] = "large"
-
+mpl.rcParams["svg.fonttype"]    = "none"
 # palettes
 
 ## Rt
@@ -48,15 +50,72 @@ PRED_PURPLE = "#554B68"
 SIM_PALETTE = ["#437034", "#7D4343", "#43587D", "#7D4370"]
 
 # typography
-title_font = {"size": 28, "family": "Helvetica Neue", "fontweight": "500"}
-label_font = {"size": 20, "family": "Helvetica Neue", "fontweight": "500"}
-note_font  = {"size": 14, "family": "Helvetica Neue", "fontweight": "500"}
-ticks_font = {"family": "Inconsolata"}
-sns.set(style = "whitegrid", palette = "bright", font = "Helvetica Neue")
+def rebuild_font_cache():
+    import matplotlib.font_manager
+    matplotlib.font_manager._rebuild()
+
+Aesthetics = namedtuple(
+    "Aesthetics", 
+    ["title", "label", "note", "ticks", "style", "palette", "accent", "despine"]
+)
+
+twitter_settings = Aesthetics(
+    title   = {"size": 28, "family": "Fira Sans", "weight": "medium"},
+    label   = {"size": 20, "family": "Fira Sans", "weight": "light"},
+    note    = {"size": 14, "family": "Fira Sans", "weight": "light"},
+    ticks   = {"size": 12, "family": "Fira Code"},
+    style   = "white",
+    accent  = "dimgrey",
+    palette = "bright",
+    despine = True
+)
+
+substack_settings = Aesthetics(
+    title   = {"size": 28, "family": "SF Pro Display", "weight": "medium"},
+    label   = {"size": 20, "family": "SF Pro Display", "weight": "light"},
+    note    = {"size": 14, "family": "SF Pro Display", "weight": "light"},
+    ticks   = {"size": 12, "family": "Spectral"},
+    style   = "white",
+    accent  = "#8C8475",
+    palette = "bright",
+    despine = True
+)
+
+themes = default_settings = Aesthetics(
+    title   = {"size": 28, "family": "Helvetica Neue", "fontweight": "500"},
+    label   = {"size": 20, "family": "Helvetica Neue", "fontweight": "500"},
+    note    = {"size": 14, "family": "Helvetica Neue", "fontweight": "500"},
+    ticks   = {"size": 10, "family": "Inconsolata"},
+    style   = "whitegrid",
+    palette = "bright",
+    accent  = "dimgrey",
+    despine = False
+)
 
 plt.rcParams['mathtext.default'] = 'regular'
 DATE_FMT = mdates.DateFormatter('%d %b')
 bY_FMT   = mdates.DateFormatter('%b %Y')
+
+def set_theme(name):
+    global theme
+    if name == "twitter":
+        theme = twitter_settings
+        plt.rc("axes.spines", top = False, right = False)
+
+    elif name == "substack":
+        theme = substack_settings
+        plt.rc("axes.spines", top = False, right = False)
+    
+    else: # default 
+        theme = default_settings
+    sns.set(style = theme.style, palette = theme.palette, font = theme.ticks["family"])
+    mpl.rcParams.update({"font.size": 22})
+    if theme in ["twitter", "substack"]:
+        plt.rc("axes.spines", top = False, right = False)
+    return theme
+
+set_theme("default")
+
 
 # from https://towardsdatascience.com/beautiful-custom-colormaps-with-matplotlib-5bab3d1f0e72
 def hex_to_rgb(value):
@@ -119,19 +178,30 @@ def set_tick_size(size: int):
 class PlotDevice():
     def __init__(self, fig: Optional[mpl.figure.Figure] = None):
         self.figure = fig if fig else plt.gcf()
-        
+        if theme.despine:
+            sns.despine(top = True, right = True)
+
+    def axis_labels(self, x, y, enforce_spacing = True, **kwargs):
+        kwargs["fontdict"] = kwargs.get("fontdict", theme.label)
+        if enforce_spacing and not x.startswith("\n"):
+            x = "\n" + x 
+        if enforce_spacing and not y.endswith("\n"):
+            y = y + "\n"
+        return self.xlabel(x, **kwargs).ylabel(y, **kwargs)
+
     def xlabel(self, xl: str, **kwargs):
-        kwargs["fontdict"] = kwargs.get("fontdict", label_font)
+        kwargs["fontdict"] = kwargs.get("fontdict", theme.label)
         plt.xlabel(xl, **kwargs)
         plt.gca().xaxis.label.set_color("dimgray")
         return self 
 
     def ylabel(self, yl: str, **kwargs):
-        kwargs["fontdict"] = kwargs.get("fontdict", label_font)
+        kwargs["fontdict"] = kwargs.get("fontdict", theme.label)
         plt.ylabel(yl, **kwargs)
         plt.gca().yaxis.label.set_color("dimgray")
         return self 
 
+    # stack title/subtitle vertically
     def title(self, text: str, **kwargs):
         try:
             kwargs["x"]  = kwargs.get("x", self.figure.get_axes()[0].get_position().bounds[0])
@@ -139,16 +209,40 @@ class PlotDevice():
             kwargs["x"]  = kwargs.get("x", plt.gca().get_position().bounds[0])
         kwargs["ha"] = kwargs.get("ha", "left")
         kwargs["va"] = kwargs.get("va", "top")
-        kwargs["fontsize"] = kwargs.get("fontsize", title_font["size"])
-        kwargs["fontdict"] = kwargs.get("fontdict", title_font)
+        kwargs["fontsize"]   = kwargs.get("fontsize", theme.title["size"])
+        kwargs["fontdict"]   = kwargs.get("fontdict", theme.title)
+        kwargs["fontweight"] = kwargs.get("fontweight", theme.title["weight"])
         plt.suptitle(text, **kwargs)
         return self 
     
     def annotate(self, text: str, **kwargs):
-        kwargs["fontdict"] = kwargs.get("fontdict", note_font)
+        kwargs["fontdict"] = kwargs.get("fontdict", theme.note)
         kwargs["loc"] = kwargs.get("loc", "left")
         plt.title(text, **kwargs)
         return self
+
+    # stack title/subtitle horizontally 
+    def l_title(self, text: str, **kwargs):
+        kwargs["loc"]        = "left"
+        kwargs["ha"]         = kwargs.get("ha", "left")
+        kwargs["va"]         = kwargs.get("va", "bottom")
+        kwargs["fontsize"]   = kwargs.get("fontsize",   theme.title["size"])
+        kwargs["fontdict"]   = kwargs.get("fontdict",   theme.title)
+        kwargs["fontweight"] = kwargs.get("fontweight", theme.title["weight"])
+        plt.title(text, **kwargs)
+        return self 
+    
+    def r_title(self, text: str, **kwargs):
+        kwargs["loc"]      = "right"
+        kwargs["ha"]       = kwargs.get("ha", "right")
+        kwargs["va"]       = kwargs.get("va", "bottom")
+        kwargs["fontdict"] = kwargs.get("fontdict", theme.note)
+        kwargs["color"]    = theme.accent
+        # kwargs["fontsize"]   = kwargs.get("fontsize",   theme.title["size"])
+        # kwargs["fontdict"]   = kwargs.get("fontdict",   theme.title)
+        # kwargs["fontweight"] = kwargs.get("fontweight", theme.title["weight"])
+        plt.title(text, **kwargs)
+        return self 
     
     def size(self, w, h):
         self.figure.set_size_inches(w, h)
@@ -286,7 +380,7 @@ def simulations(
     set_tick_size(14)
     return PlotDevice()
 
-def Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, CI, ymin = 0.5, ymax = 3, yaxis_colors = True, format_dates = True, critical_threshold = True, legend = True):
+def Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, CI, ymin = 0.5, ymax = 3, yaxis_colors = True, format_dates = True, critical_threshold = True, legend = True, legend_loc = "best"):
     # dates = normalize_dates(dates)
     CI_marker  = plt.fill_between(dates, Rt_CI_lower, Rt_CI_upper, color = BLK, alpha = 0.3)
     Rt_marker, = plt.plot(dates, Rt_pred, color = BLK, linewidth = 2, zorder = 5, solid_capstyle = "butt")
@@ -356,19 +450,19 @@ def choropleth(gdf, label_fn = lambda _: "", Rt_col = "Rt", Rt_proj_col = "Rt_pr
         ax.grid(False)
         ax.set_xticks([])
         ax.set_yticks([])
-        ax.set_title(title, loc="left", fontdict=label_font) 
-        gdf.plot(color=[mappable.to_rgba(_) for _ in gdf[col]], ax = ax, edgecolors="black", linewidth=0.5, missing_kwds = {"color": "dimgray", "edgecolor": "white"})
+        ax.set_title(title, loc="left", fontdict = theme.label) 
+        gdf.plot(color=[mappable.to_rgba(_) for _ in gdf[col]], ax = ax, edgecolors="black", linewidth=0.5, missing_kwds = {"color": theme.accent, "edgecolor": "white"})
     if label_fn is not None:
         for (_, row) in gdf.iterrows():
             label = label_fn(row)
             Rt_c, Rt_p = round(row[Rt_col], 2), round(row[Rt_proj_col], 2)
-            a1 = ax1.annotate(s=f"{label}{Rt_c}", xy=list(row["pt"].coords)[0], ha = "center", fontfamily = note_font["family"], color="white", **label_kwargs)
-            a2 = ax2.annotate(s=f"{label}{Rt_p}", xy=list(row["pt"].coords)[0], ha = "center", fontfamily = note_font["family"], color="white", **label_kwargs)
+            a1 = ax1.annotate(s=f"{label}{Rt_c}", xy=list(row["pt"].coords)[0], ha = "center", fontfamily = theme.note["family"], color="white", **label_kwargs)
+            a2 = ax2.annotate(s=f"{label}{Rt_p}", xy=list(row["pt"].coords)[0], ha = "center", fontfamily = theme.note["family"], color="white", **label_kwargs)
             a1.set_path_effects([Stroke(linewidth = 2, foreground = "black"), Normal()])
             a2.set_path_effects([Stroke(linewidth = 2, foreground = "black"), Normal()])
     cbar_ax = fig.add_axes([0.95, 0.25, 0.01, 0.5])
     cb = fig.colorbar(mappable = mappable, orientation = "vertical", cax = cbar_ax)
-    cbar_ax.set_title("$R_t$", fontdict = note_font)
+    cbar_ax.set_title("$R_t$", fontdict = theme.note)
     
     return PlotDevice(fig)
 

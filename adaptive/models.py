@@ -18,6 +18,7 @@ class SIR():
         I0:                  int   = 0,     # initial infected
         R0:                  int   = 0,     # initial recovered
         D0:                  int   = 0,     # initial dead
+        S0:         Optional[int]  = None,  # initial susceptibles, calculated from N, I, R, D if not provided
         infectious_period:   int   = 5,     # how long disease is communicable in days 
         introduction_rate:   float = 5.0,   # parameter for new community transmissions (lambda) 
         mortality:           float = 0.02,  # I -> D transition probability 
@@ -44,7 +45,7 @@ class SIR():
         self.dT = [dT0] # case change rate, initialized with the first introduction, if any
         self.Rt = [Rt0]
         self.b  = [np.exp(self.gamma * (Rt0 - 1.0))]
-        self.S  = [population - R0 - D0 - I0]
+        self.S  = [S0 if S0 else population - R0 - D0 - I0]
         self.I  = [I0] 
         self.R  = [R0]
         self.D  = [D0]
