@@ -1,8 +1,8 @@
-import adaptive.plots as plt
+import epimargin.plots as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from adaptive.smoothing import notched_smoothing
+from epimargin.smoothing import notched_smoothing
 
 sns.set_style("whitegrid", {'axes.grid' : False})
 
@@ -67,7 +67,7 @@ plt.show()
 from pathlib import Path
 
 import flat_table
-from adaptive.etl.commons import download_data
+from epimargin.etl.commons import download_data
 
 data = Path("./data")
 download_data(data, 'timeseries.json', "https://api.covid19india.org/v3/")

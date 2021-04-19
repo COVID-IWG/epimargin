@@ -1,7 +1,7 @@
-import adaptive.plots as plt
-from adaptive.models import SIR
-from adaptive.estimators import analytical_MPVS, parametric_scheme_mcmc, branching_random_walk
-from adaptive.smoothing import convolution
+import epimargin.plots as plt
+from epimargin.models import SIR
+from epimargin.estimators import analytical_MPVS, parametric_scheme_mcmc, branching_random_walk
+from epimargin.smoothing import convolution
 import numpy as np 
 import pandas as pd 
 import pymc3 as pm 

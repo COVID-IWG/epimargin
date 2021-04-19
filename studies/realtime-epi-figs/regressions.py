@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from adaptive.utils import cwd
+from epimargin.utils import cwd
 
 import statsmodels.api as sm
 

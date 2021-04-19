@@ -2,16 +2,16 @@ import json
 from logging import getLogger
 from pathlib import Path
 
-import adaptive.plots as plt
+import epimargin.plots as plt
 import geopandas as gpd
 import matplotlib as mpl
 import numpy as np
 import pandas as pd
-from adaptive.estimators import analytical_MPVS, linear_projection
-from adaptive.etl.commons import download_data
-from adaptive.models import SIR
-from adaptive.smoothing import notched_smoothing
-from adaptive.utils import days, setup, weeks
+from epimargin.estimators import analytical_MPVS, linear_projection
+from epimargin.etl.commons import download_data
+from epimargin.models import SIR
+from epimargin.smoothing import notched_smoothing
+from epimargin.utils import days, setup, weeks
 from tqdm import tqdm
 
 logger = getLogger("IDN")

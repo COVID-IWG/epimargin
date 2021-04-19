@@ -1,12 +1,12 @@
 from typing import Callable, Tuple
-from adaptive.models import SIR
+from epimargin.models import SIR
 import pandas as pd
 
-from adaptive.estimators import analytical_MPVS
-from adaptive.etl.covid19india import data_path, get_time_series, load_all_data
-import adaptive.plots as plt
-from adaptive.smoothing import notched_smoothing
-from adaptive.utils import cwd, weeks
+from epimargin.estimators import analytical_MPVS
+from epimargin.etl.covid19india import data_path, get_time_series, load_all_data
+import epimargin.plots as plt
+from epimargin.smoothing import notched_smoothing
+from epimargin.utils import cwd, weeks
 from studies.age_structure.commons import *
 from studies.age_structure.epi_simulations import *
 from tqdm import tqdm

@@ -6,10 +6,10 @@ import pandas as pd
 import seaborn as sns
 
 import flat_table
-from adaptive.estimators import analytical_MPVS
-from adaptive.etl.commons import download_data
-from adaptive.smoothing import notched_smoothing
-from adaptive.utils import days, setup
+from epimargin.estimators import analytical_MPVS
+from epimargin.etl.commons import download_data
+from epimargin.smoothing import notched_smoothing
+from epimargin.utils import days, setup
 
 simplefilter("ignore")
 

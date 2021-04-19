@@ -1,17 +1,17 @@
 from itertools import product
 from pathlib import Path
 
-import adaptive.plots as plt
+import epimargin.plots as plt
 import flat_table
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from adaptive.estimators import analytical_MPVS
-from adaptive.etl.commons import download_data
-from adaptive.etl.covid19india import (data_path, get_time_series,
+from epimargin.estimators import analytical_MPVS
+from epimargin.etl.commons import download_data
+from epimargin.etl.covid19india import (data_path, get_time_series,
                                        load_all_data, state_code_lookup)
-from adaptive.models import SIR
-from adaptive.smoothing import notched_smoothing
+from epimargin.models import SIR
+from epimargin.smoothing import notched_smoothing
 from scipy.stats import multinomial as Multinomial
 from studies.age_structure.common_TN_data import *
 

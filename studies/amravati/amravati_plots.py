@@ -1,14 +1,14 @@
 import sys
 from itertools import chain
 
-import adaptive.plots as plt
+import epimargin.plots as plt
 import matplotlib as mpl
 import pandas as pd
 import seaborn as sns
-from adaptive.etl.commons import download_data
-from adaptive.etl.covid19india import data_path, get_time_series, load_all_data
-from adaptive.smoothing import convolution
-from adaptive.utils import cwd
+from epimargin.etl.commons import download_data
+from epimargin.etl.covid19india import data_path, get_time_series, load_all_data
+from epimargin.smoothing import convolution
+from epimargin.utils import cwd
 from matplotlib.font_manager import FontProperties
 
 if len(sys.argv) > 1:

@@ -1,5 +1,5 @@
-from adaptive.etl.csse import *
-from adaptive.utils import setup
+from epimargin.etl.csse import *
+from epimargin.utils import setup
 data, _ = setup()
 
 csse_dir = data/"csse"

@@ -3,8 +3,8 @@ import warnings
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from adaptive.estimators import box_filter, analytical_MPVS
-from adaptive.plots import plot_RR_est, plot_T_anomalies
+from epimargin.estimators import box_filter, analytical_MPVS
+from epimargin.plots import plot_RR_est, plot_T_anomalies
 
 warnings.filterwarnings("ignore")
 

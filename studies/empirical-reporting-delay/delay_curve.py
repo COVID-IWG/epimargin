@@ -6,10 +6,10 @@ import tikzplotlib
 from scipy.signal import convolve, filtfilt, iirnotch
 from sklearn.linear_model import LinearRegression
 
-from adaptive.etl.commons import download_data
-from adaptive.etl.covid19india import (get_time_series, load_statewise_data,
+from epimargin.etl.commons import download_data
+from epimargin.etl.covid19india import (get_time_series, load_statewise_data,
                                        state_name_lookup)
-from adaptive.utils import cwd, mkdir
+from epimargin.utils import cwd, mkdir
 
 sns.set(palette="muted", font="Inconsolata")
 sns.despine()

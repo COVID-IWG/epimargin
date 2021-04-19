@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from adaptive.models import Age_SIRVD
-from adaptive.utils import annually, percent, years, days, mkdir, normalize
+from epimargin.models import Age_SIRVD
+from epimargin.utils import annually, percent, years, days, mkdir, normalize
 from studies.age_structure.TN_CMIE.commons import *
 from tqdm.std import tqdm
-import adaptive.plots as plt
+import epimargin.plots as plt
 
 sns.set(style = "whitegrid")
 num_sims         = 1000

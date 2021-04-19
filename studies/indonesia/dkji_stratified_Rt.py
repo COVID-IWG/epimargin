@@ -1,9 +1,9 @@
-import adaptive.plots as plt
+import epimargin.plots as plt
 import pandas as pd
-from adaptive.estimators import analytical_MPVS, linear_projection
-from adaptive.models import SIR, NetworkedSIR
-from adaptive.smoothing import notched_smoothing
-from adaptive.utils import days, setup
+from epimargin.estimators import analytical_MPVS, linear_projection
+from epimargin.models import SIR, NetworkedSIR
+from epimargin.smoothing import notched_smoothing
+from epimargin.utils import days, setup
 
 CI = 0.95
 gamma = 0.2

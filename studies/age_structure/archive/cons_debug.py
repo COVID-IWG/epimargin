@@ -1,7 +1,7 @@
 from itertools import chain, product
 from studies.age_structure.policy_evaluation import *
 
-import adaptive.plots as plt
+import epimargin.plots as plt
 
 src = mkdir(Path("/Volumes/dedomeno/covid/vax-nature/focus_states_epi_100_Apr01"))
 population_columns = ["state_code", "N_tot", 'N_0', 'N_1', 'N_2', 'N_3', 'N_4', 'N_5', 'N_6']

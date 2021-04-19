@@ -9,7 +9,7 @@ import statsmodels.api as sm
 import statsmodels.formula.api as smf
 from matplotlib.lines import Line2D
 
-from adaptive.utils import cwd, days
+from epimargin.utils import cwd, days
 
 def load_dataframe(data_path: pd.DataFrame) -> pd.DataFrame:
     df = pd.read_csv(data_path, parse_dates = ['date'])

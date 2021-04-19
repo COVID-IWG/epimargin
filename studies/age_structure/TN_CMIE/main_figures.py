@@ -1,6 +1,6 @@
 from itertools import chain, product
 from functools import lru_cache
-import adaptive.plots as plt
+import epimargin.plots as plt
 from studies.age_structure.TN_CMIE.commons import *
 from studies.age_structure.TN_CMIE.epi_simulations import *
 

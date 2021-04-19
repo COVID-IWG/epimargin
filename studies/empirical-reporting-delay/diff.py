@@ -3,10 +3,10 @@ from warnings import simplefilter
 
 import pandas as pd
 
-from adaptive.etl.covid19india import (data_path, download_data,
+from epimargin.etl.covid19india import (data_path, download_data,
                                        get_time_series, load_all_data,
                                        load_statewise_data)
-from adaptive.utils import cwd
+from epimargin.utils import cwd
 
 simplefilter("ignore")
 

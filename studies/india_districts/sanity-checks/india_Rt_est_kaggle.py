@@ -1,9 +1,9 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from adaptive.estimators import box_filter, analytical_MPVS
-from adaptive.plots import plot_RR_est, plot_T_anomalies
-from adaptive.utils import cwd
+from epimargin.estimators import box_filter, analytical_MPVS
+from epimargin.plots import plot_RR_est, plot_T_anomalies
+from epimargin.utils import cwd
 from etl import download_data, get_time_series, load_all_data
 
 # model details

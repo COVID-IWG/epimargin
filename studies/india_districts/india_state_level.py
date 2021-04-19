@@ -10,12 +10,12 @@ from statsmodels.regression.linear_model import OLS
 from statsmodels.tools import add_constant
 from tqdm import tqdm
 
-from adaptive.estimators import analytical_MPVS
-from adaptive.etl.commons import download_data
-from adaptive.etl.covid19india import (get_time_series, load_statewise_data,
+from epimargin.estimators import analytical_MPVS
+from epimargin.etl.commons import download_data
+from epimargin.etl.covid19india import (get_time_series, load_statewise_data,
                                        state_name_lookup)
-from adaptive.smoothing import notched_smoothing
-from adaptive.utils import cwd, days
+from epimargin.smoothing import notched_smoothing
+from epimargin.utils import cwd, days
 
 simplefilter("ignore")
 

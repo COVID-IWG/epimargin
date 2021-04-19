@@ -1,10 +1,10 @@
 import sys
 from itertools import chain, islice, product
 
-import adaptive.plots as plt
+import epimargin.plots as plt
 import geopandas as gpd
 import mapclassify
-from adaptive.etl.covid19india import state_name_lookup
+from epimargin.etl.covid19india import state_name_lookup
 from studies.age_structure.commons import *
 from studies.age_structure.epi_simulations import *
 from tqdm import tqdm

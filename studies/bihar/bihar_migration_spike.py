@@ -7,11 +7,11 @@ import pandas as pd
 from tqdm import tqdm
 
 import etl
-from adaptive.estimators import rollingOLS, lowess
-from adaptive.model import MigrationSpikeModel, Model, ModelUnit
-from adaptive.plots import gantt_chart, plot_simulation_range
-from adaptive.policy import AUC, simulate_adaptive_control, simulate_lockdown
-from adaptive.utils import cwd, days, fmt_params, weeks
+from epimargin.estimators import rollingOLS, lowess
+from epimargin.model import MigrationSpikeModel, Model, ModelUnit
+from epimargin.plots import gantt_chart, plot_simulation_range
+from epimargin.policy import AUC, simulate_adaptive_control, simulate_lockdown
+from epimargin.utils import cwd, days, fmt_params, weeks
 
 
 def model(districts, populations, cases, migratory_influx, seed) -> Model:

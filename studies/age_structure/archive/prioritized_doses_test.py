@@ -1,6 +1,6 @@
 import numpy as np
-from adaptive.models import SIR
-from adaptive.policy import PrioritizedAssignment
+from epimargin.models import SIR
+from epimargin.policy import PrioritizedAssignment
 from studies.age_structure.commons import *
 
 mp = PrioritizedAssignment(

@@ -3,9 +3,9 @@ from typing import Dict, Optional, Sequence, Tuple, Callable
 from tqdm import tqdm
 from io import StringIO
 
-from adaptive.utils import cwd
-from adaptive.estimators import analytical_MPVS
-from adaptive.smoothing import convolution
+from epimargin.utils import cwd
+from epimargin.estimators import analytical_MPVS
+from epimargin.smoothing import convolution
 
 from etl import import_and_clean_cases
 from etl import get_adaptive_estimates, get_new_rt_live_estimates, get_old_rt_live_estimates, get_cori_estimates, get_luis_estimates

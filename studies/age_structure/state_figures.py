@@ -1,6 +1,6 @@
 from itertools import chain, product
 
-import adaptive.plots as plt
+import epimargin.plots as plt
 from studies.age_structure.commons import *
 from studies.age_structure.epi_simulations import *
 

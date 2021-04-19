@@ -9,11 +9,11 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-import adaptive.plots as plt
-from adaptive.estimators import analytical_MPVS, linear_projection
-from adaptive.etl.commons import download_data
-from adaptive.smoothing import notched_smoothing
-from adaptive.utils import days, setup
+import epimargin.plots as plt
+from epimargin.estimators import analytical_MPVS, linear_projection
+from epimargin.etl.commons import download_data
+from epimargin.smoothing import notched_smoothing
+from epimargin.utils import days, setup
 
 
 # public cases 

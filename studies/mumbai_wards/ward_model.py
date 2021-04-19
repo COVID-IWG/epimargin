@@ -5,11 +5,11 @@ import numpy as np
 import pandas as pd
 
 import etl
-from adaptive.estimators import rollingOLS
-from adaptive.model import Model, ModelUnit
-from adaptive.plots import plot_simulation_range
-from adaptive.policy import simulate_adaptive_control, simulate_lockdown
-from adaptive.utils import cwd, days, weeks
+from epimargin.estimators import rollingOLS
+from epimargin.model import Model, ModelUnit
+from epimargin.plots import plot_simulation_range
+from epimargin.policy import simulate_adaptive_control, simulate_lockdown
+from epimargin.utils import cwd, days, weeks
 
 gamma = 0.2
 Rv_Rm = 1.4836370631808469

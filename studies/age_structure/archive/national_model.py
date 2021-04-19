@@ -1,14 +1,14 @@
 from itertools import product
 from pathlib import Path
 
-import adaptive.plots as plt
+import epimargin.plots as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from adaptive.estimators import analytical_MPVS
-from adaptive.etl.covid19india import state_code_lookup
-from adaptive.models import SIR
-from adaptive.policy import PrioritizedAssignment, RandomVaccineAssignment
+from epimargin.estimators import analytical_MPVS
+from epimargin.etl.covid19india import state_code_lookup
+from epimargin.models import SIR
+from epimargin.policy import PrioritizedAssignment, RandomVaccineAssignment
 from studies.age_structure.commons import * 
 
 # first pass: one bucket 

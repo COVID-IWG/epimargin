@@ -3,16 +3,16 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from adaptive.estimators import analytical_MPVS
-from adaptive.etl.commons import download_data
-from adaptive.etl.covid19india import (get_time_series, load_all_data,
+from epimargin.estimators import analytical_MPVS
+from epimargin.etl.commons import download_data
+from epimargin.etl.covid19india import (get_time_series, load_all_data,
                                        replace_district_names)
-from adaptive.etl.devdatalab import district_migration_matrices
-from adaptive.model import Model, ModelUnit, gravity_matrix
-from adaptive.plots import plot_simulation_range
-from adaptive.policy import simulate_adaptive_control, simulate_lockdown
-from adaptive.smoothing import convolution
-from adaptive.utils import cwd, days, weeks
+from epimargin.etl.devdatalab import district_migration_matrices
+from epimargin.model import Model, ModelUnit, gravity_matrix
+from epimargin.plots import plot_simulation_range
+from epimargin.policy import simulate_adaptive_control, simulate_lockdown
+from epimargin.smoothing import convolution
+from epimargin.utils import cwd, days, weeks
 
 
 def estimate(ts, smoothing):

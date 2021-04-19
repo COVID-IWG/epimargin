@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from adaptive.utils import cwd
+from epimargin.utils import cwd
 from sklearn.linear_model import Ridge, Lasso, ElasticNet, ElasticNetCV, LogisticRegression
 from sklearn.decomposition import SparsePCA
 from sklearn.preprocessing import minmax_scale

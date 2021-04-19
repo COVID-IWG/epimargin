@@ -1,6 +1,6 @@
 import pandas as pd
 
-from adaptive.utils import cwd
+from epimargin.utils import cwd
 
 # define UA/district population ratio cutoff 
 pop_ratio_cutoff = 0.5

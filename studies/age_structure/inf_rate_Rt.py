@@ -1,6 +1,6 @@
-import adaptive.plots as plt
+import epimargin.plots as plt
 import pandas as pd
-from adaptive.estimators import analytical_MPVS
+from epimargin.estimators import analytical_MPVS
 from studies.age_structure.commons import *
 
 ts = case_death_timeseries(download = False)

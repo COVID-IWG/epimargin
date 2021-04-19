@@ -1,14 +1,14 @@
 from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
 
-import adaptive.plots as plt
+import epimargin.plots as plt
 import numpy as np
 import pandas as pd
-from adaptive.estimators import analytical_MPVS
-from adaptive.models import SIR, NetworkedSIR
-from adaptive.policy import simulate_adaptive_control, simulate_lockdown
-from adaptive.smoothing import convolution, notched_smoothing
-from adaptive.utils import cwd, days, fmt_params, weeks
+from epimargin.estimators import analytical_MPVS
+from epimargin.models import SIR, NetworkedSIR
+from epimargin.policy import simulate_adaptive_control, simulate_lockdown
+from epimargin.smoothing import convolution, notched_smoothing
+from epimargin.utils import cwd, days, fmt_params, weeks
 from tqdm import tqdm
 
 import etl

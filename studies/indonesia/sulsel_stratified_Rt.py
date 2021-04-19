@@ -1,8 +1,8 @@
 import pandas as pd 
 
-from adaptive.smoothing import notched_smoothing
-from adaptive.estimators import analytical_MPVS
-import adaptive.plots as plt 
+from epimargin.smoothing import notched_smoothing
+from epimargin.estimators import analytical_MPVS
+import epimargin.plots as plt 
 
 CI = 0.95
 gamma = 0.2

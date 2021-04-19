@@ -3,9 +3,9 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from adaptive.estimators import analytical_MPVS
-from adaptive.plots import plot_RR_est, plot_T_anomalies
-from adaptive.smoothing import convolution, kernels
+from epimargin.estimators import analytical_MPVS
+from epimargin.plots import plot_RR_est, plot_T_anomalies
+from epimargin.smoothing import convolution, kernels
 from etl import data_path, download_data, get_time_series, load_all_data
 
 sns.set_palette("deep")

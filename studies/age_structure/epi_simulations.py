@@ -1,8 +1,8 @@
 import dask
 import numpy as np
 import pandas as pd
-from adaptive.models import Age_SIRVD
-from adaptive.utils import annually, normalize, percent, years
+from epimargin.models import Age_SIRVD
+from epimargin.utils import annually, normalize, percent, years
 from studies.age_structure.commons import *
 from tqdm import tqdm
 

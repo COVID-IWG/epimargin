@@ -6,11 +6,11 @@ import pandas as pd
 from tqdm import tqdm
 
 import etl
-from adaptive.estimators import rollingOLS
-from adaptive.model  import Model, ModelUnit, gravity_matrix
-from adaptive.plots  import gantt_chart, plot_simulation_range
-from adaptive.policy import simulate_adaptive_control, simulate_lockdown
-from adaptive.utils  import cwd, days, weeks, fmt_params
+from epimargin.estimators import rollingOLS
+from epimargin.model  import Model, ModelUnit, gravity_matrix
+from epimargin.plots  import gantt_chart, plot_simulation_range
+from epimargin.policy import simulate_adaptive_control, simulate_lockdown
+from epimargin.utils  import cwd, days, weeks, fmt_params
 
 
 def model(districts, populations, cases, seed) -> Model:

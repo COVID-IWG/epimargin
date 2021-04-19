@@ -1,12 +1,12 @@
 from pathlib import Path
 from typing import Tuple, Dict
 
-import adaptive.plots as plt
+import epimargin.plots as plt
 import pandas as pd
-from adaptive.estimators import analytical_MPVS
-from adaptive.model      import Model
-from adaptive.policy     import simulate_PID_controller
-from adaptive.smoothing  import box_filter_local
+from epimargin.estimators import analytical_MPVS
+from epimargin.model      import Model
+from epimargin.policy     import simulate_PID_controller
+from epimargin.smoothing  import box_filter_local
 from pandas import DataFrame
 
 normalize_numeric_strings = lambda n: lambda _: str(int(_)).zfill(n)

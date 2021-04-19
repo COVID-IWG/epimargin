@@ -1,4 +1,4 @@
-import adaptive.plots as plt
+import epimargin.plots as plt
 import pandas as pd
 import geopandas as gpd 
 

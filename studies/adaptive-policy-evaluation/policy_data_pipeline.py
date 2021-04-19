@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 from etl import *
-from adaptive.utils import cwd, days
+from epimargin.utils import cwd, days
 
 if __name__ == '__main__':
 

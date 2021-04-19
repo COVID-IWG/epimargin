@@ -1,11 +1,11 @@
-import adaptive.plots as plt
+import epimargin.plots as plt
 import flat_table
 import numpy as np
 import pandas as pd
-from adaptive.estimators import analytical_MPVS
-from adaptive.etl.covid19india import state_code_lookup
-from adaptive.smoothing import notched_smoothing
-from adaptive.utils import days, setup
+from epimargin.estimators import analytical_MPVS
+from epimargin.etl.covid19india import state_code_lookup
+from epimargin.smoothing import notched_smoothing
+from epimargin.utils import days, setup
 from statsmodels.api import OLS
 from statsmodels.iolib.summary2 import summary_col
 from scipy.signal import convolve, deconvolve

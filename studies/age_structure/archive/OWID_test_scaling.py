@@ -1,8 +1,8 @@
-import adaptive.plots as plt
+import epimargin.plots as plt
 import flat_table
 import numpy as np
 import pandas as pd
-from adaptive.utils import setup
+from epimargin.utils import setup
 from statsmodels.iolib.summary2 import summary_col
 from statsmodels.api import OLS
 

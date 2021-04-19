@@ -1,5 +1,5 @@
 import pandas as pd
-from adaptive.utils import cwd
+from epimargin.utils import cwd
 from sklearn.decomposition import FastICA
 from sklearn.preprocessing import minmax_scale
 

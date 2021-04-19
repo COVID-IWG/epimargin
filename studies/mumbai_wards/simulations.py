@@ -8,8 +8,8 @@ from sklearn import metrics
 from tqdm import tqdm
 
 import etl
-from adaptive.model import Model, ModelUnit
-from adaptive.utils import *
+from epimargin.model import Model, ModelUnit
+from epimargin.utils import *
 from ward_model import gamma, get_R, run_policies
 
 

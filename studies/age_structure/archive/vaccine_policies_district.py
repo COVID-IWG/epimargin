@@ -1,12 +1,12 @@
 from itertools import product
 
-import adaptive.plots as plt
+import epimargin.plots as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from adaptive.estimators import analytical_MPVS
-from adaptive.models import SIR
-from adaptive.policy import PrioritizedAssignment, RandomVaccineAssignment, VaccinationPolicy
+from epimargin.estimators import analytical_MPVS
+from epimargin.models import SIR
+from epimargin.policy import PrioritizedAssignment, RandomVaccineAssignment, VaccinationPolicy
 from studies.age_structure.commons import *
 from studies.age_structure.palette import *
 

@@ -1,11 +1,11 @@
 from pathlib import Path
 
-import adaptive.plots as plt
+import epimargin.plots as plt
 import numpy as np
 import pandas as pd
-from adaptive.estimators import analytical_MPVS
-from adaptive.models import SIR
-from adaptive.smoothing import notched_smoothing
+from epimargin.estimators import analytical_MPVS
+from epimargin.models import SIR
+from epimargin.smoothing import notched_smoothing
 from numpy import diag, eye, tile, vstack
 from scipy.stats import binom as Binom
 from scipy.stats import poisson as Poisson

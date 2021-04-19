@@ -1,5 +1,5 @@
 import pandas as pd
-from adaptive.utils import setup, mkdir
+from epimargin.utils import setup, mkdir
 
 data, _ = setup()
 peru = mkdir(data/"peru")
