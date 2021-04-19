@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='adaptive',
-    version='0.2dev',
+    name='epimargin',
+    version='0.3',
     packages=find_packages(where='.'),
 )
