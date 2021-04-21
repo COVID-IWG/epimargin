@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import requests
 
-from adaptive.utils import assume_missing_0
+from ..utils import assume_missing_0
 
 """code to extract time series for COVID19India.org data"""
 
