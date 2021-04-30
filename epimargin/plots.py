@@ -60,10 +60,10 @@ Aesthetics = namedtuple(
 )
 
 twitter_settings = Aesthetics(
-    title   = {"size": 28, "family": "Fira Sans", "weight": "medium"},
-    label   = {"size": 20, "family": "Fira Sans", "weight": "light"},
-    note    = {"size": 14, "family": "Fira Sans", "weight": "light"},
-    ticks   = {"size": 12, "family": "Fira Code"},
+    title   = {"size": 28, "family": "Overpass", "weight": "bold"},
+    label   = {"size": 20, "family": "Overpass", "weight": "regular"},
+    note    = {"size": 14, "family": "Overpass", "weight": "regular"},
+    ticks   = {"size": 12, "family": "Overpass Mono"},
     style   = "white",
     accent  = "dimgrey",
     palette = "bright",
@@ -443,7 +443,36 @@ def daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dat
     set_tick_size(14)
     return PlotDevice()
 
-def choropleth(gdf, label_fn = lambda _: "", Rt_col = "Rt", Rt_proj_col = "Rt_proj", titles = ["Current $R_t$", "Projected $R_t$ (1 Week)"], arrangement = (1, 2), label_kwargs = {}, mappable = sm):
+def choropleth(gdf, label_fn = lambda _: "", col = "Rt", title = "$R_t$", label_kwargs = {}, mappable = sm, fig = None, ax = None):
+    gdf["pt"] = gdf["geometry"].centroid
+    if not fig:
+        fig, ax = plt.subplots()
+    ax.grid(False)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    if title:
+        ax.set_title(title, loc="left", fontdict = theme.label) 
+    gdf.plot(color=[mappable.to_rgba(_) for _ in gdf[col]], ax = ax, edgecolors="black", linewidth=0.5, missing_kwds = {"color": theme.accent, "edgecolor": "white"})
+    if label_fn is not None:
+        for (_, row) in gdf.iterrows():
+            label = label_fn(row)
+            value = round(row[col], 2)
+            ax.annotate(
+                s = f"{label}{value}", 
+                xy = list(row["pt"].coords)[0], 
+                ha = "center", 
+                fontfamily = theme.note["family"], 
+                color = "black", **label_kwargs, 
+                fontweight = "semibold",
+                size = 12)\
+                .set_path_effects([Stroke(linewidth = 2, foreground = "white"), Normal()])
+    cbar_ax = fig.add_axes([0.90, 0.25, 0.01, 0.5])
+    cb = fig.colorbar(mappable = mappable, orientation = "vertical", cax = cbar_ax)
+    cbar_ax.set_title("$R_t$", fontdict = theme.note)
+    
+    return PlotDevice(fig)
+
+def double_choropleth(gdf, label_fn = lambda _: "", Rt_col = "Rt", Rt_proj_col = "Rt_proj", titles = ["Current $R_t$", "Projected $R_t$ (1 Week)"], arrangement = (1, 2), label_kwargs = {}, mappable = sm):
     gdf["pt"] = gdf["geometry"].centroid
     fig, (ax1, ax2) = plt.subplots(*arrangement)
     for (ax, title, col) in zip((ax1, ax2), titles, (Rt_col, Rt_proj_col)):
@@ -466,9 +495,9 @@ def choropleth(gdf, label_fn = lambda _: "", Rt_col = "Rt", Rt_proj_col = "Rt_pr
     
     return PlotDevice(fig)
 
-def choropleth_v(*args, **kwargs):
+def double_choropleth_v(*args, **kwargs):
     kwargs["arrangement"] = (2, 1)
-    return choropleth(*args, **kwargs)
+    return double_choropleth(*args, **kwargs)
 
-choropleth.horizontal = choropleth
-choropleth.vertical   = choropleth_v
+double_choropleth.horizontal = double_choropleth
+double_choropleth.vertical   = double_choropleth_v

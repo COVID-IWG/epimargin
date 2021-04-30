@@ -9,7 +9,7 @@ from epimargin.utils import cwd
 
 # model details
 CI        = 0.95
-smoothing = 14
+smoothing = 10
 
 root = cwd()
 data = root/"data"
@@ -21,7 +21,7 @@ figs.mkdir(exist_ok=True)
 # define data versions for api files
 paths = {
     "v3": [data_path(i) for i in (1, 2)],
-    "v4": [data_path(i) for i in range(3, 25)]
+    "v4": [data_path(i) for i in range(3, 27)]
 }
 
 for target in paths['v3'] + paths['v4']:
@@ -39,7 +39,7 @@ run_date     = str(pd.Timestamp.now()).split()[0]
 
 ts = get_time_series(df, "detected_state")
 
-states = ["Maharashtra", "Punjab", "West Bengal", "Bihar", "Delhi", "Andhra Pradesh", "Telangana", "Tamil Nadu", "Madhya Pradesh"]
+states = ["Tamil Nadu", "Karnataka"] #["Maharashtra", "Punjab", "West Bengal", "Bihar", "Delhi", "Andhra Pradesh", "Telangana", "Tamil Nadu", "Madhya Pradesh"]
 
 for state in states: 
     print(state)
@@ -62,7 +62,7 @@ for state in states:
         "total_cases": total_cases[2:],
         "new_cases_ts": new_cases_ts,
     })
-    print("  + Rt today:", Rt_pred[-1])
+    print("  + Rt today:", Rt_pred[-5:])
 
     plt.Rt(dates, Rt_pred, RR_CI_lower, RR_CI_upper, CI)\
         .ylabel("Estimated $R_t$")\
@@ -71,14 +71,6 @@ for state in states:
         .size(11, 8)\
         .save(figs/f"Rt_est_{state}.png", dpi=600, bbox_inches="tight")\
         .show()
-
-    # plt.daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI)\
-    #     .ylabel("Predicted/Observed Cases")\
-    #     .xlabel("Date")\
-    #     .title(state)\
-    #     .size(11, 8)\
-    #     .save(figs/f"T_est_{state}.png", dpi=600, bbox_inches="tight")\
-    #     .show()
 
     estimates["anomaly"] = estimates["dates"].isin(set(anomaly_dates))
     estimates.to_csv(data/f"india_rt_data_{state}_{data_recency}_run{run_date}.csv")

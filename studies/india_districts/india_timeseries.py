@@ -9,7 +9,7 @@ import flat_table
 from epimargin.estimators import analytical_MPVS
 from epimargin.etl.commons import download_data
 from epimargin.smoothing import notched_smoothing
-from epimargin.utils import days, setup
+from epimargin.utils import days, fillna, setup
 
 simplefilter("ignore")
 
@@ -75,6 +75,7 @@ window = 5 * days
 CI     = 0.95
 smooth = notched_smoothing(window)
 start_date = pd.Timestamp(year = 2020, month = 3, day = 1)
+time_period = 120
 
 def estimate(time_series: pd.Series) -> pd.DataFrame:
     estimates = analytical_MPVS(time_series, CI = CI, smoothing = smooth, totals=True)
@@ -90,13 +91,20 @@ def estimate(time_series: pd.Series) -> pd.DataFrame:
 data, figs = setup()
 
 download_data(data, 'timeseries.json', "https://api.covid19india.org/v3/")
+download_data(data, 'state_wise.csv',  "https://api.covid19india.org/v3/")
+download_data(data, 'states.csv',      "https://api.covid19india.org/v3/")
+download_data(data, 'districts.csv',   "https://api.covid19india.org/v3/")
 
 # data prep
 with (data/'timeseries.json').open("rb") as fp:
     df = flat_table.normalize(pd.read_json(fp)).fillna(0)
 df.columns = df.columns.str.split('.', expand = True)
 dates = np.squeeze(df["index"][None].values)
-df = df.drop(columns = "index").set_index(dates).stack([1, 2]).drop("UN", axis = 1)
+df = df.drop(columns = "index")\
+    .set_index(dates)\
+    .stack([1, 2])\
+    .drop("UN", axis = 1)\
+    .fillna(0)
 
 # drop last 2 days to avoid count drops 
 df = df[(start_date <= df.index.get_level_values(0)) & (df.index.get_level_values(0) <= pd.Timestamp.now().normalize() - pd.Timedelta(days = 2))]
@@ -114,15 +122,15 @@ for geography in sorted(df.columns):
         dT = geo_estimate["new_cases"].values.astype(int)
         N  = -len(T)
 
-        D  = smooth(df[geography][:, "total", "deceased"])[N:].astype(int)
-        dD = smooth(df[geography][:, "delta", "deceased"])[N:].astype(int)
+        D  = smooth(df[geography][:, "total", "deceased"])[-time_period:].astype(int)
+        dD = smooth(df[geography][:, "delta", "deceased"])[-time_period:].astype(int)
 
-        R  = smooth(df[geography][:, "total", "recovered"])[N:].astype(int)
-        dR = smooth(df[geography][:, "delta", "recovered"])[N:].astype(int)
+        R  = smooth(df[geography][:, "total", "recovered"])[-time_period:].astype(int)
+        dR = smooth(df[geography][:, "delta", "recovered"])[-time_period:].astype(int)
 
         # testing rates
-        Ts  = smooth(df[geography][:, "total", "tested"])[N:].astype(int)
-        dTs = smooth(df[geography][:, "delta", "tested"])[N:].astype(int)
+        Ts  = smooth(df[geography][:, "total", "tested"])[-time_period:].astype(int)
+        dTs = smooth(df[geography][:, "delta", "tested"])[-time_period:].astype(int)
         
         # active infections
         I  =  T -  D -  R

@@ -27,7 +27,7 @@ infectious_period = 1/gamma
 smooth = notched_smoothing(window)
 
 # simulation parameters
-simulation_start = pd.Timestamp("April 1, 2021")
+simulation_start = pd.Timestamp("April 15, 2021")
 
 num_sims = 1000
 focus_states = ["Tamil Nadu", "Punjab", "Maharashtra", "Bihar", "West Bengal"]
@@ -124,7 +124,7 @@ def get_state_timeseries(
     states = "*", 
     download: bool = False, 
     aggregation_cols = ["detected_state", "detected_district"], 
-    last_API_file: int = 26) -> pd.DataFrame:
+    last_API_file: int = 27) -> pd.DataFrame:
     """ load state- and district-level data, downloading source files if specified """
     paths = {"v3": [data_path(i) for i in (1, 2)], "v4": [data_path(i) for i in range(3, last_API_file)]}
     if download:

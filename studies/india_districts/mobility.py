@@ -3,12 +3,17 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from epimargin.smoothing import notched_smoothing
+from epimargin.etl.commons import download_data
+from epimargin.etl.covid19india import data_path, load_all_data, get_time_series
 
 sns.set_style("whitegrid", {'axes.grid' : False})
 
 smoothed = notched_smoothing(window = 7)
 
-mobility = pd.read_csv("data/2020_IN_Region_Mobility_Report.csv", parse_dates=["date"])
+mobility = pd.concat([
+    pd.read_csv("data/2020_IN_Region_Mobility_Report.csv", parse_dates=["date"]),
+    pd.read_csv("data/2021_IN_Region_Mobility_Report.csv", parse_dates=["date"])
+])
 stringency = pd.read_csv("data/OxCGRT_latest.csv", parse_dates=["Date"])
 
 def plot_mobility(series, label, stringency = None, until = None, annotation = "Google Mobility Data; baseline mobility measured from Jan 3 - Feb 6"):
@@ -34,9 +39,9 @@ def plot_mobility(series, label, stringency = None, until = None, annotation = "
         plt.PlotDevice().ylabel("lockdown stringency index", rotation = -90, labelpad = 50)
         plt.legend()
         plt.sca(lax)
-    plt.legend(loc = "upper left")
+    plt.legend(loc = "lower right")
     plt.fill_betweenx((-100, 60), pd.to_datetime("March 24, 2020"), pd.to_datetime("June 1, 2020"), color = "black", alpha = 0.05, zorder = -1)
-    plt.text(s = "national lockdown", x = pd.to_datetime("April 27, 2020"), y = -90, fontdict = plt.note_font, ha = "center", va = "top")
+    plt.text(s = "national lockdown", x = pd.to_datetime("April 27, 2020"), y = -90, fontdict = plt.theme.note, ha = "center", va = "top")
     plt.PlotDevice()\
         .xlabel("\ndate")\
         .ylabel("% change in mobility\n")
@@ -52,14 +57,15 @@ def plot_mobility(series, label, stringency = None, until = None, annotation = "
 # for city in ["Mumbai", "Bangalore Urban", "Hyderabad"]:
 #     plot_mobility(mobility[mobility.sub_region_2 == city], city)
 
-plot_mobility(mobility[mobility.sub_region_1.isna()], "India")
+# plot_mobility(mobility[mobility.sub_region_1.isna()], "India")
 
 plot_mobility(
     mobility[mobility.sub_region_1.isna()], 
     "India", 
-    stringency = stringency, 
-    annotation = "Google Mobility Data (baseline mobility measured from Jan 3 - Feb 6) + Oxford COVID Policy Tracker",
-    until = "Oct 10, 2020")
+    stringency = stringency)
+plt.PlotDevice()\
+    .title("\nIndia: Mobility & Lockdown Trends")\
+    .annotate("Google Mobility Data (baseline mobility measured from Jan 3 - Feb 6, 2020) + Oxford COVID Policy Tracker")
 plt.show()
 
 # mobility vs cases 
@@ -139,21 +145,35 @@ plt.sca(lax)
 plt.show()
 
 # cases vs deaths
-plt.plot(df["TT"][:, "delta", "deceased"].index, smoothed(df["TT"][:, "delta", "deceased"].values), label = "Daily Deaths", color = plt.RED)
-plt.text(s = "national lockdown", x = pd.to_datetime("April 27, 2020"), y = 200, fontdict = plt.note_font, ha = "center", va = "top")
+from pathlib import Path
+data = Path("./data")
+paths = {"v3": [data_path(i) for i in (1, 2)], "v4": [data_path(i) for i in range(3, 27)]}
+for target in paths['v3'] + paths['v4']: 
+    download_data(data, target)
+df = load_all_data(v3_paths = [data/filepath for filepath in paths['v3']],  v4_paths = [data/filepath for filepath in paths['v4']])\
+    .pipe(lambda _: get_time_series(_, ["detected_state"]))\
+    .drop(columns = ["date", "time", "delta", "logdelta"])\
+    .rename(columns = {
+        "Deceased":     "dD",
+        "Hospitalized": "dT",
+        "Recovered":    "dR"
+    }).sum(level = -1).sort_index()
+
+plt.plot(df.index, smoothed(df.dD.values), label = "Daily Deaths", color = plt.RED)
+plt.text(s = "national lockdown", x = pd.to_datetime("April 27, 2020"), y = 200, fontdict = plt.theme.note, ha = "center", va = "top")
 plt.legend(loc = 'upper left')
 plt.ylim(bottom = 0)
 lax = plt.gca()
 plt.sca(lax.twinx())
-plt.plot(df["TT"][:, "delta", "confirmed"].index, smoothed(df["TT"][:, "delta", "confirmed"].values), label = "Daily Cases", color = plt.PRED_PURPLE)
+plt.plot(df.index, smoothed(df.dT.values), label = "Daily Cases", color = plt.PRED_PURPLE)
 plt.legend(loc = 'upper right')
 plt.PlotDevice().ylabel("new cases", rotation = -90, labelpad = 50)
 plt.ylim(bottom = 0)
 plt.sca(lax)
 plt.PlotDevice()\
     .xlabel("\ndate")\
-    .ylabel("new deaths\n")
-    # .title("\nIndia Case Count and Death Trends")\
-    # .annotate("Covid19India.org")\
+    .ylabel("new deaths\n")\
+    .title("\nIndia Case Count and Death Trends")\
+    .annotate("Covid19India.org")
 plt.fill_betweenx(plt.ylim(), pd.to_datetime("March 24, 2020"), pd.to_datetime("June 1, 2020"), color = "black", alpha = 0.05, zorder = -1)
 plt.show()

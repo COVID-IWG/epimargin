@@ -1,6 +1,6 @@
 from itertools import product
 
-import dask.distributed
+# import dask.distributed
 import pandas as pd
 from studies.age_structure.commons import *
 from studies.age_structure.epi_simulations import *
