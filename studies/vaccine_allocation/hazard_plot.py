@@ -9,7 +9,7 @@ from epimargin.estimators import analytical_MPVS
 from epimargin.etl.covid19india import state_code_lookup
 from epimargin.models import SIR
 from matplotlib import dates as mdates
-from studies.age_structure.commons import *
+from studies.vaccine_allocation.commons import *
 
 sns.set(style = "whitegrid")
 data = Path("./data").resolve()

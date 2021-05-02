@@ -5,8 +5,8 @@ import epimargin.plots as plt
 import geopandas as gpd
 import mapclassify
 from epimargin.etl.covid19india import state_name_lookup
-from studies.age_structure.commons import *
-from studies.age_structure.epi_simulations import *
+from studies.vaccine_allocation.commons import *
+from studies.vaccine_allocation.epi_simulations import *
 from tqdm import tqdm
 
 # data loading

@@ -7,8 +7,8 @@ from epimargin.etl.covid19india import data_path, get_time_series, load_all_data
 import epimargin.plots as plt
 from epimargin.smoothing import notched_smoothing
 from epimargin.utils import cwd, weeks
-from studies.age_structure.commons import *
-from studies.age_structure.epi_simulations import *
+from studies.vaccine_allocation.commons import *
+from studies.vaccine_allocation.epi_simulations import *
 from tqdm import tqdm
 
 # model details

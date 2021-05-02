@@ -1,8 +1,8 @@
 from itertools import chain, product
 
 import epimargin.plots as plt
-from studies.age_structure.commons import *
-from studies.age_structure.epi_simulations import *
+from studies.vaccine_allocation.commons import *
+from studies.vaccine_allocation.epi_simulations import *
 
 # data loading
 N_jk_dicts = districts_to_run.filter(like = "N_", axis = 1).to_dict()

@@ -2,8 +2,8 @@ from itertools import product
 
 # import dask.distributed
 import pandas as pd
-from studies.age_structure.commons import *
-from studies.age_structure.epi_simulations import *
+from studies.vaccine_allocation.commons import *
+from studies.vaccine_allocation.epi_simulations import *
 from tqdm import tqdm
 
 src = tev_src

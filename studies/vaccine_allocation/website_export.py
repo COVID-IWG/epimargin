@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
-from studies.age_structure.commons import *
-from studies.age_structure.epi_simulations import *
+from studies.vaccine_allocation.commons import *
+from studies.vaccine_allocation.epi_simulations import *
 
 num_sims = 100
 src = mkdir(ext/f"all_india_wtp_metrics{num_sims}")

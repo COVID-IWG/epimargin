@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from epimargin.models import Age_SIRVD
 from epimargin.utils import annually, normalize, percent, years
-from studies.age_structure.commons import *
+from studies.vaccine_allocation.commons import *
 from tqdm import tqdm
 
 import warnings

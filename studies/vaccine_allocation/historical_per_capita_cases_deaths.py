@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from studies.age_structure.commons import *
+from studies.vaccine_allocation.commons import *
 
 ts = get_TN_timeseries()
 df = load_national_timeseries()
