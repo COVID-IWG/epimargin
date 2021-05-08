@@ -177,3 +177,29 @@ plt.PlotDevice()\
     .annotate("Covid19India.org")
 plt.fill_betweenx(plt.ylim(), pd.to_datetime("March 24, 2020"), pd.to_datetime("June 1, 2020"), color = "black", alpha = 0.05, zorder = -1)
 plt.show()
+
+
+df = df.iloc[:-7]
+plt.plot(df.index, smoothed(df.dT.values), label = "Daily Cases", color = plt.PRED_PURPLE)
+plt.ylim(bottom = 0)
+plt.PlotDevice()\
+    .axis_labels(x = "date", y = "daily cases")\
+    .l_title("\nIndia: case count trends")\
+    .r_title("source:\nCovid19India.org")\
+    .adjust(bottom = 0.16)
+plt.fill_betweenx(plt.ylim(), pd.to_datetime("March 24, 2020"), pd.to_datetime("June 1, 2020"), color = "black", alpha = 0.05, zorder = -1)
+(_, ymax) = plt.ylim()
+plt.text(s = "national\nlockdown", x = pd.to_datetime("April 27, 2020"), y = ymax//2, fontdict = plt.theme.note, ha = "center", va = "center")
+plt.show()
+
+plt.plot(df.index, smoothed(df.dD.values), label = "Daily Deaths", color = plt.RED)
+plt.ylim(bottom = 0)
+plt.PlotDevice()\
+    .axis_labels(x = "date", y = "daily deaths")\
+    .l_title("\nIndia: death count trends")\
+    .r_title("source:\nCovid19India.org")\
+    .adjust(bottom = 0.16)
+plt.fill_betweenx(plt.ylim(), pd.to_datetime("March 24, 2020"), pd.to_datetime("June 1, 2020"), color = "black", alpha = 0.05, zorder = -1)
+(_, ymax) = plt.ylim()
+plt.text(s = "national\nlockdown", x = pd.to_datetime("April 27, 2020"), y = ymax//2, fontdict = plt.theme.note, ha = "center", va = "center")
+plt.show()

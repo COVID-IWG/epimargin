@@ -85,7 +85,7 @@ themes = default_settings = Aesthetics(
     title   = {"size": 28, "family": "Helvetica Neue", "weight": "500"},
     label   = {"size": 20, "family": "Helvetica Neue", "weight": "500"},
     note    = {"size": 14, "family": "Helvetica Neue", "weight": "500"},
-    ticks   = {"size": 10, "family": "Inconsolata"},
+    ticks   = {"size": 10, "family": "Helvetica Neue"},
     style   = "whitegrid",
     palette = "bright",
     accent  = "dimgrey",

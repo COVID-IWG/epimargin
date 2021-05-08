@@ -1,7 +1,7 @@
 import epimargin.plots as plt
 import pandas as pd
 from epimargin.estimators import analytical_MPVS
-from studies.age_structure.commons import *
+from studies.vaccine_allocation.commons import *
 
 ts = case_death_timeseries(download = False)
 district_age_pop = pd.read_csv(data/"all_india_sero_pop.csv").set_index(["state", "district"])
@@ -60,14 +60,17 @@ plt.legend(
     loc = "lower center", bbox_to_anchor = (0.5, 1))
 plt.gca().xaxis.set_major_formatter(plt.bY_FMT)
 plt.gca().xaxis.set_minor_formatter(plt.bY_FMT)
-plt.xlim(left = pd.Timestamp("March 1, 2020"), right = pd.Timestamp("April 2, 2021"))
+plt.xlim(left = pd.Timestamp("March 1, 2020"), right = pd.Timestamp("April 15, 2021"))
 plt.ylim(bottom = 0)
 plt.PlotDevice().ylabel("per-capita infection rate\n").xlabel("\ndate")
 plt.show()
 
 
 # 1B: per capita vaccination rates
-vax = load_vax_data().reindex(pd.date_range(start = pd.Timestamp("Jan 1, 2021"), end = simulation_start, freq = "D"), fill_value = 0)[pd.Timestamp("Jan 1, 2021"):simulation_start]
+vax = load_vax_data()\
+    .reindex(pd.date_range(start = pd.Timestamp("Jan 1, 2021"), end = simulation_start, freq = "D"), fill_value = 0)\
+    [pd.Timestamp("Jan 1, 2021"):simulation_start]\
+    .drop(labels = [pd.Timestamp("2021-03-15")]) # handle NAN
 
 plt.plot(vax.index, vax["Tamil Nadu"]/N_TN, color = TN_color, label = "Tamil Nadu", linewidth = 2)
 plt.plot(vax.index, vax["Total"]     /N_TT, color = IN_color, label = "India"     , linewidth = 2)

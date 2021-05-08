@@ -32,7 +32,7 @@ simulation_start = pd.Timestamp("April 15, 2021")
 num_sims = 1000
 focus_states = ["Tamil Nadu", "Punjab", "Maharashtra", "Bihar", "West Bengal"]
 # states to evaluate at state level (no district level data)
-coalesce_states = ["Delhi", "Manipur", "Mizoram", "Dadra And Nagar Haveli And Daman And Diu", "Andaman And Nicobar Islands"]
+coalesce_states = ["Delhi", "Manipur", "Dadra And Nagar Haveli And Daman And Diu", "Andaman And Nicobar Islands"]
 
 experiment_tag = "all_india_coalesced"
 epi_dst = tev_src = mkdir(ext/f"{experiment_tag}_epi_{num_sims}_{simulation_start.strftime('%b%d')}")
@@ -118,7 +118,6 @@ fD = (TN_death_structure     / TN_death_structure    .sum())[:, None]
 fR = (TN_recovery_structure  / TN_recovery_structure .sum())[:, None]
 fI = (TN_infection_structure / TN_infection_structure.sum())[:, None]
 
-# vaccin policies 
 
 def get_state_timeseries(
     states = "*", 

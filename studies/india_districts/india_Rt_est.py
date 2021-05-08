@@ -184,3 +184,16 @@ for district in mp_ts.index.get_level_values(0).unique():
         .save(figs/f"Rt_est_MP{district}.png", dpi=600, bbox_inches="tight")#\
         #.show()
     plt.close()
+
+from matplotlib.dates import DateFormatter
+formatter = DateFormatter("%b\n%Y")
+
+f = notched_smoothing(window = smoothing)
+plt.plot(ts.loc["Maharashtra"].index, ts.loc["Maharashtra"].Hospitalized, color = "black", label = "raw case counts from API")
+plt.plot(ts.loc["Maharashtra"].index, f(ts.loc["Maharashtra"].Hospitalized), color = "black", linestyle = "dashed", alpha = 0.5, label = "smoothed, seasonality-adjusted case counts")
+plt.PlotDevice()\
+    .l_title("daily case counts in Maharashtra")\
+    .axis_labels(x = "date", y = "daily cases")
+plt.gca().xaxis.set_major_formatter(formatter)
+plt.legend(prop = plt.theme.note, handlelength = 1, framealpha = 0)
+plt.show()

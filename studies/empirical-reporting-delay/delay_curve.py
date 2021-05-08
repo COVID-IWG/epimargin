@@ -217,3 +217,11 @@ for state in ["Maharashtra"]:
     print(list(plt.gca().get_xticklabels()))
     tikzplotlib.save(figs/f"{state}_api_data_Jul_23.tex")
     plt.show()
+
+
+MH = state_hist.loc["Maharashtra"]
+plt.bar(MH.index, MH.values, color = "dodgerblue")
+plt.semilogy()
+plt.PlotDevice().l_title("API reporting delay for Maharashtra")\
+    .axis_labels(x = "days from case report to API availability", y = "number of case reports (log-scale)")
+plt.show()

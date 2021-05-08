@@ -252,7 +252,7 @@ if __name__ == "__main__":
     ## 2D: state x age 
     if "2D" in figs_to_run or "TEV_state_age" in figs_to_run or run_all:
         focus_state_TEV = { 
-            state: aggregate_dynamic_percentiles_by_age(src, f"per_capita_TEV_{state}*phi50_random.npz", sum_axis = 0, pct_axis = 0)
+            state: aggregate_dynamic_percentiles_by_age(src, f"total_TEV_{state}*phi50_random.npz", sum_axis = 0, pct_axis = 0)
             for state in tqdm([state_name_lookup[_] for _ in  focus_states])
         }
 
