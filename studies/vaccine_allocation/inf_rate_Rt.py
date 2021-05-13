@@ -157,7 +157,7 @@ plt.show()
 
 # supplement: Rt distribution (state)
 state_ts = ts.sum(level = [0, 2]).sort_index().drop(labels = 
-    ["State Unassigned", "Lakshadweep", "Andaman And Nicobar Islands", "Goa"] + 
+    ["State Unassigned", "Lakshadweep", "Ladakh", "Andaman And Nicobar Islands", "Goa"] + 
     ["Sikkim", "Chandigarh", "Mizoram", "Puducherry", "Arunachal Pradesh", 
     "Nagaland", "Manipur", "Meghalaya", "Tripura", "Himachal Pradesh"] + 
     ["Dadra And Nagar Haveli And Daman And Diu"]

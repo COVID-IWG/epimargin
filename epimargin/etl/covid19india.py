@@ -182,7 +182,7 @@ state_code_lookup = {
     'CH'  : 'Chandigarh',
     'CT'  : 'Chhattisgarh',
     'DD'  : 'Daman & Diu', 
-    'DDDN': 'Dadra & Nagar Haveli and Daman & Diu',
+    'DNDD': 'Dadra & Nagar Haveli and Daman & Diu',
     'DL'  : 'Delhi',
     'DN'  : 'Dadra & Nagar Haveli',
     'GA'  : 'Goa',

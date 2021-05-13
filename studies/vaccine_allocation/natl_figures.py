@@ -19,36 +19,40 @@ def load_metrics(filename):
     npz = np.load(filename)
     return {parse_tag(tag): npz[tag] for tag in npz.files}
 
-def map_pop_dict(agebin, district):
-    return N_jk_dicts[f"N_{agebin_labels.index(agebin)}"][district]
+def map_pop_dict(agebin, state, district):
+    return N_jk_dicts[f"N_{agebin_labels.index(agebin)}"][state, district]
 
 # calculations
-def get_wtp_ranking(district_WTP, phi, vax_policy = "random"):
-    all_wtp = pd.concat([
+def get_all_tev(phi = 50, policy = "random", states = "*"):
+    if states == "*":
+        districts = districts_to_run.index
+    else:
+        districts = districts_to_run[districts_to_run.index.isin(states, level = 0)].index
+    district_tev = { 
+        (state, district): np.load(fig_src / f"per_capita_TEV_{state_name_lookup[state]}_{district}_phi{phi}_{policy}.npz")['arr_0']
+        for (state, district) in tqdm(districts)
+    }
+    all_tev = pd.concat([
         pd.DataFrame(np.median(v, axis = 1))\
-            .assign(district = district)\
+            .assign(state = state, district = district)\
             .reset_index()\
             .rename(columns = {"index": "t"})\
             .rename(columns = dict(enumerate(agebin_labels)))\
-            .set_index(["t", "district"])
-        for ((district, tag), v) in district_WTP.items() 
-        if tag == f"{phi}_{vax_policy}"
+            .set_index(["t", "state", "district"])
+        for ((state, district), v) in tqdm(district_tev.items())
     ], axis = 0)\
         .stack()\
         .reset_index()\
-        .rename(columns = {"level_2": "agebin", 0: "agg_wtp"})
+        .rename(columns = {"level_3": "agebin", 0: "pc_tev"})
+    all_tev["_t"]  = -all_tev["t"]
+    all_tev["pop"] = [map_pop_dict(b, s, d) for (b, s, d) in all_tev[["agebin", "state", "district"]].itertuples(index = False)]
+    all_tev["pc_tev_usd"] = all_tev["pc_tev"] * USD 
+    all_tev.sort_values(["_t", "pc_tev_usd"], ascending = False, inplace = True)
+    all_tev.drop(columns = ["_t"], inplace = True) 
+    all_tev.set_index("t", inplace = True)
+    all_tev["num_vax"] = all_tev["pop"].groupby(level = 0).cumsum()
 
-    all_wtp["_t"] = -all_wtp["t"]
-    all_wtp["pop"]        = [map_pop_dict(b, d) for (b, d) in all_wtp[["agebin", "district"]].itertuples(index = False)]
-    all_wtp["wtp_pc"]     = all_wtp["agg_wtp"]/all_wtp["pop"]
-    all_wtp["wtp_pc_usd"] = all_wtp["wtp_pc"] * USD 
-
-    all_wtp.sort_values(["_t", "wtp_pc_usd"], ascending = False, inplace = True)
-    all_wtp.drop(columns = ["_t"], inplace = True) 
-    all_wtp.set_index("t", inplace = True)
-    all_wtp["num_vax"] = all_wtp["pop"].groupby(level = 0).cumsum()
-
-    return all_wtp
+    return all_tev 
 
 def get_within_state_wtp_ranking(state, district_WTP, phi, vax_policy = "random"):
     all_wtp = pd.concat([
@@ -152,15 +156,14 @@ def plot_component_breakdowns(color, white, colorlabel, whitelabel, semilogy = F
     plt.PlotDevice().ylabel(f"{ylabel}\n")
     if semilogy: plt.semilogy()
 
-def plot_state_age_distribution(percentiles, ylabel, fmt, district_spacing = 1.5, age_spacing = 0.1, rotation = 0):
+def plot_state_age_distribution(percentiles, ylabel, fmt, district_spacing = 1.5, n = 5, age_spacing = 0.1, rotation = 0, ymin = 0, ymax = 1000):
     fig = plt.figure()
-    n = len(percentiles)
     state_ordering = list(sorted(
         percentiles.keys(), 
         key = lambda k: percentiles[k][0].max(), 
         reverse = True)
     )
-    for (i, state) in enumerate(state_ordering):
+    for (i, state) in enumerate(state_ordering[:n]):
         ylls = percentiles[state]
         for j in range(7):
             plt.errorbar(
@@ -186,8 +189,7 @@ def plot_state_age_distribution(percentiles, ylabel, fmt, district_spacing = 1.5
     # plt.legend(title = "age bin", title_fontsize = "20", fontsize = "20", ncol = 7, 
     plt.legend(fontsize = "20", ncol = 7, 
         loc = "lower center", bbox_to_anchor = (0.5, 1))
-    ymin, ymax = plt.ylim()
-    plt.vlines(x = [0.75 + 1.5 * _ for _ in range(n-1)], ymin = ymin, ymax = ymax, color = "gray", alpha = 0.5, linewidths = 2)
+    plt.vlines(x = [0.75 + 1.5 * _ for _ in range(n-1)], ymin = ymin, ymax = ymax, color = "gray", alpha = 0.5, linewidths = 4)
     plt.ylim(ymin, ymax)
     plt.gca().grid(False, axis = "x")
     plt.PlotDevice().ylabel(f"{ylabel}\n")
@@ -198,7 +200,7 @@ if __name__ == "__main__":
     src = fig_src
     phis = [int(_ * 365 * 100) for _ in phi_points]
     params = list(chain([(phis[0], "novax",)], product(phis, ["contact", "random", "mortality"])))
-
+    recalculate = False
     # policy outcomes
     # 2A: deaths
     if "2A" in figs_to_run or "deaths" in figs_to_run or run_all:
@@ -251,12 +253,19 @@ if __name__ == "__main__":
 
     ## 2D: state x age 
     if "2D" in figs_to_run or "TEV_state_age" in figs_to_run or run_all:
-        focus_state_TEV = { 
-            state: aggregate_dynamic_percentiles_by_age(src, f"total_TEV_{state}*phi50_random.npz", sum_axis = 0, pct_axis = 0)
-            for state in tqdm([state_name_lookup[_] for _ in  focus_states])
-        }
+        # focus_state_TEV = { 
+        #     state: aggregate_dynamic_percentiles_by_age(src, f"total_TEV_{state}*phi50_random.npz", sum_axis = 0, pct_axis = 0)
+        #     for state in tqdm([state_name_lookup[_] for _ in  focus_states])
+        # }
+        focus_state_TEV = {state: np.array(0) for state in focus_states}
+        focus_state_agepop = districts_to_run.loc[focus_states].filter(regex = "N_[0-6]", axis = 1).sum(level = 0)
+        for (state, district) in districts_to_run.loc[focus_states].index:
+            state_code = state_name_lookup[state]
+            state_age_weight = districts_to_run.loc[state, district].filter(regex = "N_[0-6]", axis = 0)/focus_state_agepop.loc[state]
+            median_tev = np.load(fig_src / f"per_capita_TEV_{state_code}_{district}_phi50_random.npz")['arr_0'][0]
+            focus_state_TEV[state] = focus_state_TEV[state] + state_age_weight.values * median_tev
 
-        plot_state_age_distribution({k: v * USD/1000 for k, v in focus_state_TEV.items()}, "per capita TEV (USD, thousands)", "D")
+        plot_state_age_distribution({k: v * USD for k, v in focus_state_TEV.items()}, "per capita TEV (USD)", "D", ymin = 0, ymax = 1000)
         plt.show()
 
     # appendix: YLL
@@ -291,17 +300,81 @@ if __name__ == "__main__":
 
     # 3A: health/consumption
     if "3A" in figs_to_run or run_all:
-        
-        summed_TEV_hlth = np.mean(sum(np.load(_)['arr_0'][0] for _ in src.glob("dTEV_health*")), axis = 0)
-        summed_TEV_cons = np.mean(sum(np.load(_)['arr_0'][0] for _ in src.glob("dTEV_cons*")), axis = 0)
-        plot_component_breakdowns(summed_TEV_hlth, summed_TEV_cons, "health", "consumption", semilogy = False, ylabel = "age-weighted TEV (USD)")
+        summed_TEV_hlth = np.median(np.nansum([np.load(s)['arr_0'] for s in tqdm(src.glob("dTEV_health*"), total = len(districts_to_run))], axis = 0), axis = 0)
+        summed_TEV_cons = np.median(np.nansum([np.load(s)['arr_0'] for s in tqdm(src.glob("dTEV_cons*"),   total = len(districts_to_run))], axis = 0), axis = 0)
+        plot_component_breakdowns(summed_TEV_hlth, summed_TEV_cons, "health", "consumption", semilogy = True, ylabel = "age-weighted TEV (USD)")
         plt.show()
 
-        summed_TEV_priv = np.mean(sum(np.load(_)['arr_0'][0] for _ in src.glob("dTEV_priv*")), axis = 0)
-        summed_TEV_extn = np.mean(sum(np.load(_)['arr_0'][0] for _ in src.glob("dTEV_extn*")), axis = 0)
+        summed_TEV_priv = np.median(np.nansum([np.load(s)['arr_0'] for s in tqdm(src.glob("dTEV_priv*"), total = len(districts_to_run))], axis = 0), axis = 0)
+        summed_TEV_extn = np.median(np.nansum([np.load(s)['arr_0'] for s in tqdm(src.glob("dTEV_extn*"), total = len(districts_to_run))], axis = 0), axis = 0)
         plot_component_breakdowns(summed_TEV_priv, summed_TEV_extn, "private", "external", semilogy = False, ylabel = "age-weighted TEV (USD)")
         plt.show()
 
+    if "3B" in figs_to_run or run_all:
+        vax_policy = "mortality"
+        if recalculate:
+            print(25)
+            all_tev_25  = get_all_tev(phi = 25, policy = vax_policy)
+            all_tev_25.to_csv(data / f"all_tev_25_{vax_policy}.csv")
+            print(50)
+            all_tev_50  = get_all_tev(phi = 50, policy = vax_policy)
+            all_tev_50.to_csv(data / f"all_tev_50_{vax_policy}.csv")
+            print(100)
+            all_tev_100 = get_all_tev(phi = 100, policy = vax_policy)
+            all_tev_100.to_csv(data / f"all_tev_100_{vax_policy}.csv")
+            print(200)
+            all_tev_200 = get_all_tev(phi = 200, policy = vax_policy)
+            all_tev_200.to_csv(data / f"all_tev_200_{vax_policy}.csv")
+        else:
+            all_tev_25  = pd.read_csv(data / f"all_tev_25_{vax_policy}.csv").set_index("t")
+            all_tev_50  = pd.read_csv(data / f"all_tev_50_{vax_policy}.csv").set_index("t")
+            all_tev_100 = pd.read_csv(data / f"all_tev_100_{vax_policy}.csv").set_index("t")
+            all_tev_200 = pd.read_csv(data / f"all_tev_200_{vax_policy}.csv").set_index("t")
+
+        # plot static benchmark
+        N_natl = districts_to_run.N_tot.sum()
+        figure = plt.figure()
+        x_pop = list(chain(*zip(all_tev_50.loc[0]["num_vax"].shift(1).fillna(0) * 100/N_natl, all_tev_50.loc[0]["num_vax"] * 100/N_natl)))
+        y_tev = list(chain(*zip(all_tev_50.loc[0]["pc_tev_usd"], all_tev_50.loc[0]["pc_tev_usd"])))
+        static, = plt.plot(x_pop, y_tev, figure = figure, color = "grey", linewidth = 2)
+        lines = [static]
+        plt.xticks(fontsize = "20")
+        plt.yticks(fontsize = "20")
+        plt.PlotDevice().ylabel("TEV (USD)\n").xlabel("\npercentage of country vaccinated")
+        # plt.ylim(0, 1600)
+        # plt.xlim(left = 0, right = 100)
+
+        lines.append(plt.plot(0, 0, color = "white")[0])
+
+        # plot dynamic curve 
+        phis = [25, 50, 100, 200]
+        for (phi, all_tev) in zip(phis, [all_tev_25, all_tev_50, all_tev_100, all_tev_200]):
+            daily_doses = phi * percent * annually * N_natl
+            distributed_doses = 0
+            x_pop = []
+            y_tev = []
+            t_vax = []
+            ranking = 0
+            for t in range(simulation_range):
+                tev = all_tev.loc[t].reset_index()
+                ranking = tev[(tev.index >= ranking) & (tev.num_vax > distributed_doses)].index.min()
+                if np.isnan(ranking):
+                    break
+                x_pop += [100 * (distributed_doses)/N_natl, 100 * (distributed_doses + daily_doses)/N_natl]
+                t_vax += [t, t+1]
+                y_tev += [tev.iloc[ranking].pc_tev_usd]*2
+                distributed_doses += daily_doses
+            lines += [plt.plot(x_pop, y_tev, label = f"dynamic, {vax_policy}, $\phi = ${phi}%", figure = figure)[0]]
+        plt.legend(
+            lines,
+            ["static, t = 0, $\phi = $50%", ""]  + [f"dynamic, {vax_policy}, $\phi = ${phi}%" for phi in phis],
+            title = "allocation", title_fontsize = "24", fontsize = "20")
+        plt.xticks(fontsize = "20")
+        plt.yticks(fontsize = "20")
+        plt.PlotDevice().ylabel("TEV (USD)\n").xlabel("\npercentage of country vaccinated")
+        plt.ylim(0, 1600)
+        plt.xlim(left = 0, right = 100)
+        plt.show()
 
     # 3C: YLL per million choropleth
     if "3C" in figs_to_run or run_all:
@@ -334,6 +407,7 @@ if __name__ == "__main__":
 
         fig, ax = plt.subplots(1, 1)
         scheme = mapclassify.UserDefined(districts.YLL_per_mn, [0, 125, 250, 400, 600, 900, 1200, 1600, 2500, 5000, 7500])  # ~deciles
+        scheme = mapclassify.UserDefined(districts.YLL_per_mn, [0, 600, 1200, 2000, 2400, 3000, 3600, 4000, 4500, 5550, 9000])  # ~deciles
         districts["category"] = scheme.yb
         india.join(districts["category"].astype(int))\
             .drop(labels = "Andaman And Nicobar Islands")\
@@ -394,182 +468,77 @@ if __name__ == "__main__":
         plt.legend()
         plt.show()
 
+    # per state supplements:
+    if "focus-states" in figs_to_run:
+        vax_policy = "mortality"
+        all_tev_25  = pd.read_csv(data / f"all_tev_25_{vax_policy}.csv").set_index("t")
+        all_tev_50  = pd.read_csv(data / f"all_tev_50_{vax_policy}.csv").set_index("t")
+        all_tev_100 = pd.read_csv(data / f"all_tev_100_{vax_policy}.csv").set_index("t")
+        all_tev_200 = pd.read_csv(data / f"all_tev_200_{vax_policy}.csv").set_index("t")
 
-    #     # demand curves
-    #     demand_curve = get_within_state_wtp_ranking(state, {(k, "50_random"): v for (k, v) in state_WTP_by_district.items()}, 50, "random") 
+        for state in focus_states:
+            print(state)
+            state_code = state_name_lookup[state]
+            
+            # district_TEV = {district: np.array(0) for district in districts_to_run.loc[state].index}
+            # focus_state_agepop = districts_to_run.loc[state].filter(regex = "N_[0-6]", axis = 1).sum(axis = 0)
+            # for district in districts_to_run.loc[state].index:
+            #     district_age_weight = districts_to_run.loc[state, district].filter(regex = "N_[0-6]")/focus_state_agepop
+            #     median_tev = np.load(fig_src / f"per_capita_TEV_{state_code}_{district}_phi50_random.npz")['arr_0'][0]
+            #     district_TEV[district] = district_TEV[district] + state_age_weight.values * median_tev
 
-    #     N_state = districts_to_run.loc[state, :].N_tot.sum()
+            # print()
+            # plot_state_age_distribution({k: v * USD for k, v in district_TEV.items()}, "per capita TEV (USD)", "D", n = 5, ymin = 0, ymax = 50)
+            # plt.show()
 
-    # # plot static benchmark
-    # figure = plt.figure()
-    # x_pop = list(chain(*zip(demand_curve.loc[0]["num_vax"].shift(1).fillna(0), demand_curve.loc[0]["num_vax"])))
-    # y_wtp = list(chain(*zip(demand_curve.loc[0]["wtp_pc_usd"], demand_curve.loc[0]["wtp_pc_usd"])))
-    # plt.plot(x_pop, y_wtp, figure = figure, color = "grey", linewidth = 2)
-    # plt.xticks(fontsize = "20")
-    # plt.yticks(fontsize = "20")
-    # plt.PlotDevice().ylabel("WTP (USD)\n").xlabel("\nnumber vaccinated")
-    # plt.ylim(0, 350)
-    # plt.xlim(left = 0, right = N_state)
-    # plt.show()
+            # plot static benchmark
+            N_state = districts_to_run.loc[state].N_tot.sum()
+            figure = plt.figure()
+            all_tev_50_state = all_tev_50.query("state == @state")
+            x_pop = list(chain(*zip(all_tev_50_state.loc[0]["num_vax"].shift(1).fillna(0) * 100/N_state, all_tev_50_state.loc[0]["num_vax"] * 100/N_state)))
+            y_tev = list(chain(*zip(all_tev_50_state.loc[0]["pc_tev_usd"], all_tev_50_state.loc[0]["pc_tev_usd"])))
+            static, = plt.plot(x_pop, y_tev, figure = figure, color = "grey", linewidth = 2)
+            lines = [static]
+            plt.xticks(fontsize = "20")
+            plt.yticks(fontsize = "20")
+            plt.PlotDevice().ylabel("TEV (USD)\n").xlabel("\npercentage of state vaccinated")
+            # plt.ylim(0, 1600)
+            # plt.xlim(left = 0, right = 100)
 
-    # lines.append(plt.plot(0, 0, color = "white")[0])
+            lines.append(plt.plot(0, 0, color = "white")[0])
 
-    # # plot dynamic curve 
-    # for ((phi, vax_policy), all_wtp) in wtp_rankings.items():
-    #     daily_doses = phi * percent * annually * N_TN
-    #     distributed_doses = 0
-    #     x_pop = []
-    #     y_wtp = []
-    #     t_vax = []
-    #     ranking = 0
-    #     for t in range(simulation_range):
-    #         wtp = all_wtp.loc[t].reset_index()
-    #         ranking = wtp[(wtp.index >= ranking) & (wtp.num_vax > distributed_doses)].index.min()
-    #         if np.isnan(ranking):
-    #             break
-    #         x_pop += [distributed_doses, distributed_doses + daily_doses]
-    #         t_vax += [t, t+1]
-    #         y_wtp += [wtp.iloc[ranking].wtp_pc_usd]*2
-    #         distributed_doses += daily_doses
-    #     lines.append(
-    #         plt.plot(x_pop, y_wtp, label = f"dynamic, {vax_policy}, $\phi = ${phi}%", figure = figure)[0]
-    #     )
-    # plt.legend(
-    #     lines,
-    #     ["static, t = 0, $\phi = $25%", ""]  + [f"dynamic, {vax_policy}, $\phi = ${phi}%" for (phi, vax_policy) in product(phis, ["random", "mortality"])],
-    #     title = "allocation", title_fontsize = "24", fontsize = "20")
-    # plt.xticks(fontsize = "20")
-    # plt.yticks(fontsize = "20")
-    # plt.PlotDevice().ylabel("WTP (USD)\n").xlabel("\nnumber vaccinated")
-    # plt.ylim(0, 350)
-    # plt.xlim(left = 0, right = N_TN)
-    # plt.show()
+            # plot dynamic curve 
+            phis = [25, 50, 100, 200]
+            for (phi, _all_tev) in zip(phis, [all_tev_25, all_tev_50, all_tev_100, all_tev_200]):
+                all_tev = _all_tev.query("state == @state")
+                daily_doses = phi * percent * annually * N_state
+                distributed_doses = 0
+                x_pop = []
+                y_tev = []
+                t_vax = []
+                ranking = 0
+                for t in range(simulation_range):
+                    tev = all_tev.loc[t].reset_index()
+                    ranking = tev[(tev.index >= ranking) & (tev.num_vax > distributed_doses)].index.min()
+                    if np.isnan(ranking):
+                        break
+                    x_pop += [100 * (distributed_doses)/N_state, 100 * (distributed_doses + daily_doses)/N_state]
+                    t_vax += [t, t+1]
+                    y_tev += [tev.iloc[ranking].pc_tev_usd]*2
+                    distributed_doses += daily_doses
+                lines += [plt.plot(x_pop, y_tev, label = f"dynamic, {vax_policy}, $\phi = ${phi}%", figure = figure)[0]]
+            plt.legend(
+                lines,
+                ["static, t = 0, $\phi = $50%", ""]  + [f"dynamic, {vax_policy}, $\phi = ${phi}%" for phi in phis],
+                title = "allocation", title_fontsize = "24", fontsize = "20")
+            plt.xticks(fontsize = "20")
+            plt.yticks(fontsize = "20")
+            plt.PlotDevice().ylabel("TEV (USD)\n").xlabel("\npercentage of state vaccinated")
+            plt.ylim(0, 1600)
+            plt.xlim(left = 0, right = 100)
+            plt.show()
 
-    # # realized value
-    # wtp_ranking_mortality_25  = get_wtp_ranking(district_WTP, 25, "mortality")
-    # wtp_ranking_mortality_50  = get_wtp_ranking(district_WTP, 50, "mortality")
-    # wtp_ranking_mortality_100 = get_wtp_ranking(district_WTP, 100, "mortality")
-    # wtp_ranking_mortality_200 = get_wtp_ranking(district_WTP, 200, "mortality")
-
-    # lines = []
-
-    # figure = plt.figure()
-    # x_pop_benchmark = list(chain(*zip(wtp_ranking_mortality_25.loc[0]["num_vax"].shift(1).fillna(0), wtp_ranking_mortality_25.loc[0]["num_vax"])))
-    # y_wtp_benchmark = list(chain(*zip(wtp_ranking_mortality_25.loc[0]["wtp_pc_usd"], wtp_ranking_mortality_25.loc[0]["wtp_pc_usd"])))
-    # lines.append(plt.plot(x_pop_benchmark, y_wtp_benchmark, figure = figure, color = "black", linewidth = 2)[0])
-    # lines.append(plt.plot(0, 0, color = "white")[0])
-
-    # for (phi, ranking) in zip(
-    #     [25, 50, 100, 200], 
-    #     [wtp_ranking_mortality_25, wtp_ranking_mortality_50, wtp_ranking_mortality_100, wtp_ranking_mortality_200]
-    # ):
-    #     daily_doses = phi * percent * annually * N_TN
-    #     x_pop = []
-    #     y_wtp = []
-    #     t = 0
-    #     for agebin in agebin_labels[::-1]:
-    #         t_start = t
-    #         N_agebin = ranking.loc[0].query('agebin == @agebin')["pop"].sum()
-    #         while (t - t_start) * daily_doses <= N_agebin and t < simulation_range:
-    #             age_rankings = ranking.loc[t].query('agebin == @agebin')
-    #             avg_wtp = (lambda x: x.values/x.values.sum())(age_rankings["pop"] * daily_doses) @ age_rankings["wtp_pc_usd"]
-    #             x_pop += [t*daily_doses, (t+1)*daily_doses]
-    #             y_wtp += [avg_wtp]*2
-    #             t += 1
-    #     lines.append(plt.plot(x_pop, y_wtp, figure = figure)[0])
-
-    # plt.legend(
-    #     lines,
-    #     ["mortality prioritized demand curve, $t = 0, \phi = 25$%", ""]\
-    #      + [f"mortality prioritized, $\phi = ${phi}%" for phi in [25, 50, 100, 200]],
-    #     title = "allocation", title_fontsize = "24", fontsize = "20")
-    # plt.xticks(fontsize = "20")
-    # plt.yticks(fontsize = "20")
-    # plt.PlotDevice().ylabel("per capita social value (USD)\n").xlabel("\nnumber vaccinated")
-    # plt.ylim(0, 350)
-    # plt.xlim(left = 0, right = N_TN)
-    # plt.show()
-
-    # # contact 
-    # wtp_ranking_contact_25  = get_wtp_ranking(district_WTP, 25, "contact")
-    # wtp_ranking_contact_50  = get_wtp_ranking(district_WTP, 50, "contact")
-    # wtp_ranking_contact_100 = get_wtp_ranking(district_WTP, 100, "contact")
-    # wtp_ranking_contact_200 = get_wtp_ranking(district_WTP, 200, "contact")
-
-    # lines = []
-
-    # figure = plt.figure()
-    # x_pop_benchmark = list(chain(*zip(wtp_ranking_contact_25.loc[0]["num_vax"].shift(1).fillna(0), wtp_ranking_contact_25.loc[0]["num_vax"])))
-    # y_wtp_benchmark = list(chain(*zip(wtp_ranking_contact_25.loc[0]["wtp_pc_usd"], wtp_ranking_contact_25.loc[0]["wtp_pc_usd"])))
-    # lines.append(plt.plot(x_pop_benchmark, y_wtp_benchmark, figure = figure, color = "black", linewidth = 2)[0])
-    # lines.append(plt.plot(0, 0, color = "white")[0])
-
-    # for (phi, ranking) in zip(
-    #     [25, 50, 100, 200], 
-    #     [wtp_ranking_contact_25, wtp_ranking_contact_50, wtp_ranking_contact_100, wtp_ranking_contact_200]
-    # ):
-    #     daily_doses = phi * percent * annually * N_TN
-    #     x_pop = []
-    #     y_wtp = []
-    #     t = 0
-    #     for agebin in [agebin_labels[_] for _ in [1, 2, 3, 4, 0, 5, 6]]:
-    #         t_start = t
-    #         N_agebin = ranking.loc[0].query('agebin == @agebin')["pop"].sum()
-    #         while (t - t_start) * daily_doses <= N_agebin and t < simulation_range:
-    #             age_rankings = ranking.loc[t].query('agebin == @agebin')
-    #             avg_wtp = (lambda x: x.values/x.values.sum())(age_rankings["pop"] * daily_doses) @ age_rankings["wtp_pc_usd"]
-    #             x_pop += [t*daily_doses, (t+1)*daily_doses]
-    #             y_wtp += [avg_wtp]*2
-    #             t += 1
-    #     lines.append(plt.plot(x_pop, y_wtp, figure = figure)[0])
-
-    # plt.legend(
-    #     lines,
-    #     ["contact prioritized demand curve, $t = 0, \phi = 25$%", ""]\
-    #      + [f"contact prioritized, $\phi = ${phi}%" for phi in [25, 50, 100, 200]],
-    #     title = "allocation", title_fontsize = "24", fontsize = "20")
-    # plt.xticks(fontsize = "20")
-    # plt.yticks(fontsize = "20")
-    # plt.PlotDevice().ylabel("per capita social value (USD)\n").xlabel("\nnumber vaccinated")
-    # plt.ylim(0, 350)
-    # plt.xlim(left = 0, right = N_TN)
-    # plt.show()
-
-    # # random 
-    # wtp_ranking_random_25  = get_wtp_ranking(district_WTP, 25, "random")
-    # wtp_ranking_random_50  = get_wtp_ranking(district_WTP, 50, "random")
-    # wtp_ranking_random_100 = get_wtp_ranking(district_WTP, 100, "random")
-    # wtp_ranking_random_200 = get_wtp_ranking(district_WTP, 200, "random")
-
-    # lines = []
-
-    # figure = plt.figure()
-    # x_pop_benchmark = list(chain(*zip(wtp_ranking_random_25.loc[0]["num_vax"].shift(1).fillna(0), wtp_ranking_random_25.loc[0]["num_vax"])))
-    # y_wtp_benchmark = list(chain(*zip(wtp_ranking_random_25.loc[0]["wtp_pc_usd"], wtp_ranking_random_25.loc[0]["wtp_pc_usd"])))
-    # lines.append(plt.plot(x_pop_benchmark, y_wtp_benchmark, figure = figure, color = "black", linewidth = 2)[0])
-    # lines.append(plt.plot(0, 0, color = "white")[0])
-
-    # for (phi, ranking) in zip(
-    #     [25, 50, 100, 200], 
-    #     [wtp_ranking_random_25, wtp_ranking_random_50, wtp_ranking_random_100, wtp_ranking_random_200]
-    # ):
-    #     daily_doses = phi * percent * annually * N_TN
-    #     x_pop = []
-    #     y_wtp = []
-    #     for t in range(simulation_range):
-    #         avg_wtp = (lambda x: x.values/x.values.sum())(ranking.loc[t]["pop"] * daily_doses) @ ranking.loc[t]["wtp_pc_usd"]
-    #         x_pop += [t*daily_doses, (t+1)*daily_doses]
-    #         y_wtp += [avg_wtp]*2
-    #     lines.append(plt.plot(x_pop, y_wtp, figure = figure)[0])
-
-    # plt.legend(
-    #     lines,
-    #     ["randomly allocated demand curve, $t = 0, \phi = 25$%", ""]\
-    #      + [f"randomly allocated, $\phi = ${phi}%" for phi in [25, 50, 100, 200]],
-    #     title = "allocation", title_fontsize = "24", fontsize = "20")
-    # plt.xticks(fontsize = "20")
-    # plt.yticks(fontsize = "20")
-    # plt.PlotDevice().ylabel("per capita social value (USD)\n").xlabel("\nnumber vaccinated")
-    # plt.ylim(0, 350)
-    # plt.xlim(left = 0, right = N_TN)
-    # plt.show()
+            summed_TEV_hlth = np.median(np.nansum([np.load(s)['arr_0'] for s in tqdm(src.glob(f"dTEV_health*{state_code}*"))], axis = 0), axis = 0)
+            summed_TEV_cons = np.median(np.nansum([np.load(s)['arr_0'] for s in tqdm(src.glob(f"dTEV_cons*{state_code}*"))],   axis = 0), axis = 0)
+            plot_component_breakdowns(summed_TEV_hlth, summed_TEV_cons, "health", "consumption", semilogy = True, ylabel = "national age-weighted TEV (USD)")
+            plt.show()
