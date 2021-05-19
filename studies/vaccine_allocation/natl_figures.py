@@ -134,7 +134,8 @@ def outcomes_per_policy(percentiles, metric_label, fmt,
             [_.set_alpha(0.5) for _ in bars]
 
     plt.legend(ncol = 1 + len(vax_policies), fontsize = "20", loc = "lower center", bbox_to_anchor = (0.5, 1))
-    plt.xticks(range(len(phis) + 1), [f"$\phi = {phi}$%" for phi in ([0] + phis)], fontsize = "20")
+    # plt.xticks(range(len(phis) + 1), [f"$\phi = {phi}$%" for phi in ([0] + phis)], fontsize = "20")
+    plt.xticks(range(len(phis) + 1), [f"$phi = {phi}$%" for phi in ([0] + phis)], fontsize = "20")
     plt.yticks(fontsize = "20")
     plt.PlotDevice().ylabel(f"{metric_label}\n")
     plt.gca().grid(False, axis = "x")
@@ -364,10 +365,12 @@ if __name__ == "__main__":
                 t_vax += [t, t+1]
                 y_tev += [tev.iloc[ranking].pc_tev_usd]*2
                 distributed_doses += daily_doses
-            lines += [plt.plot(x_pop, y_tev, label = f"dynamic, {vax_policy}, $\phi = ${phi}%", figure = figure)[0]]
+            # lines += [plt.plot(x_pop, y_tev, label = f"dynamic, {vax_policy}, $\phi = ${phi}%", figure = figure)[0]]
+            lines += [plt.plot(x_pop, y_tev, label = f"dynamic, {vax_policy}, $phi = ${phi}%", figure = figure)[0]]
         plt.legend(
             lines,
-            ["static, t = 0, $\phi = $50%", ""]  + [f"dynamic, {vax_policy}, $\phi = ${phi}%" for phi in phis],
+            # ["static, t = 0, $\phi = $50%", ""]  + [f"dynamic, {vax_policy}, $\phi = ${phi}%" for phi in phis],
+            ["static, t = 0, $phi = $50%", ""]  + [f"dynamic, {vax_policy}, $phi = ${phi}%" for phi in phis],
             title = "allocation", title_fontsize = "24", fontsize = "20")
         plt.xticks(fontsize = "20")
         plt.yticks(fontsize = "20")
@@ -526,10 +529,12 @@ if __name__ == "__main__":
                     t_vax += [t, t+1]
                     y_tev += [tev.iloc[ranking].pc_tev_usd]*2
                     distributed_doses += daily_doses
-                lines += [plt.plot(x_pop, y_tev, label = f"dynamic, {vax_policy}, $\phi = ${phi}%", figure = figure)[0]]
+                # lines += [plt.plot(x_pop, y_tev, label = f"dynamic, {vax_policy}, $\phi = ${phi}%", figure = figure)[0]]
+                lines += [plt.plot(x_pop, y_tev, label = f"dynamic, {vax_policy}, $phi = ${phi}%", figure = figure)[0]]
             plt.legend(
                 lines,
-                ["static, t = 0, $\phi = $50%", ""]  + [f"dynamic, {vax_policy}, $\phi = ${phi}%" for phi in phis],
+                # ["static, t = 0, $\phi = $50%", ""]  + [f"dynamic, {vax_policy}, $\phi = ${phi}%" for phi in phis],
+                ["static, t = 0, $phi = $50%", ""]  + [f"dynamic, {vax_policy}, $phi = ${phi}%" for phi in phis],
                 title = "allocation", title_fontsize = "24", fontsize = "20")
             plt.xticks(fontsize = "20")
             plt.yticks(fontsize = "20")
