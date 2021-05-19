@@ -1,0 +1,12 @@
+#!/Users/satej/Documents/workspace/research/covid/epimargin/setupvenv/bin/python3
+# EASY-INSTALL-ENTRY-SCRIPT: 'Fiona==1.8.19','console_scripts','fio'
+__requires__ = 'Fiona==1.8.19'
+import re
+import sys
+from pkg_resources import load_entry_point
+
+if __name__ == '__main__':
+    sys.argv[0] = re.sub(r'(-script\.pyw?|\.exe)?$', '', sys.argv[0])
+    sys.exit(
+        load_entry_point('Fiona==1.8.19', 'console_scripts', 'fio')()
+    )

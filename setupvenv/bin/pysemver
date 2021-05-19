@@ -1,0 +1,12 @@
+#!/Users/satej/Documents/workspace/research/covid/epimargin/setupvenv/bin/python3
+# EASY-INSTALL-ENTRY-SCRIPT: 'semver==3.0.0.dev2','console_scripts','pysemver'
+__requires__ = 'semver==3.0.0.dev2'
+import re
+import sys
+from pkg_resources import load_entry_point
+
+if __name__ == '__main__':
+    sys.argv[0] = re.sub(r'(-script\.pyw?|\.exe)?$', '', sys.argv[0])
+    sys.exit(
+        load_entry_point('semver==3.0.0.dev2', 'console_scripts', 'pysemver')()
+    )
