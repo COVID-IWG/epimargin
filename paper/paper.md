@@ -1,5 +1,5 @@
 ---
-title: 'Epimargin: an epidemiological estimation and public policy evaluation toolkit'
+title: '`epimargin`: A Toolkit for Epidemiological Estimation, Simulation, and Policy Evaluation'
 tags:
   - Python
   - epidemiology
