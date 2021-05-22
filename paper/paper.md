@@ -24,16 +24,17 @@ authors:
     orcid: 0000-0001-6176-5160
     affiliation: "1, 2, 3, 4"
 affiliations:
- - name: Mansueto Institute for Urban Innovation, University of Chicago
-   index: 1
- - name: Department of Ecology & Evolution, University of Chicago
-   index: 2
- - name: Department of Sociology, University of Chicago
-   index: 3
-- name: Santa Fe Institute
-   index: 4
+  - name: Mansueto Institute for Urban Innovation, University of Chicago
+    index: 1
+  - name: Department of Ecology & Evolution, University of Chicago
+    index: 2
+  - name: Department of Sociology, University of Chicago
+    index: 3
+  - name: Santa Fe Institute
+    index: 4
 date: 22 May 2021
 bibliography: paper.bib
+
 ---
 
 # Summary
