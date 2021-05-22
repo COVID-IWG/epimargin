@@ -13,7 +13,7 @@ from tqdm import tqdm
 """ Common data loading/cleaning functions and constants """
 
 data = Path("./data").resolve()
-ext  = Path("/Volumes/dedomeno/covid/vax-nature").resolve()
+# ext  = Path("/Volumes/dedomeno/covid/vax-nature").resolve()
 
 USD = 1/72
 
@@ -35,8 +35,9 @@ focus_states = ["Tamil Nadu", "Punjab", "Maharashtra", "Bihar", "West Bengal"]
 coalesce_states = ["Delhi", "Manipur", "Dadra And Nagar Haveli And Daman And Diu", "Andaman And Nicobar Islands"]
 
 experiment_tag = "all_india_coalesced"
-epi_dst = tev_src = mkdir(ext/f"{experiment_tag}_epi_{num_sims}_{simulation_start.strftime('%b%d')}")
-tev_dst = fig_src = mkdir(ext/f"{experiment_tag}_reweight_tev_{num_sims}_{simulation_start.strftime('%b%d')}")
+# epi_dst = tev_src = mkdir(ext/f"{experiment_tag}_epi_{num_sims}_{simulation_start.strftime('%b%d')}")
+# tev_dst = fig_src = mkdir(ext/f"{experiment_tag}_reweight_tev_{num_sims}_{simulation_start.strftime('%b%d')}")
+# tev_dst = fig_src = mkdir(ext/f"TNBR_descaled_tev_{num_sims}_{simulation_start.strftime('%b%d')}")
 
 # misc
 survey_date = "October 23, 2020"
@@ -190,22 +191,23 @@ def assemble_initial_conditions(states = "*", coalesce_states = coalesce_states,
     progress.set_description(f"{'loading case data':<20}")
     
     ts  = get_state_timeseries(states, download)
-    if coalesce_states:
+    included_coalesce_states = coalesce_states if states == "*" else list(set(states) & set(coalesce_states))
+    if included_coalesce_states:
         # sum data for states to coalesce across districts
-        coalesce_ts = get_state_timeseries(coalesce_states, download = download, aggregation_cols = ["detected_state"])\
+        coalesce_ts = get_state_timeseries(included_coalesce_states, download = download, aggregation_cols = ["detected_state"])\
             .reset_index()\
             .assign(detected_district = lambda _:_["detected_state"])\
             .set_index(["detected_state", "detected_district", "status_change_date"])
         
         # replace original entries
         ts = pd.concat([
-            ts.drop(labels = coalesce_states, axis = 0, level = 0),
+            ts.drop(labels = included_coalesce_states, axis = 0, level = 0),
             coalesce_ts
         ]).sort_index()
 
         # sum up seroprevalence in coalesced states
         districts_to_run = pd.concat(
-            [districts_to_run.drop(labels = coalesce_states, axis = 0, level = 0)] + 
+            [districts_to_run.drop(labels = included_coalesce_states, axis = 0, level = 0)] + 
             [districts_to_run.loc[state]\
                 .assign(**{f"infected_{i}": (lambda i: lambda _: _[f"sero_{i}"] * _[f"N_{i}"])(i) for i in range(7)})\
                 .drop(columns = [f"sero_{i}" for i in range(7)])\
@@ -215,7 +217,7 @@ def assemble_initial_conditions(states = "*", coalesce_states = coalesce_states,
                 [districts_to_run.columns]\
                 .assign(state = state, district = state)\
                 .set_index(["state", "district"])
-            for state in coalesce_states]
+            for state in included_coalesce_states]
         ).sort_index()
 
     vax = load_vax_data(download)
@@ -287,14 +289,14 @@ def assemble_initial_conditions(states = "*", coalesce_states = coalesce_states,
 
         rows.append((state_name_lookup[state], state, district, 
             sero_0, N_0, sero_1, N_1, sero_2, N_2, sero_3, N_3, sero_4, N_4, sero_5, N_5, sero_6, N_6, N_tot, 
-            Rt, Rt_upper, Rt_lower, S0, I0, R0, D0, dT0, dD0, V0
+            0, 0, 0, S0, I0, R0, D0, dT0, dD0, V0, T_ratio, R_ratio
         ))
         progress.update(1)
     out = pd.DataFrame(rows, 
-        columns = ["state_code", "state", "district", "sero_0", "N_0", "sero_1", "N_1", "sero_2", "N_2", "sero_3", "N_3", "sero_4", "N_4", "sero_5", "N_5", "sero_6", "N_6", "N_tot", "Rt", "Rt_upper", "Rt_lower", "S0", "I0", "R0", "D0", "dT0", "dD0", "V0"]
+        columns = ["state_code", "state", "district", "sero_0", "N_0", "sero_1", "N_1", "sero_2", "N_2", "sero_3", "N_3", "sero_4", "N_4", "sero_5", "N_5", "sero_6", "N_6", "N_tot", "Rt", "Rt_upper", "Rt_lower", "S0", "I0", "R0", "D0", "dT0", "dD0", "V0", "T_ratio", "R_ratio"]
     )
     progress.update(1)
-    return out 
+    return (ts, out)
 
 if __name__ == "__main__":
     # assemble_sero_data().to_csv(data/"all_india_sero_pop.csv")
@@ -302,5 +304,21 @@ if __name__ == "__main__":
     #     .to_csv(
     #         data/"focus_states_simulation_initial_conditions.csv")
     # assemble_initial_conditions()\
-    assemble_initial_conditions(download = True)\
-        .to_csv(data/f"all_india_coalesced_initial_conditions{simulation_start.strftime('%b%d')}.csv")
+    ts, initial_conditions = assemble_initial_conditions(download = True)
+    initial_conditions.to_csv(data/f"all_india_coalesced_scaling_{simulation_start.strftime('%b%d')}.csv")
+
+    # scaled_ts = ts\
+    #     .reset_index()\
+    #     .rename(lambda s: s.replace("detected_", "").replace("status_change_", ""), axis = 1)\
+    #     .set_index(["state", "district"])\
+    # .join(initial_conditions.set_index(["state", "district"])[["T_ratio", "R_ratio"]])\
+    # .assign(
+    #     dT_scaled = lambda df: df["T_ratio"] * df["dT"],
+    #     dR_scaled = lambda df: df["R_ratio"] * df["dR"]
+    # ).drop(columns = ["T_ratio", "R_ratio"])
+    # scaled_ts.to_csv(data / "TNsero_scaled_timeseries_all_india_May04.csv")
+
+    # assemble_initial_conditions(states = ["Tamil Nadu", "Bihar"], download = True)\
+    #     .to_csv(data/f"TN_BR_descaled_initial_conditions{simulation_start.strftime('%b%d')}.csv")
+
+    

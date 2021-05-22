@@ -116,7 +116,7 @@ def save_metrics(name, metrics, dst = tev_dst):
 
 def process(district_data, level = "national"):
     """ run and save policy evaluation metrics """
-    (state, district), state_code, N_district, N_0, N_1, N_2, N_3, N_4, N_5, N_6 = district_data
+    (state, district), state_code, N_district, N_0, N_1, N_2, N_3, N_4, N_5, N_6, T_ratio = district_data
     N_jk = np.array([N_0, N_1, N_2, N_3, N_4, N_5, N_6])
     if level == "district":
         age_weight = N_jk/(N_jk.sum())
@@ -134,7 +134,7 @@ def process(district_data, level = "national"):
     phi_p0 = int(phi_points[0] * 365 * 100)
     cf_tag = f"{state_code}_{district}_phi{phi_p0}_novax"
     with np.load(src/(cf_tag + ".npz")) as counterfactual:
-        dI_pc_p0 = counterfactual['dT']/N_district
+        dI_pc_p0 = counterfactual['dT']/(N_district * T_ratio)
         dD_pc_p0 = counterfactual['dD']/N_district
         q_p0v0   = counterfactual["q0"]
         D_p0     = counterfactual["Dj"]
@@ -159,7 +159,7 @@ def process(district_data, level = "national"):
     ):
         p1_tag = f"{state_code}_{district}_phi{phi}_{vax_policy}"
         with np.load(src/(p1_tag + ".npz")) as policy:
-            dI_pc_p1 = policy['dT']/N_district
+            dI_pc_p1 = policy['dT']/(N_district * T_ratio)
             dD_pc_p1 = policy['dD']/N_district
             pi       = policy['pi'] 
             q_p1v1   = policy['q1']
@@ -183,12 +183,12 @@ def process(district_data, level = "national"):
         save_metrics("total_TEV_"        + p1_tag,  TEV_p1 * N_jk)
         save_metrics("total_VSLY_"       + p1_tag, VSLY_p1 * N_jk)
         save_metrics("VSL_"              + p1_tag, VSL)
-        # save_metrics("c_p0v0"            + p1_tag, c_p0v0)
-        # save_metrics("c_p1v0"            + p1_tag, c_p1v0)
-        # save_metrics("c_p1v1"            + p1_tag, c_p1v1)
-        # save_metrics("age_weight_c_p0v0" + p1_tag, age_weight * c_p0v0)
-        # save_metrics("age_weight_c_p1v0" + p1_tag, age_weight * c_p1v0)
-        # save_metrics("age_weight_c_p1v1" + p1_tag, age_weight * c_p1v1)
+        save_metrics("c_p0v0"            + p1_tag, c_p0v0)
+        save_metrics("c_p1v0"            + p1_tag, c_p1v0)
+        save_metrics("c_p1v1"            + p1_tag, c_p1v1)
+        save_metrics("age_weight_c_p0v0" + p1_tag, age_weight * c_p0v0)
+        save_metrics("age_weight_c_p1v0" + p1_tag, age_weight * c_p1v0)
+        save_metrics("age_weight_c_p1v1" + p1_tag, age_weight * c_p1v1)
 
         if phi == 50 and vax_policy == "random":
             save_metrics("dTEV_health_" + p1_tag, age_weight * dTEV_health)
@@ -198,7 +198,7 @@ def process(district_data, level = "national"):
             save_metrics("dTEV_extn_"   + p1_tag, age_weight * dTEV_extn)
 
 if __name__ == "__main__":
-    population_columns = ["state_code", "N_tot", 'N_0', 'N_1', 'N_2', 'N_3', 'N_4', 'N_5', 'N_6']
+    population_columns = ["state_code", "N_tot", 'N_0', 'N_1', 'N_2', 'N_3', 'N_4', 'N_5', 'N_6', 'T_ratio']
     distribute = False
     rerun = ['Andaman And Nicobar Islands', 'Dadra And Nagar Haveli And Daman And Diu', 'Delhi', 'Manipur', 'Mizoram']
     if distribute:
