@@ -1,13 +1,12 @@
 from pathlib import Path
-from typing import Dict, Optional, Sequence, Tuple
+from typing import Optional, Sequence
 
 import numpy as np
 import pandas as pd
-import requests
 
 from ..utils import assume_missing_0
 
-"""code to extract time series for COVID19India.org data"""
+""" tools to extract time series for COVID19India.org data """
 
 # states created after the 2001 census
 new_states = set("Telangana")

@@ -15,20 +15,22 @@ from matplotlib.pyplot import *
 
 from .models import SIR
 
-
 def normalize_dates(dates):
     try: 
         return [_.to_pydatetime().date() for _ in dates]
     except AttributeError:
         return dates
-_ = plt 
+
+_ = plt # make mpl package available in epimargin.plots
+
+# default settings
 sns.despine()
 mpl.rcParams["savefig.dpi"]     = 300
 mpl.rcParams["xtick.labelsize"] = "large"
 mpl.rcParams["ytick.labelsize"] = "large"
 mpl.rcParams["svg.fonttype"]    = "none"
-# palettes
 
+# palettes
 ## Rt
 ### core plot
 BLK    = "#292f36"
@@ -54,6 +56,7 @@ def rebuild_font_cache():
     import matplotlib.font_manager
     matplotlib.font_manager._rebuild()
 
+# container class for different themes
 Aesthetics = namedtuple(
     "Aesthetics", 
     ["title", "label", "note", "ticks", "style", "palette", "accent", "despine"]
@@ -238,9 +241,6 @@ class PlotDevice():
         kwargs["va"]       = kwargs.get("va", "bottom")
         kwargs["fontdict"] = kwargs.get("fontdict", theme.note)
         kwargs["color"]    = theme.accent
-        # kwargs["fontsize"]   = kwargs.get("fontsize",   theme.title["size"])
-        # kwargs["fontdict"]   = kwargs.get("fontdict",   theme.title)
-        # kwargs["fontweight"] = kwargs.get("fontweight", theme.title["weight"])
         plt.title(text, **kwargs)
         return self 
     
@@ -264,9 +264,9 @@ class PlotDevice():
         plt.show(**kwargs)
         return self 
 
-# plot all 4 curves
-def plot_SIRD(model: SIR) -> PlotDevice:
-    fig, axes = plt.subplots(1, 4, sharex = True, sharey = True)
+def plot_SIRD(model: SIR, layout = (1,  4)) -> PlotDevice:
+    """ plot all 4 available curves (S, I, R, D) for a given SIR  model """
+    fig, axes = plt.subplots(layout[0], layout[1], sharex = True, sharey = True)
     t = list(range(len(model.Rt)))
     for (ax, model) in zip(axes.flat, model.units):
         s = ax.semilogy(t, model.S, alpha=0.75, label="Susceptibles")
@@ -275,11 +275,11 @@ def plot_SIRD(model: SIR) -> PlotDevice:
         r = ax.semilogy(t, model.R, alpha=0.75, label="Recovered",  )
         ax.label_outer()
     
-    fig.legend([s, i, r, d], labels = ["S", "I", "R", "D"], loc="center right", borderaxespad=0.1)
+    fig.legend([s, i, r, d], labels = ["S", "I", "R", "D"], loc =  "center right", borderaxespad = 0.1)
     return PlotDevice(fig)
 
-# plot a single curve 
 def plot_curve(models: Sequence[SIR], labels: Sequence[str], curve: str = "I"):
+    """ plot specific epidemic curve """
     fig = plt.figure()
     for (model, label) in zip(models, labels):
         plt.semilogy(model.aggregate(curve), label = label, figure = fig)
@@ -288,6 +288,7 @@ def plot_curve(models: Sequence[SIR], labels: Sequence[str], curve: str = "I"):
     return PlotDevice(fig)
 
 def gantt_chart(gantt_data, start_date: Optional[str] = None, show_cbar = True):
+    """ create a Gantt chart showing adaptive control status (red/yellow/green) from set of simulations """
     gantt_df = pd.DataFrame(gantt_data, columns = ["district", "day", "beta", "R"])
     gantt_pv = gantt_df.pivot("district", "day", values = ["beta", "R"])
     if start_date:
@@ -331,6 +332,7 @@ def simulations(
     curve: str = "dT", 
     smoothing: Optional[np.ndarray] = None, 
     semilog: bool = True) -> PlotDevice:
+    """ plot simulation results for new daily cases and optionally show historical trends """
 
     aggregates = [tuple(model.aggregate(curve) for model in model_set) for model_set in simulation_results]
 
@@ -381,11 +383,9 @@ def simulations(
     return PlotDevice()
 
 def Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, CI, ymin = 0.5, ymax = 3, yaxis_colors = True, format_dates = True, critical_threshold = True, legend = True, legend_loc = "best"):
-    # dates = normalize_dates(dates)
+    """ plot Rt and associated confidence  intervals over time """
     CI_marker  = plt.fill_between(dates, Rt_CI_lower, Rt_CI_upper, color = BLK, alpha = 0.3)
     Rt_marker, = plt.plot(dates, Rt_pred, color = BLK, linewidth = 2, zorder = 5, solid_capstyle = "butt")
-    # plt.plot(dates, Rt_CI_lower, color = BLK, linewidth = 0.5, zorder = 5, solid_capstyle = "butt")
-    # plt.plot(dates, Rt_CI_upper, color = BLK, linewidth = 0.5, zorder = 5, solid_capstyle = "butt")
     if yaxis_colors: 
         plt.plot([dates[0], dates[0]], [2.5, ymax], color = RED, linewidth = 6, alpha = 0.9, solid_capstyle="butt", zorder = 10)
         plt.plot([dates[0], dates[0]], [1,    2.5], color = YLW, linewidth = 6, alpha = 0.9, solid_capstyle="butt", zorder = 10)
@@ -407,8 +407,7 @@ def Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, CI, ymin = 0.5, ymax = 3, yaxis
     return pd 
 
 def daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI, prediction_ts = None): 
-    # dates         = normalize_dates(dates)
-    # anomaly_dates = normalize_dates(anomaly_dates)
+    """ plots expected, smoothed cases from simulated annealing training """
     new_cases_dates = dates[-len(new_cases_ts):]
     exp_cases_dates = dates[-len(T_pred):]
     valid_idx   = [i for i in range(len(dates)) if dates[i] not in anomaly_dates] 
@@ -444,6 +443,7 @@ def daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dat
     return PlotDevice()
 
 def choropleth(gdf, label_fn = lambda _: "", col = "Rt", title = "$R_t$", label_kwargs = {}, mappable = sm, fig = None, ax = None):
+    """ display choropleth of locations by metric """
     gdf["pt"] = gdf["geometry"].centroid
     if not fig:
         fig, ax = plt.subplots()
@@ -473,6 +473,7 @@ def choropleth(gdf, label_fn = lambda _: "", col = "Rt", title = "$R_t$", label_
     return PlotDevice(fig)
 
 def double_choropleth(gdf, label_fn = lambda _: "", Rt_col = "Rt", Rt_proj_col = "Rt_proj", titles = ["Current $R_t$", "Projected $R_t$ (1 Week)"], arrangement = (1, 2), label_kwargs = {}, mappable = sm):
+    """ plot two choropleths side-by-side based on multiple metrics """
     gdf["pt"] = gdf["geometry"].centroid
     fig, (ax1, ax2) = plt.subplots(*arrangement)
     for (ax, title, col) in zip((ax1, ax2), titles, (Rt_col, Rt_proj_col)):
@@ -496,6 +497,7 @@ def double_choropleth(gdf, label_fn = lambda _: "", Rt_col = "Rt", Rt_proj_col =
     return PlotDevice(fig)
 
 def double_choropleth_v(*args, **kwargs):
+    """ plot two choropleths (one on top of the other) based on multiple metrics """
     kwargs["arrangement"] = (2, 1)
     return double_choropleth(*args, **kwargs)
 

@@ -5,14 +5,13 @@ import pandas as pd
 
 from .commons import download_data
 
+""" tools to download and load data from JHU's CSSE Covid tracker """
+
 CSSE_REPO_BASE_URL = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_daily_reports/"
 DATE_FMT = "%m-%d-%Y"
 
 DROP_SCHEMA_V1 = ["FIPS", "Admin2", "Last_Update", "Lat", "Long_", "Combined_Key", "Incidence_Rate", "Case-Fatality_Ratio", "Country_Region"]
-DROP_SCHEMA_V2 = ["FIPS", "Admin2", "Last_Update", "Lat", "Long_", "Combined_Key", "Incident_Rate", "Case_Fatality_Ratio", "Country_Region"]
-
-# def date_to_url(date: pd.Timestamp):
-#     return CSSE_REPO_BASE_URL/f"{date.strftime(DATE_FMT)}.csv"
+DROP_SCHEMA_V2 = ["FIPS", "Admin2", "Last_Update", "Lat", "Long_", "Combined_Key", "Incident_Rate",  "Case_Fatality_Ratio", "Country_Region"]
 
 def fetch(dst: Path, date: pd.Timestamp, overwrite: bool = False) -> None:
     filename = date.strftime(DATE_FMT) + ".csv"

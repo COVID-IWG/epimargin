@@ -8,8 +8,12 @@ from scipy.spatial import distance_matrix
 from scipy.stats import poisson, binom
 from .utils import normalize, fillna
 
+"""
+Stochastic epidemiological models for forward simulation.
+"""
+
 class SIR():
-    """ stochastic SIR model with external introductions """
+    """ stochastic SIR compartmental model with external introductions """
     def __init__(self, 
         name:                str,           # name of unit
         population:          int,           # unit population
@@ -117,7 +121,7 @@ class SIR():
         self.dT.append(num_cases)
         self.total_cases.append(I + R + D)
     
-    # parallel draws 
+    # parallel poisson draws for infection
     def parallel_forward_epi_step(self, dB: int = 0, num_sims = 10000): 
         # get previous state 
         S, I, R, D, N = (vector[-1].copy() for vector in (self.S, self.I, self.R, self.D, self.N))
@@ -165,7 +169,7 @@ class SIR():
         self.dT.append(num_cases)
         self.total_cases.append(I + R + D)
 
-    # parallel draws 
+    # parallel binomial draws for infection
     def parallel_forward_binom_step(self, dB: int = 0, num_sims = 10000): 
         # get previous state 
         S, I, R, D, N = (vector[-1].copy() for vector in (self.S, self.I, self.R, self.D, self.N))
@@ -219,6 +223,7 @@ class SIR():
         return f"[{self.name}]"
 
 class Age_SIRVD(SIR):
+    """ age-structured compartmental model with a vaccinated class for each age bin """
     def __init__(self,
         name:                str,           # name of unit
         population:          int,           # unit population
@@ -237,7 +242,7 @@ class Age_SIRVD(SIR):
         CI:                  float = 0.95,  # confidence interval
         num_age_bins:        int   = 7,     # number of age bins
         phi:                 float = 0.25,  # proportion of population vaccinated annually 
-        ve:                  float = 0.7,   # effectiveness
+        ve:                  float = 0.7,   # vaccine effectiveness
         random_seed:         int   = 0      # random seed,  
     ):
         super().__init__(name, population, dT0=dT0, Rt0=Rt0, I0=I0, R0=R0, D0=D0, infectious_period=infectious_period, introduction_rate=introduction_rate, mortality=mortality, mobility=mobility, upper_CI=upper_CI, lower_CI=lower_CI, CI=CI, random_seed=random_seed)
@@ -381,7 +386,7 @@ class Age_SIRVD(SIR):
         self.dV.append(dV)
 
 class NetworkedSIR():
-    """ implements cross-geography interactions between a set of SIR models """
+    """ composition of SIR models implementing cross-geography interactions """
     def __init__(self, units: Sequence[SIR], default_migrations: Optional[np.matrix] = None, random_seed : Optional[int] = None):
         self.units      = units
         self.migrations = default_migrations
@@ -574,6 +579,7 @@ class AR1():
         return self 
 
 class MigrationSpikeModel(NetworkedSIR):
+    """ networked SIR model simulating a population influx at a given time """
     def __init__(self, units: Sequence[SIR], introduction_time: Sequence[int], migratory_influx: Dict[str, int], default_migrations: Optional[np.matrix] = None, random_seed: Optional[int] = None):
         self.counter = 0
         self.migratory_influx  = migratory_influx 
