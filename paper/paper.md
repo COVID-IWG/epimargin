@@ -39,6 +39,18 @@ bibliography: paper.bib
 
 # Summary
 
+
+public health officials and policymakers must ask: what is the current situation? How is the situation likely to evolve? and, 
+
+The `epimargin` software package consists of: 
+1. a set of estimation procedures for epidemiological metrics such as the reproductive rate ($R_t$),
+
+2. a flexible, stochastic epidemiological model informed by estimated metrics and reflecting real-world epidemic and geographic structure, and 
+
+3. a set of tools to evaluate different public health policy choices simulated by the model.
+
+The software is implemented in the Python 3 programming language and is built using commonly-used elements of the Python data science ecosystem, including NumPy (REF), Scipy (REF), and Pandas (REF).
+
 <!-- The forces on stars, galaxies, and dark matter under external gravitational
 fields lead to the dynamical evolution of structures in the universe. The orbits
 of these bodies are therefore key to understanding the formation, history, and
@@ -50,6 +62,16 @@ efficient numerical tools, many of which require the same base code (e.g., for
 performing numerical orbit integration). -->
 
 # Statement of need
+
+- data-driven analysis of policy choices
+
+- data preparation choices made explicit and out of the box
+
+- modularity and extensibility of methods and model 
+
+- speed 
+
+- visualization
 
 <!-- `Gala` is an Astropy-affiliated Python package for galactic dynamics. Python
 enables wrapping low-level languages (e.g., C) for speed without losing
@@ -71,22 +93,25 @@ design, and support for Astropy functionality in `Gala` will enable exciting
 scientific explorations of forthcoming data releases from the *Gaia* mission
 [@gaia] by students and experts alike. -->
 
-# Mathematics
+# Comparison to Other Software Packages
+epiestim
+epiforecasts
+bubar
+practical considerations
+wallinga teunis
+cori
 
-Single dollars ($) are required for inline mathematics e.g. $f(x) = e^{\pi/x}$
+# Past and Ongoing Projects: 
 
-Double dollars make self-standing equations:
+1. migration, lockdown, and quarantine planning in India and Indonesia
 
-$$\Theta(x) = \left\{\begin{array}{l}
-0\textrm{ if } x < 0\cr
-1\textrm{ else}
-\end{array}\right.$$
+2. bayesian epi
 
-You can also use plain \LaTeX for equations
-\begin{equation}\label{eq:fourier}
-\hat f(\omega) = \int_{-\infty}^{\infty} f(x) e^{i\omega x} dx
-\end{equation}
-and refer to \autoref{eq:fourier} from text.
+3. adaptive control
+
+4. vaccinate south asia
+
+5. vaccine allocation
 
 # Citations
 
@@ -103,6 +128,14 @@ For a quick reference, the following citation commands can be used:
 - `[@author1:2001; @author2:2001]` -> "(Author1 et al., 2001; Author2 et al., 2002)" -->
 
 # Figures
+
+## downloaded and cleaned time series
+
+## estimated reproductive rate
+
+## forward projection
+
+## policy comparison
 
 <!-- Figures can be included like this:
 ![Caption for example figure.\label{fig:example}](figure.png)
