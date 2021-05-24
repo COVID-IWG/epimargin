@@ -68,7 +68,7 @@ def grid(flag):
 # container class for different theme
 Aesthetics = namedtuple(
     "Aesthetics", 
-    ["title", "label", "note", "ticks", "style", "palette", "accent", "despine"]
+    ["title", "label", "note", "ticks", "style", "palette", "accent", "despine", "framealpha", "handlelength"]
 )
 
 twitter_settings = Aesthetics(
@@ -79,7 +79,9 @@ twitter_settings = Aesthetics(
     style   = "white",
     accent  = "dimgrey",
     palette = "bright",
-    despine = True
+    despine = True,
+    framealpha = 0,
+    handlelength = 0.5
 )
 
 substack_settings = Aesthetics(
@@ -90,7 +92,9 @@ substack_settings = Aesthetics(
     style   = "white",
     accent  = "#8C8475",
     palette = "bright",
-    despine = True
+    despine = True,
+    framealpha = 0,
+    handlelength = 0.5
 )
 
 theme = default_settings = Aesthetics(
@@ -101,18 +105,22 @@ theme = default_settings = Aesthetics(
     style   = "whitegrid",
     palette = "bright",
     accent  = "dimgrey",
-    despine = False
+    despine = False,
+    framealpha = 1,
+    handlelength = 1
 )
 
 minimal_settings = Aesthetics(
     title   = {"size": 28, "family": "Helvetica Neue", "weight": "500"},
     label   = {"size": 20, "family": "Helvetica Neue", "weight": "500"},
     note    = {"size": 14, "family": "Helvetica Neue", "weight": "500"},
-    ticks   = {"size": 10, "family": "Helvetica Neue"},
+    ticks   = {"size": 12, "family": "Helvetica Neue"},
     style   = "white",
     palette = "bright",
     accent  = "dimgrey",
-    despine = True
+    despine = True,
+    framealpha = 0,
+    handlelength = 0.5
 )
 
 plt.rcParams['mathtext.default'] = 'regular'
@@ -267,10 +275,15 @@ class PlotDevice():
         return self
     
     def legend(self, *args, **kwargs):
-        kwargs["framealpha"]   = kwargs.get("framealpha",   0)
-        kwargs["handlelength"] = kwargs.get("handlelength", 0.5)
+        kwargs["framealpha"]   = kwargs.get("framealpha",   theme.framealpha)
+        kwargs["handlelength"] = kwargs.get("handlelength", theme.handlelength)
         plt.legend(*args, **kwargs)
         return self
+    
+    def format_xaxis(self, fmt = DATE_FMT):
+        plt.gca().xaxis.set_major_formatter(DATE_FMT)
+        plt.gca().xaxis.set_minor_formatter(DATE_FMT)
+        return self 
 
     def save(self, filename: Path, **kwargs):
         if str(filename).endswith("tex"):
@@ -348,6 +361,9 @@ def gantt_chart(gantt_data, start_date: Optional[str] = None, show_cbar = True):
 
     return PlotDevice()
 
+def model_comparison(models: Sequence[SIR], curve = "dT", reference = None):
+    pass 
+
 def simulations(
     simulation_results: Sequence[Tuple[SIR]], 
     labels: Sequence[str], 
@@ -398,7 +414,7 @@ def simulations(
     
     plt.gca().xaxis.set_major_formatter(DATE_FMT)
     plt.gca().xaxis.set_minor_formatter(DATE_FMT)
-    plt.legend(legends, legend_labels, prop = dict(size = 20), handlelength = 1, framealpha = 1, loc = "best")
+    plt.legend(legends, legend_labels, prop = dict(size = 20), handlelength = theme.handlelength, framealpha = theme.framealpha, loc = "best")
 
     plt.xlim(left = historical.index[0], right = t[-1])
     if semilog:
@@ -419,15 +435,15 @@ def Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, CI, ymin = 0.5, ymax = 3, yaxis
         plt.hlines(1, xmin=dates[0], xmax=dates[-1], zorder = 11, color = "black", linestyles = "dotted")
     plt.ylim(ymin, ymax)
     plt.xlim(left=dates[0], right=dates[-1])
+    pd = PlotDevice()
     if legend:
-        plt.legend([(CI_marker, Rt_marker)], [f"Estimated $R_t$ ({100*CI}% CI)"], prop = {'size': 12}, framealpha = 1, handlelength = 1, loc = "best")
+        pd.legend_props = dict(prop = {'size': theme.label["size"]}, framealpha = theme.framealpha, handlelength = theme.handlelength, loc = "best")
+        plt.legend([(CI_marker, Rt_marker)], [f"Estimated $R_t$ ({100*CI}% CI)"], **pd.legend_props)
     if format_dates:
         plt.gca().xaxis.set_major_formatter(DATE_FMT)
         plt.gca().xaxis.set_minor_formatter(DATE_FMT)
-    set_tick_size(14)
-    pd = PlotDevice()
+    set_tick_size(theme.ticks["size"])
     pd.markers = {"Rt" : (CI_marker, Rt_marker)}
-    pd.legend_props = dict(prop = {'size': 12}, framealpha = 1, handlelength = 1, loc = "best")
     return pd 
 
 def daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI, prediction_ts = None): 
@@ -460,7 +476,7 @@ def daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dat
     legends += [anomalies_marker]
     labels  += ["anomalies"]
     xlim(left = dates[0], right = end)
-    plt.legend(legends, labels, prop = {'size': 14}, framealpha = 1, handlelength = 1, loc = "best")
+    plt.legend(legends, labels, prop = {'size': 14}, framealpha = theme.framealpha, handlelength = theme.handlelength, loc = "best")
     plt.gca().xaxis.set_major_formatter(DATE_FMT)
     plt.gca().xaxis.set_minor_formatter(DATE_FMT)
     set_tick_size(14)
