@@ -40,7 +40,7 @@ bibliography: paper.bib
 # Summary
 As pandemics (including the COVID-19 crisis at time of writing) pose threats to societies, public health officials, epidemiologists, and policymakers need tools to assess the impact of disease, as well as a framework for understanding the effects and tradeoffs of health policy decisions. The `epimargin` package provides functionality to answer those questions in a way that incorporates irreducible uncertainty in both the input data and complex dynamics of disease propagation.  
 
-The `epimargin` software package consists of: 
+The `epimargin` software package primarily consists of: 
 
 1. a set of Bayesian estimation procedures for epidemiological metrics such as the reproductive rate ($R_t$), which is the average number of secondary infections caused by an active infection
 
@@ -52,16 +52,13 @@ The software is implemented in the Python 3 programming language and is built us
 
 # Statement of need
 
-- data-driven analysis of policy choices
+The `epimargin` software package is designed for the data-driven analysis of policy choices related to the spread of disease. It consists primarily of a set of estimators for key epidemiological metrics, a stochastic model for projecting disease dynamics, and evaluation tools for various policy scenarios. 
 
-- data preparation choices made explicit and out of the box
+Included with the package are connectors and download utilities for common sources of disease data for the COVID-19 pandemic (the pressing concern at time of writing), as well as a set of tools to prepare and clean data in a format amenable to analysis. It is widely understood that preprocessing epidemiological data is necessary to make inferences about disease progression [@gostic2020practical]. To that end, `epimargin` provides commonly-used preprocessing routines to encourage explicit documentation of data preparation,but is agnostic to which procedures are used due to the fact that all metadata required for certain preparations may not be uniformly available across geographies. 
 
-- modularity and extensibility of methods and model 
+This same modularity extends to both the the estimation procedures and epidemiological models provided by `epimargin`. While the package includes a novel Bayesian estimator for key metrics, classical approaches based on rolling linear regressions and Markov chain Monte Carlo sampling are also included. The core model class in `epimargin` in which these estimates are used is known as a <i>compartmental</i> model: a modeled population is split into a number of mutually-exclusive compartments (uninfected, infected, recovered, vaccinated, etc) and flows between these compartments are estimated from empirical data. The exact choice of compartments and interactions is left to the modeler, but the package includes several commonly-used models, as well as variations customized for specific policy questions (such as large-scale migration during pandemics, or the effects of various vaccine distribution policies).
 
-- speed 
-
-- visualization
-
+Attempts to use a compartmental model to drive policy decisions often treat the systems under study as deterministic and vary parameters such as the reproductive rate across a range deemed appropriate by the study authors [@bubar2012model]. This methodology complicates incorporation of recent disease data and the development of theories for why the reproductive rate changes due to socioeconomic factors external to the model. The incorporation of stochasticity into the models from the outset allows for the quantification of uncertainty and the illustration of a range of outcomes for a given public health policy under consideration.
 
 The `epimargin` package has been used to drive a number of research projects and inform policy decisions in a number of countries:
 
@@ -75,47 +72,18 @@ The `epimargin` package has been used to drive a number of research projects and
 
 5. a general framework for quantifying the health and economic benefits to guide vaccine prioritization and distribution [@vaccineallocation]
 
-<!-- `Gala` is an Astropy-affiliated Python package for galactic dynamics. Python
-enables wrapping low-level languages (e.g., C) for speed without losing
-flexibility or ease-of-use in the user-interface. The API for `Gala` was
-designed to provide a class-based and user-friendly interface to fast (C or
-Cython-optimized) implementations of common operations such as gravitational
-potential and force evaluation, orbit integration, dynamical transformations,
-and chaos indicators for nonlinear dynamics. `Gala` also relies heavily on and
-interfaces well with the implementations of physical units and astronomical
-coordinate systems in the `Astropy` package [@astropy] (`astropy.units` and
-`astropy.coordinates`).
-
-`Gala` was designed to be used by both astronomical researchers and by
-students in courses on gravitational dynamics or astronomy. It has already been
-used in a number of scientific publications [@Pearson:2017] and has also been
-used in graduate courses on Galactic dynamics to, e.g., provide interactive
-visualizations of textbook material [@Binney:2008]. The combination of speed,
-design, and support for Astropy functionality in `Gala` will enable exciting
-scientific explorations of forthcoming data releases from the *Gaia* mission
-[@gaia] by students and experts alike. -->
-
-# Comparison to other software packages
-epiestim
-epiforecasts
-bubar
-practical considerations
-wallinga teunis
-cori
 
 # Figures
 Sample output for common workflows are illustrated in the following figures:
 
 ## downloaded and cleaned time series
-![Raw and cleaned case count timeseries for Mumbai downloaded from COVID19India.org.\label{fig:fig1}](fig_1.png){width = 80%}
+![Raw and cleaned case count timeseries for Mumbai downloaded from COVID19India.org.\label{fig:fig1}](fig_1.png){ width=80% }
 
 ## estimated reproductive rate
-![Estimated reproductive rate over time for Mumbai](fig_2.png){width = 80%}
+![Estimated reproductive rate over time for Mumbai](fig_2.png){ width=80% }
 
 ## forward projection/policy comparison
-![Projected case counts using a stochastic compartmental model and reproductive rate estimates](fig_3.png){width = 80%}
-
-<!--![Caption for example figure.](figure.png){ width=20% } -->
+![Projected case counts using a stochastic compartmental model and reproductive rate estimates](fig_3.png){ width=80% }
 
 # Acknowledgements
 
