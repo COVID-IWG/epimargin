@@ -24,7 +24,7 @@ The `epimargin` package is available on PyPI and can be installed via `pip`:
     pip install epimargin
 
 ## development 
-To contribute, clone the repository, install in editable mode, and install the development dependencies: 
+To contribute, clone the repository, install the development dependencies, and install the package in editable mode: 
 
     git clone https://github.com/COVID-IWG/covid-metrics-infra 
     cd covid-metrics-infra 
@@ -35,7 +35,7 @@ To contribute, clone the repository, install in editable mode, and install the d
 We recommend using a virtual environment for development.
 
 # tutorial 
-In this tutorial, we will download data from COVID19India.org, estimate the reproductive rate over time, plug these estimates into a compartmental model, and compare two policy scenarios.
+In this tutorial, we will download a timeseries of daily confirmed COVID-19 cases in Mumbai from COVID19India.org, estimate the reproductive rate for the city over time, plug these estimates into a compartmental model, and compare two policy scenarios by running the compartmental model forward.
 
 ## download and clean data 
 ## estimate <i>R<sub>t</sub></i>

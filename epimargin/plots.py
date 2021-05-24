@@ -56,7 +56,16 @@ def rebuild_font_cache():
     import matplotlib.font_manager
     matplotlib.font_manager._rebuild()
 
-# container class for different themes
+def despine(**kwargs):
+    pass 
+
+def grid(flag):
+    if flag:
+        pass
+    else:
+        pass
+
+# container class for different theme
 Aesthetics = namedtuple(
     "Aesthetics", 
     ["title", "label", "note", "ticks", "style", "palette", "accent", "despine"]
@@ -84,7 +93,7 @@ substack_settings = Aesthetics(
     despine = True
 )
 
-themes = default_settings = Aesthetics(
+theme = default_settings = Aesthetics(
     title   = {"size": 28, "family": "Helvetica Neue", "weight": "500"},
     label   = {"size": 20, "family": "Helvetica Neue", "weight": "500"},
     note    = {"size": 14, "family": "Helvetica Neue", "weight": "500"},
@@ -95,25 +104,34 @@ themes = default_settings = Aesthetics(
     despine = False
 )
 
+minimal_settings = Aesthetics(
+    title   = {"size": 28, "family": "Helvetica Neue", "weight": "500"},
+    label   = {"size": 20, "family": "Helvetica Neue", "weight": "500"},
+    note    = {"size": 14, "family": "Helvetica Neue", "weight": "500"},
+    ticks   = {"size": 10, "family": "Helvetica Neue"},
+    style   = "white",
+    palette = "bright",
+    accent  = "dimgrey",
+    despine = True
+)
+
 plt.rcParams['mathtext.default'] = 'regular'
 DATE_FMT = mdates.DateFormatter('%d %b')
 bY_FMT   = mdates.DateFormatter('%b %Y')
 
 def set_theme(name):
     global theme
-    if name == "twitter":
+    if   name == "twitter":
         theme = twitter_settings
-        plt.rc("axes.spines", top = False, right = False)
-
     elif name == "substack":
         theme = substack_settings
-        plt.rc("axes.spines", top = False, right = False)
-    
+    elif name == "minimal":
+        theme = minimal_settings
     else: # default 
         theme = default_settings
     sns.set(style = theme.style, palette = theme.palette, font = theme.ticks["family"])
     mpl.rcParams.update({"font.size": 22})
-    if theme in ["twitter", "substack"]:
+    if theme.despine:
         plt.rc("axes.spines", top = False, right = False)
     return theme
 
@@ -246,6 +264,12 @@ class PlotDevice():
     
     def size(self, w, h):
         self.figure.set_size_inches(w, h)
+        return self
+    
+    def legend(self, *args, **kwargs):
+        kwargs["framealpha"]   = kwargs.get("framealpha",   0)
+        kwargs["handlelength"] = kwargs.get("handlelength", 0.5)
+        plt.legend(*args, **kwargs)
         return self
 
     def save(self, filename: Path, **kwargs):

@@ -73,6 +73,19 @@ performing numerical orbit integration). -->
 
 - visualization
 
+
+The `epimargin` package has been used to drive a number of research projects and inform policy decisions in a number of countries:
+
+1. migration, lockdown, and quarantine planning in India and Indonesia
+
+2. bayesian epi
+
+3. adaptive control
+
+4. vaccinate south asia
+
+5. vaccine allocation
+
 <!-- `Gala` is an Astropy-affiliated Python package for galactic dynamics. Python
 enables wrapping low-level languages (e.g., C) for speed without losing
 flexibility or ease-of-use in the user-interface. The API for `Gala` was
@@ -93,25 +106,13 @@ design, and support for Astropy functionality in `Gala` will enable exciting
 scientific explorations of forthcoming data releases from the *Gaia* mission
 [@gaia] by students and experts alike. -->
 
-# Comparison to Other Software Packages
+# Comparison to other software packages
 epiestim
 epiforecasts
 bubar
 practical considerations
 wallinga teunis
 cori
-
-# Past and Ongoing Projects: 
-
-1. migration, lockdown, and quarantine planning in India and Indonesia
-
-2. bayesian epi
-
-3. adaptive control
-
-4. vaccinate south asia
-
-5. vaccine allocation
 
 # Citations
 
