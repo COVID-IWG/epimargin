@@ -47,7 +47,7 @@ def process(district_data):
     (
         (state, district), state_code, 
         sero_0, N_0, sero_1, N_1, sero_2, N_2, sero_3, N_3, sero_4, N_4, sero_5, N_5, sero_6, N_6, N_tot, 
-        Rt, Rt_upper, Rt_lower, S0, I0, R0, D0, dT0, dD0, V0, T_ratio, R_ratio
+        Rt, Rt_upper, Rt_lower, S0, I0, R0, D0, dT0, dD0, V0, T_ratio
     ) = district_data
     try: 
         S0 = int(S0)
