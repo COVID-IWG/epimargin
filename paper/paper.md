@@ -41,6 +41,7 @@ bibliography: paper.bib
 As pandemics (including the COVID-19 crisis at time of writing) pose threats to societies, public health officials, epidemiologists, and policymakers need tools to assess the impact of disease, as well as a framework for understanding the effects and tradeoffs of health policy decisions. The `epimargin` package provides functionality to answer those questions in a way that incorporates irreducible uncertainty in both the input data and complex dynamics of disease propagation.  
 
 The `epimargin` software package consists of: 
+
 1. a set of Bayesian estimation procedures for epidemiological metrics such as the reproductive rate ($R_t$), which is the average number of secondary infections caused by an active infection
 
 2. a flexible, stochastic epidemiological model informed by estimated metrics and reflecting real-world epidemic and geographic structure, and 
@@ -66,13 +67,13 @@ The `epimargin` package has been used to drive a number of research projects and
 
 1. lockdown, quarantine planning, migrant return policies, and vaccine distribution in India and Indonesia (at the behest of national governments, regional authorities, and various NGOs)
 
-2. Bettencourt, Luis, and Satej Soman. "Systems Architecture for Real Time Epidemiological Prediction and Control." Mansueto Institute for Urban Innovation Research Paper 26 (2020). [@bettencourt2020systems]
+2. an illustration of a novel Bayesian estimator for the reproductive rate as well as general architectural principles for real-time epidemiological systems [@bettencourt2020systems]
 
-3. Malani, Anup, Satej Soman, Sam Asher, Paul Novosad, Clement Imbert, Vaidehi Tandel, Anish Agarwal et al. Adaptive control of COVID-19 outbreaks in india: Local, gradual, and trigger-based exit paths from lockdown. No. w27532. National Bureau of Economic Research, 2020. [@malani2020adaptive]
+3. a trigger-based algorithmic policy for determining when administrative units of a country should exit or return to a pandemic lockdown based on projected reproductive rates and case counts [@malani2020adaptive]
 
-4. World Bank. 2021. South Asia Economic Focus, Spring 2021 : South Asia Vaccinates. Washington, DC: World Bank. © World Bank. https://openknowledge.worldbank.org/handle/10986/35274 License: CC BY 3.0 IGO. [@southasiavaccinates]
+4. a World Bank study of vaccination policies in South Asia [@southasiavaccinates]
 
-5. Malani, Anup, Satej Soman, Sabareesh Ramachandran, Alice Chen, Darius Lakdawalla. "Vaccine Allocation Priorities Using Disease Surveillance and Economic Data." (forthcoming) [@vaccineallocation]
+5. a general framework for quantifying the health and economic benefits to guide vaccine prioritization and distribution [@vaccineallocation]
 
 <!-- `Gala` is an Astropy-affiliated Python package for galactic dynamics. Python
 enables wrapping low-level languages (e.g., C) for speed without losing
@@ -102,36 +103,18 @@ practical considerations
 wallinga teunis
 cori
 
-# Citations
-
-<!-- Citations to entries in paper.bib should be in
-[rMarkdown](http://rmarkdown.rstudio.com/authoring_bibliographies_and_citations.html)
-format.
-
-If you want to cite a software repository URL (e.g. something on GitHub without a preferred
-citation) then you can do it with the example BibTeX entry below for @fidgit.
-
-For a quick reference, the following citation commands can be used:
-- `@author:2001`  ->  "Author et al. (2001)"
-- `[@author:2001]` -> "(Author et al., 2001)"
-- `[@author1:2001; @author2:2001]` -> "(Author1 et al., 2001; Author2 et al., 2002)" -->
-
 # Figures
-
+Sample output for common workflows are illustrated in the following figures:
 ## downloaded and cleaned time series
+![Raw and cleaned case count timeseries for Mumbai downloaded from COVID19India.org.\label{fig:fig1}](fig_1.svg)
 
 ## estimated reproductive rate
+![Estimated reproductive rate over time for Mumbai](fig_2.svg)
 
-## forward projection
+## forward projection/policy comparison
+![Projected case counts using a stochastic compartmental model and reproductive rate estimates](fig_3.svg)
 
-## policy comparison
-
-<!-- Figures can be included like this:
-![Caption for example figure.\label{fig:example}](figure.png)
-and referenced from text using \autoref{fig:example}.
-
-Figure sizes can be customized by adding an optional second parameter:
-![Caption for example figure.](figure.png){ width=20% } -->
+<!--![Caption for example figure.](figure.png){ width=20% } -->
 
 # Acknowledgements
 
