@@ -106,13 +106,13 @@ cori
 # Figures
 Sample output for common workflows are illustrated in the following figures:
 ## downloaded and cleaned time series
-![Raw and cleaned case count timeseries for Mumbai downloaded from COVID19India.org.\label{fig:fig1}](fig_1.svg)
+![Raw and cleaned case count timeseries for Mumbai downloaded from COVID19India.org.\label{fig:fig1}](fig_1.png)
 
 ## estimated reproductive rate
-![Estimated reproductive rate over time for Mumbai](fig_2.svg)
+![Estimated reproductive rate over time for Mumbai](fig_2.png)
 
 ## forward projection/policy comparison
-![Projected case counts using a stochastic compartmental model and reproductive rate estimates](fig_3.svg)
+![Projected case counts using a stochastic compartmental model and reproductive rate estimates](fig_3.png)
 
 <!--![Caption for example figure.](figure.png){ width=20% } -->
 
