@@ -38,28 +38,16 @@ bibliography: paper.bib
 ---
 
 # Summary
-
-
-public health officials and policymakers must ask: what is the current situation? How is the situation likely to evolve? and, 
+As pandemics (including the COVID-19 crisis at time of writing) pose threats to societies, public health officials, epidemiologists, and policymakers need tools to assess the impact of disease, as well as a framework for understanding the effects and tradeoffs of health policy decisions. The `epimargin` package provides functionality to answer those questions in a way that incorporates irreducible uncertainty in both the input data and complex dynamics of disease propagation.  
 
 The `epimargin` software package consists of: 
-1. a set of estimation procedures for epidemiological metrics such as the reproductive rate ($R_t$),
+1. a set of Bayesian estimation procedures for epidemiological metrics such as the reproductive rate ($R_t$), which is the average number of secondary infections caused by an active infection
 
 2. a flexible, stochastic epidemiological model informed by estimated metrics and reflecting real-world epidemic and geographic structure, and 
 
 3. a set of tools to evaluate different public health policy choices simulated by the model.
 
-The software is implemented in the Python 3 programming language and is built using commonly-used elements of the Python data science ecosystem, including NumPy (REF), Scipy (REF), and Pandas (REF).
-
-<!-- The forces on stars, galaxies, and dark matter under external gravitational
-fields lead to the dynamical evolution of structures in the universe. The orbits
-of these bodies are therefore key to understanding the formation, history, and
-future state of galaxies. The field of "galactic dynamics," which aims to model
-the gravitating components of galaxies to study their structure and evolution,
-is now well-established, commonly taught, and frequently used in astronomy.
-Aside from toy problems and demonstrations, the majority of problems require
-efficient numerical tools, many of which require the same base code (e.g., for
-performing numerical orbit integration). -->
+The software is implemented in the Python 3 programming language and is built using commonly-used elements of the Python data science ecosystem, including NumPy [@harris2020array], Scipy [@virtanen2020scipy], and Pandas [@mckinney2011pandas].
 
 # Statement of need
 
@@ -76,15 +64,15 @@ performing numerical orbit integration). -->
 
 The `epimargin` package has been used to drive a number of research projects and inform policy decisions in a number of countries:
 
-1. migration, lockdown, and quarantine planning in India and Indonesia
+1. lockdown, quarantine planning, migrant return policies, and vaccine distribution in India and Indonesia (at the behest of national governments, regional authorities, and various NGOs)
 
-2. bayesian epi
+2. Bettencourt, Luis, and Satej Soman. "Systems Architecture for Real Time Epidemiological Prediction and Control." Mansueto Institute for Urban Innovation Research Paper 26 (2020). [@bettencourt2020systems]
 
-3. adaptive control
+3. Malani, Anup, Satej Soman, Sam Asher, Paul Novosad, Clement Imbert, Vaidehi Tandel, Anish Agarwal et al. Adaptive control of COVID-19 outbreaks in india: Local, gradual, and trigger-based exit paths from lockdown. No. w27532. National Bureau of Economic Research, 2020. [@malani2020adaptive]
 
-4. vaccinate south asia
+4. World Bank. 2021. South Asia Economic Focus, Spring 2021 : South Asia Vaccinates. Washington, DC: World Bank. © World Bank. https://openknowledge.worldbank.org/handle/10986/35274 License: CC BY 3.0 IGO. [@southasiavaccinates]
 
-5. vaccine allocation
+5. Malani, Anup, Satej Soman, Sabareesh Ramachandran, Alice Chen, Darius Lakdawalla. "Vaccine Allocation Priorities Using Disease Surveillance and Economic Data." (forthcoming) [@vaccineallocation]
 
 <!-- `Gala` is an Astropy-affiliated Python package for galactic dynamics. Python
 enables wrapping low-level languages (e.g., C) for speed without losing
