@@ -361,8 +361,11 @@ def gantt_chart(gantt_data, start_date: Optional[str] = None, show_cbar = True):
 
     return PlotDevice()
 
-def model_comparison(models: Sequence[SIR], curve = "dT", reference = None):
-    pass 
+def predictions(date_range, model, color, bounds = [2.5, 97.5], curve = "dT"):
+    mdn, min_, max_ = zip(*[np.percentile(_, [50] + bounds) for _ in model.__getattribute__(curve)])
+    range_marker   = plt.fill_between(date_range, min_, max_, color = color, alpha = 0.3)
+    median_marker, = plt.plot(date_range, mdn, color = color)
+    return [(range_marker, median_marker), model.name]
 
 def simulations(
     simulation_results: Sequence[Tuple[SIR]], 
@@ -437,7 +440,7 @@ def Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, CI, ymin = 0.5, ymax = 3, yaxis
     plt.xlim(left=dates[0], right=dates[-1])
     pd = PlotDevice()
     if legend:
-        pd.legend_props = dict(prop = {'size': theme.label["size"]}, framealpha = theme.framealpha, handlelength = theme.handlelength, loc = "best")
+        pd.legend_props = dict(framealpha = theme.framealpha, handlelength = theme.handlelength, loc = legend_loc)
         plt.legend([(CI_marker, Rt_marker)], [f"Estimated $R_t$ ({100*CI}% CI)"], **pd.legend_props)
     if format_dates:
         plt.gca().xaxis.set_major_formatter(DATE_FMT)
