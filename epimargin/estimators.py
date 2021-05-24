@@ -153,6 +153,7 @@ def analytical_MPVS(
     )
 
 def parametric_scheme_mcmc(daily_cases, CI = 0.95, gamma = 0.2, chains = 4, tune = 1000, draws = 1000, **kwargs):
+    """ Implements the Bettencourt/Soman parametric scheme via MCMC sampling """
     if isinstance(daily_cases, (pd.DataFrame, pd.Series)):
         case_values = daily_cases.values
     else: 
@@ -162,11 +163,6 @@ def parametric_scheme_mcmc(daily_cases, CI = 0.95, gamma = 0.2, chains = 4, tune
         dT_lag0 = case_values[1:]
         dT_lag1 = case_values[:-1]
         n = len(dT_lag0)
-
-        # set up distributions 
-        # alpha   = 3 + dT_lag0.cumsum()
-        # beta_L  = 2 + np.array(range(len(dT_lag0)))
-        # beta_b  = 2 + dT_lag1.cumsum()
 
         dT = pm.Poisson("dT", mu = dT_lag0, shape = (n,))
         bt = pm.Gamma("bt", alpha = dT_lag0.cumsum(), beta = 0.0001 + dT_lag1.cumsum(), shape = (n,))
@@ -199,10 +195,6 @@ def branching_random_walk(daily_cases, CI = 0.95, gamma = 0.2, chains = 4, tune 
     
         trace = pm.sample(model = mcmc_model, chains = chains, tune = tune, draws = draws, cores = 1, **kwargs)
         return (mcmc_model, trace, pm.summary(trace, hdi_prob = CI))
-
-def branching_GP(daily_cases, CI = 0.95, gamma = 0.2, chains = 4, tune = 1000, draws = 1000, **kwargs):
-    """ estimate Rt using a Gaussian process prior for the branch parameter """
-    pass 
 
 def linear_projection(dates, R_values, smoothing, period = 7*days):
     """ return 7-day linear projection """

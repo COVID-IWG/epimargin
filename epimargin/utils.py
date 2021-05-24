@@ -2,11 +2,12 @@ import argparse
 import logging
 import sys
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Tuple
 
 import numpy as np
 import pandas as pd
 
+# code readability
 days     = 1
 weeks    = 7 
 years    = 365
@@ -21,13 +22,14 @@ def cwd() -> Path:
     return Path(argv0).resolve().parent
         
 def fmt_params(**kwargs) -> str:
+    """  get useful experiment tag from a dictionary of experiment settings """
     return ", ".join(f"{k.replace('_', ' ')}: {v}" for (k, v) in kwargs.items())
 
 def assume_missing_0(df: pd.DataFrame, col: str):
     return df[col] if col in df.columns else 0
 
 def mkdir(p: Path, exist_ok: bool = True) -> Path:
-    p.mkdir(exist_ok=exist_ok)
+    p.mkdir(exist_ok = exist_ok)
     return p
 
 def setup(**kwargs) -> Tuple[Path]:
@@ -39,7 +41,7 @@ def setup(**kwargs) -> Tuple[Path]:
         kwargs["level"] = flags.level
     logging.basicConfig(**kwargs)
     logging.getLogger('flat_table').addFilter(lambda _: 0)
-    return (mkdir(root/"data"), mkdir(root/"figs"))
+    return (mkdir(root / "data"), mkdir(root / "figs"))
 
 def fillna(array):
     return np.nan_to_num(array, nan = 0, posinf = 0, neginf = 0)

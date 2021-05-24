@@ -15,20 +15,22 @@ from matplotlib.pyplot import *
 
 from .models import SIR
 
-
 def normalize_dates(dates):
     try: 
         return [_.to_pydatetime().date() for _ in dates]
     except AttributeError:
         return dates
-_ = plt 
+
+_ = plt # make mpl package available in epimargin.plots
+
+# default settings
 sns.despine()
 mpl.rcParams["savefig.dpi"]     = 300
 mpl.rcParams["xtick.labelsize"] = "large"
 mpl.rcParams["ytick.labelsize"] = "large"
 mpl.rcParams["svg.fonttype"]    = "none"
-# palettes
 
+# palettes
 ## Rt
 ### core plot
 BLK    = "#292f36"
@@ -54,9 +56,19 @@ def rebuild_font_cache():
     import matplotlib.font_manager
     matplotlib.font_manager._rebuild()
 
+def despine(**kwargs):
+    pass 
+
+def grid(flag):
+    if flag:
+        pass
+    else:
+        pass
+
+# container class for different theme
 Aesthetics = namedtuple(
     "Aesthetics", 
-    ["title", "label", "note", "ticks", "style", "palette", "accent", "despine"]
+    ["title", "label", "note", "ticks", "style", "palette", "accent", "despine", "framealpha", "handlelength"]
 )
 
 twitter_settings = Aesthetics(
@@ -67,7 +79,9 @@ twitter_settings = Aesthetics(
     style   = "white",
     accent  = "dimgrey",
     palette = "bright",
-    despine = True
+    despine = True,
+    framealpha = 0,
+    handlelength = 0.5
 )
 
 substack_settings = Aesthetics(
@@ -78,10 +92,12 @@ substack_settings = Aesthetics(
     style   = "white",
     accent  = "#8C8475",
     palette = "bright",
-    despine = True
+    despine = True,
+    framealpha = 0,
+    handlelength = 0.5
 )
 
-themes = default_settings = Aesthetics(
+theme = default_settings = Aesthetics(
     title   = {"size": 28, "family": "Helvetica Neue", "weight": "500"},
     label   = {"size": 20, "family": "Helvetica Neue", "weight": "500"},
     note    = {"size": 14, "family": "Helvetica Neue", "weight": "500"},
@@ -89,7 +105,22 @@ themes = default_settings = Aesthetics(
     style   = "whitegrid",
     palette = "bright",
     accent  = "dimgrey",
-    despine = False
+    despine = False,
+    framealpha = 1,
+    handlelength = 1
+)
+
+minimal_settings = Aesthetics(
+    title   = {"size": 28, "family": "Helvetica Neue", "weight": "500"},
+    label   = {"size": 20, "family": "Helvetica Neue", "weight": "500"},
+    note    = {"size": 14, "family": "Helvetica Neue", "weight": "500"},
+    ticks   = {"size": 12, "family": "Helvetica Neue"},
+    style   = "white",
+    palette = "bright",
+    accent  = "dimgrey",
+    despine = True,
+    framealpha = 0,
+    handlelength = 0.5
 )
 
 plt.rcParams['mathtext.default'] = 'regular'
@@ -98,19 +129,17 @@ bY_FMT   = mdates.DateFormatter('%b %Y')
 
 def set_theme(name):
     global theme
-    if name == "twitter":
+    if   name == "twitter":
         theme = twitter_settings
-        plt.rc("axes.spines", top = False, right = False)
-
     elif name == "substack":
         theme = substack_settings
-        plt.rc("axes.spines", top = False, right = False)
-    
+    elif name == "minimal":
+        theme = minimal_settings
     else: # default 
         theme = default_settings
     sns.set(style = theme.style, palette = theme.palette, font = theme.ticks["family"])
     mpl.rcParams.update({"font.size": 22})
-    if theme in ["twitter", "substack"]:
+    if theme.despine:
         plt.rc("axes.spines", top = False, right = False)
     return theme
 
@@ -238,15 +267,23 @@ class PlotDevice():
         kwargs["va"]       = kwargs.get("va", "bottom")
         kwargs["fontdict"] = kwargs.get("fontdict", theme.note)
         kwargs["color"]    = theme.accent
-        # kwargs["fontsize"]   = kwargs.get("fontsize",   theme.title["size"])
-        # kwargs["fontdict"]   = kwargs.get("fontdict",   theme.title)
-        # kwargs["fontweight"] = kwargs.get("fontweight", theme.title["weight"])
         plt.title(text, **kwargs)
         return self 
     
     def size(self, w, h):
         self.figure.set_size_inches(w, h)
         return self
+    
+    def legend(self, *args, **kwargs):
+        kwargs["framealpha"]   = kwargs.get("framealpha",   theme.framealpha)
+        kwargs["handlelength"] = kwargs.get("handlelength", theme.handlelength)
+        plt.legend(*args, **kwargs)
+        return self
+    
+    def format_xaxis(self, fmt = DATE_FMT):
+        plt.gca().xaxis.set_major_formatter(DATE_FMT)
+        plt.gca().xaxis.set_minor_formatter(DATE_FMT)
+        return self 
 
     def save(self, filename: Path, **kwargs):
         if str(filename).endswith("tex"):
@@ -264,9 +301,9 @@ class PlotDevice():
         plt.show(**kwargs)
         return self 
 
-# plot all 4 curves
-def plot_SIRD(model: SIR) -> PlotDevice:
-    fig, axes = plt.subplots(1, 4, sharex = True, sharey = True)
+def plot_SIRD(model: SIR, layout = (1,  4)) -> PlotDevice:
+    """ plot all 4 available curves (S, I, R, D) for a given SIR  model """
+    fig, axes = plt.subplots(layout[0], layout[1], sharex = True, sharey = True)
     t = list(range(len(model.Rt)))
     for (ax, model) in zip(axes.flat, model.units):
         s = ax.semilogy(t, model.S, alpha=0.75, label="Susceptibles")
@@ -275,11 +312,11 @@ def plot_SIRD(model: SIR) -> PlotDevice:
         r = ax.semilogy(t, model.R, alpha=0.75, label="Recovered",  )
         ax.label_outer()
     
-    fig.legend([s, i, r, d], labels = ["S", "I", "R", "D"], loc="center right", borderaxespad=0.1)
+    fig.legend([s, i, r, d], labels = ["S", "I", "R", "D"], loc =  "center right", borderaxespad = 0.1)
     return PlotDevice(fig)
 
-# plot a single curve 
 def plot_curve(models: Sequence[SIR], labels: Sequence[str], curve: str = "I"):
+    """ plot specific epidemic curve """
     fig = plt.figure()
     for (model, label) in zip(models, labels):
         plt.semilogy(model.aggregate(curve), label = label, figure = fig)
@@ -288,6 +325,7 @@ def plot_curve(models: Sequence[SIR], labels: Sequence[str], curve: str = "I"):
     return PlotDevice(fig)
 
 def gantt_chart(gantt_data, start_date: Optional[str] = None, show_cbar = True):
+    """ create a Gantt chart showing adaptive control status (red/yellow/green) from set of simulations """
     gantt_df = pd.DataFrame(gantt_data, columns = ["district", "day", "beta", "R"])
     gantt_pv = gantt_df.pivot("district", "day", values = ["beta", "R"])
     if start_date:
@@ -323,6 +361,12 @@ def gantt_chart(gantt_data, start_date: Optional[str] = None, show_cbar = True):
 
     return PlotDevice()
 
+def predictions(date_range, model, color, bounds = [2.5, 97.5], curve = "dT"):
+    mdn, min_, max_ = zip(*[np.percentile(_, [50] + bounds) for _ in model.__getattribute__(curve)])
+    range_marker   = plt.fill_between(date_range, min_, max_, color = color, alpha = 0.3)
+    median_marker, = plt.plot(date_range, mdn, color = color)
+    return [(range_marker, median_marker), model.name]
+
 def simulations(
     simulation_results: Sequence[Tuple[SIR]], 
     labels: Sequence[str], 
@@ -331,6 +375,7 @@ def simulations(
     curve: str = "dT", 
     smoothing: Optional[np.ndarray] = None, 
     semilog: bool = True) -> PlotDevice:
+    """ plot simulation results for new daily cases and optionally show historical trends """
 
     aggregates = [tuple(model.aggregate(curve) for model in model_set) for model_set in simulation_results]
 
@@ -372,7 +417,7 @@ def simulations(
     
     plt.gca().xaxis.set_major_formatter(DATE_FMT)
     plt.gca().xaxis.set_minor_formatter(DATE_FMT)
-    plt.legend(legends, legend_labels, prop = dict(size = 20), handlelength = 1, framealpha = 1, loc = "best")
+    plt.legend(legends, legend_labels, prop = dict(size = 20), handlelength = theme.handlelength, framealpha = theme.framealpha, loc = "best")
 
     plt.xlim(left = historical.index[0], right = t[-1])
     if semilog:
@@ -381,11 +426,9 @@ def simulations(
     return PlotDevice()
 
 def Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, CI, ymin = 0.5, ymax = 3, yaxis_colors = True, format_dates = True, critical_threshold = True, legend = True, legend_loc = "best"):
-    # dates = normalize_dates(dates)
+    """ plot Rt and associated confidence  intervals over time """
     CI_marker  = plt.fill_between(dates, Rt_CI_lower, Rt_CI_upper, color = BLK, alpha = 0.3)
     Rt_marker, = plt.plot(dates, Rt_pred, color = BLK, linewidth = 2, zorder = 5, solid_capstyle = "butt")
-    # plt.plot(dates, Rt_CI_lower, color = BLK, linewidth = 0.5, zorder = 5, solid_capstyle = "butt")
-    # plt.plot(dates, Rt_CI_upper, color = BLK, linewidth = 0.5, zorder = 5, solid_capstyle = "butt")
     if yaxis_colors: 
         plt.plot([dates[0], dates[0]], [2.5, ymax], color = RED, linewidth = 6, alpha = 0.9, solid_capstyle="butt", zorder = 10)
         plt.plot([dates[0], dates[0]], [1,    2.5], color = YLW, linewidth = 6, alpha = 0.9, solid_capstyle="butt", zorder = 10)
@@ -395,20 +438,19 @@ def Rt(dates, Rt_pred, Rt_CI_upper, Rt_CI_lower, CI, ymin = 0.5, ymax = 3, yaxis
         plt.hlines(1, xmin=dates[0], xmax=dates[-1], zorder = 11, color = "black", linestyles = "dotted")
     plt.ylim(ymin, ymax)
     plt.xlim(left=dates[0], right=dates[-1])
+    pd = PlotDevice()
     if legend:
-        plt.legend([(CI_marker, Rt_marker)], [f"Estimated $R_t$ ({100*CI}% CI)"], prop = {'size': 12}, framealpha = 1, handlelength = 1, loc = "best")
+        pd.legend_props = dict(framealpha = theme.framealpha, handlelength = theme.handlelength, loc = legend_loc)
+        plt.legend([(CI_marker, Rt_marker)], [f"Estimated $R_t$ ({100*CI}% CI)"], **pd.legend_props)
     if format_dates:
         plt.gca().xaxis.set_major_formatter(DATE_FMT)
         plt.gca().xaxis.set_minor_formatter(DATE_FMT)
-    set_tick_size(14)
-    pd = PlotDevice()
+    set_tick_size(theme.ticks["size"])
     pd.markers = {"Rt" : (CI_marker, Rt_marker)}
-    pd.legend_props = dict(prop = {'size': 12}, framealpha = 1, handlelength = 1, loc = "best")
     return pd 
 
 def daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dates, anomalies, CI, prediction_ts = None): 
-    # dates         = normalize_dates(dates)
-    # anomaly_dates = normalize_dates(anomaly_dates)
+    """ plots expected, smoothed cases from simulated annealing training """
     new_cases_dates = dates[-len(new_cases_ts):]
     exp_cases_dates = dates[-len(T_pred):]
     valid_idx   = [i for i in range(len(dates)) if dates[i] not in anomaly_dates] 
@@ -437,13 +479,14 @@ def daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dat
     legends += [anomalies_marker]
     labels  += ["anomalies"]
     xlim(left = dates[0], right = end)
-    plt.legend(legends, labels, prop = {'size': 14}, framealpha = 1, handlelength = 1, loc = "best")
+    plt.legend(legends, labels, prop = {'size': 14}, framealpha = theme.framealpha, handlelength = theme.handlelength, loc = "best")
     plt.gca().xaxis.set_major_formatter(DATE_FMT)
     plt.gca().xaxis.set_minor_formatter(DATE_FMT)
     set_tick_size(14)
     return PlotDevice()
 
 def choropleth(gdf, label_fn = lambda _: "", col = "Rt", title = "$R_t$", label_kwargs = {}, mappable = sm, fig = None, ax = None):
+    """ display choropleth of locations by metric """
     gdf["pt"] = gdf["geometry"].centroid
     if not fig:
         fig, ax = plt.subplots()
@@ -473,6 +516,7 @@ def choropleth(gdf, label_fn = lambda _: "", col = "Rt", title = "$R_t$", label_
     return PlotDevice(fig)
 
 def double_choropleth(gdf, label_fn = lambda _: "", Rt_col = "Rt", Rt_proj_col = "Rt_proj", titles = ["Current $R_t$", "Projected $R_t$ (1 Week)"], arrangement = (1, 2), label_kwargs = {}, mappable = sm):
+    """ plot two choropleths side-by-side based on multiple metrics """
     gdf["pt"] = gdf["geometry"].centroid
     fig, (ax1, ax2) = plt.subplots(*arrangement)
     for (ax, title, col) in zip((ax1, ax2), titles, (Rt_col, Rt_proj_col)):
@@ -496,6 +540,7 @@ def double_choropleth(gdf, label_fn = lambda _: "", Rt_col = "Rt", Rt_proj_col =
     return PlotDevice(fig)
 
 def double_choropleth_v(*args, **kwargs):
+    """ plot two choropleths (one on top of the other) based on multiple metrics """
     kwargs["arrangement"] = (2, 1)
     return double_choropleth(*args, **kwargs)
 

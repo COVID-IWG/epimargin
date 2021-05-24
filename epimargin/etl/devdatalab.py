@@ -4,7 +4,7 @@ from typing import Dict, Sequence
 import numpy as np
 import pandas as pd
 
-"""set up migration matrices from DDL matrix data"""
+""" set up migration matrices from DDL matrix data """
 
 district_2011_replacements = {
     'Maharashtra' : {

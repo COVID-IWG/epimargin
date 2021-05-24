@@ -10,16 +10,12 @@ from scipy.stats import multinomial as Multinomial
 from .models import SIR
 from .utils import weeks
 
-
-def fillna(array):
-    return np.nan_to_num(array, nan = 0, posinf = 0, neginf = 0)
-
 def AUC(curve):
     return auc(x = range(len(curve)), y = curve)
 
 # Adaptive Control policies
-
 def simulate_lockdown(model: SIR, lockdown_period: int, total_time: int, Rt0_mandatory: Dict[str, float], Rt0_voluntary: Dict[str, float], lockdown: np.matrix, migrations: np.matrix) -> SIR:
+    """ simulate a lockdown where stringency is assumed to be reflected by Rt0_mandatory, with a return to Rt0_voluntary (and possible migration) once lockdown is over """
     return model.set_parameters(Rt0 = Rt0_mandatory)\
         .run(lockdown_period,  migrations = lockdown)\
         .set_parameters(Rt0 = Rt0_voluntary)\
@@ -36,6 +32,7 @@ def simulate_adaptive_control(
     beta_m: Dict[str, float], 
     evaluation_period: int = 2*weeks, 
     adjacency: Optional[np.matrix] = None) -> SIR:
+    """ simulate the Malani et al. adaptive lockdown policy where districts are assigned to lockdown stringency buckets based on Rt """
     n = len(model)
     model.set_parameters(Rt0 = R_m)\
          .run(initial_run, lockdown)
@@ -55,7 +52,7 @@ def simulate_adaptive_control(
                 if days_run < initial_run + evaluation_period: # force first period to be lockdown
                     Rs.add(i)
                     beta_cat = 3
-                else: 
+                else: # categorize districts based on Rt 
                     if latest_Rt < 1.5: 
                         Ys.add(i)
                         beta_cat = 1
@@ -95,6 +92,7 @@ def simulate_adaptive_control(
     return model 
 
 def simulate_adaptive_control_MHA(model: SIR, initial_run: int, total_time: int, lockdown: np.matrix, migrations: np.matrix, R_m: Dict[str, float], beta_v: Dict[str, float], beta_m: Dict[str, float], evaluation_period = 2*weeks):
+    """ simulates the version of adaptive control suggested by the Indian Ministry of Home Affairs, where the trigger is based on infection count doubling time """
     n = len(model)
     model.set_parameters(Rt0 = R_m)\
          .run(initial_run, lockdown)
@@ -108,7 +106,7 @@ def simulate_adaptive_control_MHA(model: SIR, initial_run: int, total_time: int,
         for (i, unit) in enumerate(model):
             latest_Rt = unit.Rt[-1]
             if days_run < initial_run + evaluation_period: # force first period to MHA
-                if unit.I[-4] != 0 and unit.I[-1]/unit.I[-4] > 2:
+                if unit.I[-4] != 0 and unit.I[-1]/unit.I[-4] > 2: # doubling time trigger 
                     Rs.add(i)
                     beta_cat = 3
                 else:
@@ -165,7 +163,8 @@ def simulate_PID_controller(
     kI: float = 0.5,
     kD: float = 0,
     Dt: float = 1.0) -> SIR:
-    # initial run without PID
+    """ implements a hypothetical proportional-integral-derivative control policy where the error term is Rt magnitude above 1 """
+    # initial run without PID 
     model.run(initial_run)
     
     # set up PID running variables
@@ -191,6 +190,7 @@ def simulate_PID_controller(
 
 # Vaccination policies
 class VaccinationPolicy():
+    """ parent class to hold vaccination policy state """
     def __init__(self, bin_populations: np.array) -> None:
         self.bin_populations = bin_populations
 
@@ -205,11 +205,13 @@ class VaccinationPolicy():
         return self.daily_doses * len(model.Rt) > model.pop0
 
     def get_mortality(self, base_IFRs) -> float:
+        """ update mortality based on composition of I compartment """
         if self.bin_populations.sum() == 0:
             return 0
         return base_IFRs @ self.bin_populations/self.bin_populations.sum()
 
 class RandomVaccineAssignment(VaccinationPolicy):
+    """ assigns vaccines to members of the population randomly """
     def __init__(self, daily_doses: int, effectiveness: float, bin_populations: np.array, age_ratios: np.array):
         self.daily_doses = daily_doses 
         self.age_ratios = age_ratios
@@ -232,6 +234,7 @@ class RandomVaccineAssignment(VaccinationPolicy):
         return "randomassignment"
 
 class PrioritizedAssignment(VaccinationPolicy):
+    """ assigns vaccines to members of the population based on a prioritized ordering of subpopulations """
     def __init__(self, daily_doses: int, effectiveness: float, bin_populations: np.array, prioritization: List[int], label: str):
         self.daily_doses     = daily_doses
         self.bin_populations = bin_populations
