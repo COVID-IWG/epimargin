@@ -13,7 +13,7 @@ from tqdm import tqdm
 """ Common data loading/cleaning functions and constants """
 
 data = Path("./data").resolve()
-# ext  = Path("/Volumes/dedomeno/covid/vax-nature").resolve()
+ext  = Path("/Volumes/dedomeno/covid/vax-nature").resolve()
 
 USD = 1/72
 
@@ -34,10 +34,9 @@ focus_states = ["Tamil Nadu", "Punjab", "Maharashtra", "Bihar", "West Bengal"]
 # states to evaluate at state level (no district level data)
 coalesce_states = ["Delhi", "Manipur", "Dadra And Nagar Haveli And Daman And Diu", "Andaman And Nicobar Islands"]
 
-experiment_tag = "all_india_coalesced"
-# epi_dst = tev_src = mkdir(ext/f"{experiment_tag}_epi_{num_sims}_{simulation_start.strftime('%b%d')}")
-# tev_dst = fig_src = mkdir(ext/f"{experiment_tag}_reweight_tev_{num_sims}_{simulation_start.strftime('%b%d')}")
-# tev_dst = fig_src = mkdir(ext/f"TNBR_descaled_tev_{num_sims}_{simulation_start.strftime('%b%d')}")
+experiment_tag = "TN_Rt_rescale"
+epi_dst = tev_src = mkdir(ext/f"{experiment_tag}_epi_{num_sims}_{simulation_start.strftime('%b%d')}")
+tev_dst = fig_src = mkdir(ext/f"{experiment_tag}_tev_{num_sims}_{simulation_start.strftime('%b%d')}")
 
 # misc
 survey_date = "October 23, 2020"

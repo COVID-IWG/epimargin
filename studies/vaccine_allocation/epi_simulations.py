@@ -62,7 +62,7 @@ def process(district_data):
             name        = state_code + "_" + district, 
             population  = N_tot - D0, 
             dT0         = (np.ones(num_sims) * dT0).astype(int), 
-            Rt0         = Rt,
+            Rt0         = 0 if S0 == 0 else Rt * N_tot / S0,
             S0          = np.tile( Sj0,        num_sims).reshape((num_sims, -1)),
             I0          = np.tile((fI * I0).T, num_sims).reshape((num_sims, -1)),
             R0          = np.tile((fR * R0).T, num_sims).reshape((num_sims, -1)),
