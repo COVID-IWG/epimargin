@@ -1,4 +1,4 @@
-# import dask
+import dask
 import numpy as np
 import pandas as pd
 from epimargin.models import Age_SIRVD
@@ -10,11 +10,12 @@ import warnings
 warnings.filterwarnings("error")
 
 num_sims         = 1000
-simulation_range = 1 * years
+simulation_range = 3 * years
 phi_points       = [_ * percent * annually for _ in (25, 50, 100, 200)]
 # simulation_initial_conditions = pd.read_csv(data/f"all_india_coalesced_initial_conditions{simulation_start.strftime('%b%d')}.csv")\
 #     .drop(columns = ["Unnamed: 0"])\
 #     .set_index(["state", "district"])
+# simulation_initial_conditions = pd.read_csv(data/f"hf_initial_conditionsApr15.csv")\
 simulation_initial_conditions = pd.read_csv(data/f"TN_BR_descaled_initial_conditionsApr15.csv")\
     .drop(columns = ["Unnamed: 0"])\
     .set_index(["state", "district"])
@@ -67,7 +68,7 @@ def process(district_data):
             I0          = np.tile((fI * I0).T, num_sims).reshape((num_sims, -1)),
             R0          = np.tile((fR * R0).T, num_sims).reshape((num_sims, -1)),
             D0          = np.tile((fD * D0).T, num_sims).reshape((num_sims, -1)),
-            mortality   = np.array(list(TN_IFRs.values())),
+            mortality   = np.array(list(OD_IFRs.values())),
             infectious_period = infectious_period,
             random_seed = seed,
         )

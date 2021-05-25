@@ -34,7 +34,7 @@ focus_states = ["Tamil Nadu", "Punjab", "Maharashtra", "Bihar", "West Bengal"]
 # states to evaluate at state level (no district level data)
 coalesce_states = ["Delhi", "Manipur", "Dadra And Nagar Haveli And Daman And Diu", "Andaman And Nicobar Islands"]
 
-experiment_tag = "TN_Rt_rescale"
+experiment_tag = "OD_IFR_Rtdownscale_fullstate_3yrs"
 epi_dst = tev_src = mkdir(ext/f"{experiment_tag}_epi_{num_sims}_{simulation_start.strftime('%b%d')}")
 tev_dst = fig_src = mkdir(ext/f"{experiment_tag}_tev_{num_sims}_{simulation_start.strftime('%b%d')}")
 
@@ -51,7 +51,7 @@ random_vax_color      = "royalblue"
 mortality_vax_color   = "forestgreen"
 
 agebin_colors = [ "#05668d", "#427aa1", "#679436", "#a5be00", "#ffcb77", "#d0393b", "#7a306c"]
-
+median_ages  = np.array([9, 24, 35, 45, 55, 65, 85])
 #################################################################
 
 # load admin data on population
@@ -86,6 +86,9 @@ TN_IFRs = {
     "60-69": 0.00264,
     "70+"  : 0.00588,
 }
+
+OD_IFR_curve = pd.read_stata(data / "meta_ifrs.dta") # O'Driscoll, provided by Cai
+OD_IFRs = dict(zip(TN_IFRs.keys(), (OD_IFR_curve[(OD_IFR_curve.location == "od") & (OD_IFR_curve.age.isin(median_ages))].groupby("age")["ifr"].mean()/100).values))
 
 TN_age_structure_norm = sum(TN_age_structure.values())
 TN_age_ratios = np.array([v/TN_age_structure_norm for v in TN_age_structure.values()])

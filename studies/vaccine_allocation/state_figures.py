@@ -8,11 +8,12 @@ from studies.vaccine_allocation.natl_figures import aggregate_static_percentiles
 
 if __name__ == "__main__":
     src = fig_src
-    dst = (data/"../figs/_apr15/state_debug")
+    dst = (data/f"../figs/_apr15/state_debug/{experiment_tag}")
+    dst.mkdir(exist_ok = True)
     phis = [int(_ * 365 * 100) for _ in phi_points]
     params = list(chain([(phis[0], "novax",)], product(phis, ["contact", "random", "mortality"])))
 
-    for state_code in simulation_initial_conditions.state_code.unique()[24:]:
+    for state_code in simulation_initial_conditions.state_code.unique():
         if state_code in ["NL", "SK"]:
             continue
         print(state_code)

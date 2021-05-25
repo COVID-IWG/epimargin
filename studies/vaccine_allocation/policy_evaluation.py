@@ -55,7 +55,6 @@ years_life_remaining = pd.read_stata(data/"life_expectancy_2009_2013_collapsed.d
     .set_index("state")\
     .rename(columns = {f"life_expectancy{i+1}": agebin_labels[i] for i in range(7)})
 
-median_ages  = np.array([9, 24, 35, 45, 55, 65, 75])
 years_in_bin = np.tile(np.array([27, 29, 39, 49, 59, 69, 79]) - median_ages, (num_age_bins, 1))
 years_in_bin *= (1 - np.tri(*years_in_bin.shape, k = -1)).astype(int)
 
@@ -105,8 +104,11 @@ def policy_TEV(pi, q_p1v1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0):
     )
 
 def policy_VSLY(pi, q_p1v1, q_p1v0, c_p0v0):
-        # value of statistical life year
+    # value of statistical life year
     return NPV((((1 - pi) * q_p1v0) + (pi * q_p1v1)) * np.mean(c_p0v0, axis = 1)[:, None, :])
+
+def weighted_q(pi, q_p1v1, q_p1v0):
+    return (1 - pi) * q_p1v0 + pi * q_p1v1
 
 def policy_VSL(LS, age_weight, c_p0v0):
     return (LS.sum(axis = 1) * (age_weight * NPV(c_p0v0)[0]).sum(axis = 1))
@@ -152,7 +154,9 @@ def process(district_data, level = "national"):
     save_metrics("per_capita_VSLY_" + cf_tag, VSLY_p0)
     save_metrics("total_TEV_"  + cf_tag, N_jk *  TEV_p0)
     save_metrics("total_VSLY_" + cf_tag, N_jk * VSLY_p0)
-
+    save_metrics("age_weight_c_p0v0" + cf_tag, age_weight * c_p0v0)
+    save_metrics("c_p0v0"            + cf_tag, c_p0v0)
+    
     for (phi, vax_policy) in product(
         [int(_*365*100) for _ in phi_points], 
         ["random", "contact", "mortality"]
@@ -174,21 +178,21 @@ def process(district_data, level = "national"):
         LS = ((D_p0[-1] - D_p0[0])) - (D_p1[-1] - D_p1[0])
         VSL = policy_VSL(LS, age_weight, c_p0v0)
         TEV_p1, dTEV_health, dTEV_cons, dTEV_priv =\
-            policy_TEV( pi, q_p1v1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0)
-        VSLY_p1    = policy_VSLY(pi, q_p1v1, q_p1v0, c_p0v0)
-        save_metrics("deaths_"           + p1_tag, (D_p1[-1] - D_p1[0]).sum(axis = 1))
-        save_metrics("YLL_"              + p1_tag, (D_p1[-1] - D_p1[0]) @ state_years_life_remaining)
-        save_metrics("per_capita_TEV_"   + p1_tag,  TEV_p1)
-        save_metrics("per_capita_VSLY_"  + p1_tag, VSLY_p1)
-        save_metrics("total_TEV_"        + p1_tag,  TEV_p1 * N_jk)
-        save_metrics("total_VSLY_"       + p1_tag, VSLY_p1 * N_jk)
-        save_metrics("VSL_"              + p1_tag, VSL)
-        save_metrics("c_p0v0"            + p1_tag, c_p0v0)
-        save_metrics("c_p1v0"            + p1_tag, c_p1v0)
-        save_metrics("c_p1v1"            + p1_tag, c_p1v1)
-        save_metrics("age_weight_c_p0v0" + p1_tag, age_weight * c_p0v0)
-        save_metrics("age_weight_c_p1v0" + p1_tag, age_weight * c_p1v0)
-        save_metrics("age_weight_c_p1v1" + p1_tag, age_weight * c_p1v1)
+            policy_TEV(pi, q_p1v1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0)
+        q_bar = weighted_q(pi, q_p1v1, q_p1v0)
+        VSLY_p1 = policy_VSLY(pi, q_p1v1, q_p1v0, c_p0v0)
+        save_metrics("deaths_"            + p1_tag, (D_p1[-1] - D_p1[0]).sum(axis = 1))
+        save_metrics("YLL_"               + p1_tag, (D_p1[-1] - D_p1[0]) @ state_years_life_remaining)
+        save_metrics("per_capita_TEV_"    + p1_tag, TEV_p1)
+        save_metrics("per_capita_VSLY_"   + p1_tag, VSLY_p1)
+        save_metrics("total_TEV_"         + p1_tag, TEV_p1  * N_jk)
+        save_metrics("total_VSLY_"        + p1_tag, VSLY_p1 * N_jk)
+        save_metrics("VSL_"               + p1_tag, VSL)
+        save_metrics("c_p1v0_"            + p1_tag, c_p1v0)
+        save_metrics("c_p1v1_"            + p1_tag, c_p1v1)
+        save_metrics("age_weight_c_p1v0_" + p1_tag, age_weight * c_p1v0)
+        save_metrics("age_weight_c_p1v1_" + p1_tag, age_weight * c_p1v1)
+        save_metrics("q_bar_"             + p1_tag, q_bar)
 
         if phi == 50 and vax_policy == "random":
             save_metrics("dTEV_health_" + p1_tag, age_weight * dTEV_health)
