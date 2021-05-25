@@ -17,9 +17,6 @@ authors:
     affiliation: 1
   - name: Manasi Phadnis
     affiliation: 1
-  - name: Nicholas Marchio
-    orcid: 0000-0002-0677-1864
-    affiliation: 1
   - name: Luis M. A. Bettencourt
     orcid: 0000-0001-6176-5160
     affiliation: "1, 2, 3, 4"
@@ -54,7 +51,7 @@ The software is implemented in the Python 3 programming language and is built us
 
 The `epimargin` software package is designed for the data-driven analysis of policy choices related to the spread of disease. It consists primarily of a set of estimators for key epidemiological metrics, a stochastic model for projecting disease dynamics, and evaluation tools for various policy scenarios. 
 
-Included with the package are connectors and download utilities for common sources of disease data for the COVID-19 pandemic (the pressing concern at time of writing), as well as a set of tools to prepare and clean data in a format amenable to analysis. It is widely understood that preprocessing epidemiological data is necessary to make inferences about disease progression [@gostic2020practical]. To that end, `epimargin` provides commonly-used preprocessing routines to encourage explicit documentation of data preparation,but is agnostic to which procedures are used due to the fact that all metadata required for certain preparations may not be uniformly available across geographies. 
+Included with the package are connectors and download utilities for common sources of disease data for the COVID-19 pandemic (the pressing concern at time of writing), as well as a set of tools to prepare and clean data in a format amenable to analysis. It is widely understood that preprocessing epidemiological data is necessary to make inferences about disease progression [@gostic2020practical]. To that end, `epimargin` provides commonly-used preprocessing routines to encourage explicit documentation of data preparation, but is agnostic to which procedures are used due to the fact that all metadata required for certain preparations may not be uniformly available across geographies. 
 
 This same modularity extends to both the the estimation procedures and epidemiological models provided by `epimargin`. While the package includes a novel Bayesian estimator for key metrics, classical approaches based on rolling linear regressions and Markov chain Monte Carlo sampling are also included. The core model class in `epimargin` in which these estimates are used is known as a <i>compartmental</i> model: a modeled population is split into a number of mutually-exclusive compartments (uninfected, infected, recovered, vaccinated, etc) and flows between these compartments are estimated from empirical data. The exact choice of compartments and interactions is left to the modeler, but the package includes several commonly-used models, as well as variations customized for specific policy questions (such as large-scale migration during pandemics, or the effects of various vaccine distribution policies).
 
@@ -87,6 +84,6 @@ Sample output for common workflows are illustrated in the following figures:
 
 # Acknowledgements
 
-We acknowledge code review and comments from Gyanendra Badgaiyan (IDFC Institute), ongoing conversations with Anup Malani (University of Chicago) and helpful discussions with Katelyn Gostic (University of Chicago) and Sarah Cobey (University of Chicago).
+We acknowledge code review and comments from Gyanendra Badgaiyan (IDFC Institute), ongoing conversations with Anup Malani (University of Chicago) and Nico Marchio (Mansueto Institute) and helpful discussions with Katelyn Gostic (University of Chicago) and Sarah Cobey (University of Chicago).
 
 # References
