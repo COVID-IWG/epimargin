@@ -34,7 +34,7 @@ focus_states = ["Tamil Nadu", "Punjab", "Maharashtra", "Bihar", "West Bengal"]
 # states to evaluate at state level (no district level data)
 coalesce_states = ["Delhi", "Manipur", "Dadra And Nagar Haveli And Daman And Diu", "Andaman And Nicobar Islands"]
 
-experiment_tag = "OD_IFR_Rtdownscale_fullstate_3yrs"
+experiment_tag = "OD_IFR_Rtdownscale_fullstate"
 epi_dst = tev_src = mkdir(ext/f"{experiment_tag}_epi_{num_sims}_{simulation_start.strftime('%b%d')}")
 tev_dst = fig_src = mkdir(ext/f"{experiment_tag}_tev_{num_sims}_{simulation_start.strftime('%b%d')}")
 
@@ -244,6 +244,8 @@ def assemble_initial_conditions(states = "*", coalesce_states = coalesce_states,
         R0 = R_conf_smooth[simulation_start if simulation_start in R_conf_smooth.index else -1] * R_ratio
         progress.update(1)
         
+        V0 = vax.loc[simulation_start][state] * N_tot / districts_to_run.loc[state].N_tot.sum()
+        
         dD_conf = ts.loc[state, district].dD
         dD_conf = dD_conf.reindex(pd.date_range(dD_conf.index.min(), dD_conf.index.max()), fill_value = 0)
         if len(dD_conf) >= window + 1:
@@ -267,7 +269,7 @@ def assemble_initial_conditions(states = "*", coalesce_states = coalesce_states,
         T0 = T_conf_smooth[simulation_start if simulation_start in T_conf_smooth.index else -1] * T_ratio
         progress.update(1)
 
-        S0 = max(0, N_tot - T0)
+        S0 = max(0, N_tot - T0 - V0)
         dD0 = dD_conf_smooth[simulation_start if simulation_start in dD_conf_smooth.index else -1]
         dT0 = dT_conf_smooth[simulation_start if simulation_start in dT_conf_smooth.index else -1] * T_ratio
         I0 = max(0, (T0 - R0 - D0))
@@ -287,7 +289,6 @@ def assemble_initial_conditions(states = "*", coalesce_states = coalesce_states,
         Rt_upper = Rt_upper_timeseries.get(simulation_start, Rt_upper_timeseries[max(Rt_upper_timeseries.keys())]) if Rt_upper_timeseries else 0
         Rt_lower = Rt_lower_timeseries.get(simulation_start, Rt_lower_timeseries[max(Rt_lower_timeseries.keys())]) if Rt_lower_timeseries else 0
 
-        V0 = vax.loc[simulation_start][state] * N_tot / districts_to_run.loc[state].N_tot.sum()
 
         rows.append((state_name_lookup[state], state, district, 
             sero_0, N_0, sero_1, N_1, sero_2, N_2, sero_3, N_3, sero_4, N_4, sero_5, N_5, sero_6, N_6, N_tot, 

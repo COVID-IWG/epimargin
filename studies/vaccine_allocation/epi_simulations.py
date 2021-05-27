@@ -10,8 +10,8 @@ import warnings
 warnings.filterwarnings("error")
 
 num_sims         = 1000
-simulation_range = 3 * years
-phi_points       = [_ * percent * annually for _ in (25, 50, 100, 200)]
+simulation_range = 1 * years
+phi_points       = [_ * percent * annually for _ in (25, 50, 100, 200, 500, 1000)]
 # simulation_initial_conditions = pd.read_csv(data/f"all_india_coalesced_initial_conditions{simulation_start.strftime('%b%d')}.csv")\
 #     .drop(columns = ["Unnamed: 0"])\
 #     .set_index(["state", "district"])
@@ -20,7 +20,7 @@ simulation_initial_conditions = pd.read_csv(data/f"TN_BR_descaled_initial_condit
     .drop(columns = ["Unnamed: 0"])\
     .set_index(["state", "district"])
 rerun_states = ["Telangana", "Uttarakhand", "Jharkhand", "Arunachal Pradesh", "Nagaland", "Sikkim"] + coalesce_states
-districts_to_run = simulation_initial_conditions
+districts_to_run = simulation_initial_conditions.query("district == 'Gopalganj'")
 num_age_bins     = 7
 seed             = 0
 

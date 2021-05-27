@@ -13,7 +13,8 @@ if __name__ == "__main__":
     phis = [int(_ * 365 * 100) for _ in phi_points]
     params = list(chain([(phis[0], "novax",)], product(phis, ["contact", "random", "mortality"])))
 
-    for state_code in simulation_initial_conditions.state_code.unique():
+    # for state_code in simulation_initial_conditions.state_code.unique():
+    for state_code in ["BR"]:
         if state_code in ["NL", "SK"]:
             continue
         print(state_code)
@@ -23,7 +24,7 @@ if __name__ == "__main__":
         dst: Path = dst0 / state_code
         dst.mkdir(exist_ok = True, parents = True)
 
-        for district in simulation_initial_conditions.loc[state].index:
+        for district in simulation_initial_conditions.loc[state].index[:16]:
             print(f"  {district}")
             # deaths
             death_percentiles = {
@@ -81,10 +82,11 @@ if __name__ == "__main__":
             plt.savefig(dst / f"{state_code}_{district}_tev.png")
             plt.close("all")
 
-    for (state, code) in [("Tamil Nadu", "TN"), ("Bihar", "BR")]:
+    for (state, code) in [("Bihar", "BR")]:
         dst = dst0 / code 
         dst.mkdir(exist_ok = True)
-        for district in simulation_initial_conditions.query(f"state == '{state}'").index.get_level_values(1).unique():
+        # for district in simulation_initial_conditions.query(f"state == '{state}'").index.get_level_values(1).unique():
+        for district in simulation_initial_conditions.loc[state].index[:16]:
             cf_consumption = np.load(src / f"c_p0v0{code}_{district}_phi25_novax.npz")['arr_0']
             cons_mean = np.mean(cf_consumption, axis = 1)
             plt.plot(cons_mean)

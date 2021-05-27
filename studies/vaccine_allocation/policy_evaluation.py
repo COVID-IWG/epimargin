@@ -193,6 +193,9 @@ def process(district_data, level = "national"):
         save_metrics("age_weight_c_p1v0_" + p1_tag, age_weight * c_p1v0)
         save_metrics("age_weight_c_p1v1_" + p1_tag, age_weight * c_p1v1)
         save_metrics("q_bar_"             + p1_tag, q_bar)
+        save_metrics("v0_"                + p1_tag, (1-pi) * q_p1v0)
+        save_metrics("v1_"                + p1_tag,   (pi) * q_p1v1)
+        save_metrics("proxyLLweight_"     + p1_tag, (1 - pi) * (1 - q_p1v0) + pi * (1 - q_p1v1))
 
         if phi == 50 and vax_policy == "random":
             save_metrics("dTEV_health_" + p1_tag, age_weight * dTEV_health)
