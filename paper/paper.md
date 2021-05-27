@@ -17,6 +17,9 @@ authors:
     affiliation: 1
   - name: Manasi Phadnis
     affiliation: 1
+  - name: Nicholas Marchio
+    orcid: 0000-0002-0677-1864
+    affiliation: 1
   - name: Luis M. A. Bettencourt
     orcid: 0000-0001-6176-5160
     affiliation: "1, 2, 3, 4"
