@@ -8,21 +8,29 @@ tags:
   - COVID-19
   - Bayesian inference
 authors:
-  - name: Satej Soman 
-    orcid: 0000-0001-8450-7025
-    affiliation: 1
-  - name: Caitlin Loftus
-    affiliation: 1
-  - name: Steven Buschbach
-    affiliation: 1
-  - name: Manasi Phadnis
-    affiliation: 1
-  - name: Nicholas Marchio
-    orcid: 0000-0002-0677-1864
-    affiliation: 1
-  - name: Luis M. A. Bettencourt
-    orcid: 0000-0001-6176-5160
-    affiliation: "1, 2, 3, 4"
+- name: Adrian M. Price-Whelan^[co-first author] # note this makes a footnote saying 'co-first author'
+orcid: 0000-0003-0872-7098
+affiliation: "1, 2" # (Multiple affiliations must be quoted)
+- name: Author Without ORCID^[co-first author] # note this makes a footnote saying 'co-first author'
+affiliation: 2
+- name: Author with no affiliation^[corresponding author]
+affiliation: 3
+# authors:
+#   - name: Satej Soman 
+#     orcid: 0000-0001-8450-7025
+#     affiliation: 1
+#   - name: Caitlin Loftus
+#     affiliation: 1
+#   - name: Steven Buschbach
+#     affiliation: 1
+#   - name: Manasi Phadnis
+#     affiliation: 1
+#   - name: Nicholas Marchio
+#     orcid: 0000-0002-0677-1864
+#     affiliation: 1
+#   - name: Luis M. A. Bettencourt
+#     orcid: 0000-0001-6176-5160
+#     affiliation: "1, 2, 3, 4"
 affiliations:
   - name: Mansueto Institute for Urban Innovation, University of Chicago
     index: 1
@@ -37,7 +45,7 @@ bibliography: paper.bib
 
 ---
 
-# Summary
+<!-- # Summary
 As pandemics (including the COVID-19 crisis at time of writing) pose threats to societies, public health officials, epidemiologists, and policymakers need tools to assess the impact of disease, as well as a framework for understanding the effects and tradeoffs of health policy decisions. The `epimargin` package provides functionality to answer those questions in a way that incorporates irreducible uncertainty in both the input data and complex dynamics of disease propagation.  
 
 The `epimargin` software package primarily consists of: 
@@ -89,4 +97,4 @@ Sample output for common workflows are illustrated in the following figures:
 
 We acknowledge code review and comments from Gyanendra Badgaiyan (IDFC Institute), ongoing conversations with Anup Malani (University of Chicago) and Nico Marchio (Mansueto Institute) and helpful discussions with Katelyn Gostic (University of Chicago) and Sarah Cobey (University of Chicago).
 
-# References
+# References -->
