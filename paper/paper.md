@@ -8,13 +8,13 @@ tags:
   - COVID-19
   - Bayesian inference
 authors:
-- name: Adrian M. Price-Whelan^[co-first author] # note this makes a footnote saying 'co-first author'
-orcid: 0000-0003-0872-7098
-affiliation: "1, 2" # (Multiple affiliations must be quoted)
-- name: Author Without ORCID^[co-first author] # note this makes a footnote saying 'co-first author'
-affiliation: 2
-- name: Author with no affiliation^[corresponding author]
-affiliation: 3
+    - name: Adrian M. Price-Whelan^[co-first author] # note this makes a footnote saying 'co-first author'
+    orcid: 0000-0003-0872-7098
+    affiliation: "1, 2" # (Multiple affiliations must be quoted)
+    - name: Author Without ORCID^[co-first author] # note this makes a footnote saying 'co-first author'
+    affiliation: 2
+    - name: Author with no affiliation^[corresponding author]
+    affiliation: 3
 # authors:
 #   - name: Satej Soman 
 #     orcid: 0000-0001-8450-7025
@@ -24,9 +24,6 @@ affiliation: 3
 #   - name: Steven Buschbach
 #     affiliation: 1
 #   - name: Manasi Phadnis
-#     affiliation: 1
-#   - name: Nicholas Marchio
-#     orcid: 0000-0002-0677-1864
 #     affiliation: 1
 #   - name: Luis M. A. Bettencourt
 #     orcid: 0000-0001-6176-5160
