@@ -17,6 +17,29 @@ params = list(chain([(phis[0], "novax",)], product(phis, ["contact", "random", "
 population_columns = ["state_code", "N_tot", 'N_0', 'N_1', 'N_2', 'N_3', 'N_4', 'N_5', 'N_6', 'T_ratio']
 state_code, N_district, N_0, N_1, N_2, N_3, N_4, N_5, N_6, T_ratio = districts_to_run.iloc[0][population_columns]
 N_jk = np.array([N_0, N_1, N_2, N_3, N_4, N_5, N_6])
+
+for s, label in [
+    ("oo", "old VSLY, old q1"),
+    ("o1", "old VSLY, q1 = 1"),
+    ("on", "old VLSY, new q1"),
+    ("no", "new VSLY, old q1"),
+    ("nn", "new VSLY, new q1")
+]:
+    VSLY_percentiles = {
+        p: aggregate_dynamic_percentiles(src, f"total_{s}VSLY_{state_code}_{district}_*phi{'_'.join(map(str, p))}.npz")
+        for p in tqdm(params[1:])
+    }
+    outcomes_per_policy(
+        {k: v * USD/(1e9) for (k, v) in VSLY_percentiles.items()}, "VSLY (USD, billions)", "D",
+        reference = (25, "contact"), 
+        phis = [25, 50, 100, 200, 500, 1000], 
+        vax_policies = ["contact", "random", "mortality"], 
+        policy_colors = [contactrate_vax_color, random_vax_color, mortality_vax_color], 
+        policy_labels = ["contact rate", "random", "mortality"]
+    )
+    plt.PlotDevice().title(f"VSLY Gopalganj: {label}").show()
+
+
 q_bar_sum = {}
 for (phi, policy) in params[1:]:
     qbs = np.sum(np.load(src / f"q_bar_BR_Gopalganj_phi{phi}_{policy}.npz")['arr_0'], axis = 0)
@@ -100,6 +123,16 @@ for phi, policy in params:
 plt.legend()
 plt.show()
 
-pi = np.load(tev_src / f"BR_Gopalganj_phi{phi}_{policy}.npz")["pi"]
-q0 = np.load(tev_src / f"BR_Gopalganj_phi{phi}_{policy}.npz")["q0"]
-q1 = np.load(tev_src / f"BR_Gopalganj_phi{phi}_{policy}.npz")["q1"]
+policy = "random"
+for phi in phis:
+    print(phi)
+    pi = np.load(tev_src / f"BR_Gopalganj_phi{phi}_{policy}.npz")["pi"]
+    q0 = np.load(tev_src / f"BR_Gopalganj_phi{phi}_{policy}.npz")["q0"]
+    q1 = np.load(tev_src / f"BR_Gopalganj_phi{phi}_{policy}.npz")["q1"]
+
+    plt.plot(np.median(pi, axis = 1)) 
+    plt.show()
+    plt.plot(np.median(q0, axis = 1)) 
+    plt.show()
+    plt.plot(np.median(q1, axis = 1)) 
+    plt.show()

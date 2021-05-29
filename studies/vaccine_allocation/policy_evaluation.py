@@ -103,9 +103,34 @@ def policy_TEV(pi, q_p1v1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0):
         NPV(dTEV_priv)[0]
     )
 
+def new_policy_TEV(pi, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0):
+    """ evaluate health and econ metrics for the vaccination policy scenario """
+    # overall economic value
+    TEV_daily = (1 - pi) * q_p1v0 * c_p1v0 + pi * c_p1v1 
+    # health contribution to economic value
+    dTEV_hlth = \
+        (1 - pi) * (q_p1v0 - q_p0v0.mean(axis = 1)[:, None, :]) * c_p1v0 +\
+             pi  * (1      - q_p0v0.mean(axis = 1)[:, None, :]) * c_p1v1
+    # consumption contribution to economic value
+    dTEV_cons = \
+        (1 - pi) * q_p0v0.mean(axis = 1)[:, None, :] * (c_p1v0 - c_p0v0.mean(axis = 1)[:, None, :]) +\
+             pi                                      * (c_p1v1 - c_p0v0.mean(axis = 1)[:, None, :])
+    # private contribution to economic value
+    dTEV_priv = c_p1v1 - q_p1v0 * c_p1v0
+
+    return (
+        NPV(TEV_daily),
+        NPV(dTEV_hlth)[0],
+        NPV(dTEV_cons)[0],
+        NPV(dTEV_priv)[0]
+    )
+
 def policy_VSLY(pi, q_p1v1, q_p1v0, c_p0v0):
     # value of statistical life year
     return NPV((((1 - pi) * q_p1v0) + (pi * q_p1v1)) * np.mean(c_p0v0, axis = 1)[:, None, :])
+
+def new_VSLY(pi, q_p1v0, c_p0v0):
+    return NPV(((1 - pi) * q_p1v0 + pi) * np.mean(c_p0v0, axis = 1)[:, None, :])
 
 def weighted_q(pi, q_p1v1, q_p1v0):
     return (1 - pi) * q_p1v0 + pi * q_p1v1
@@ -166,8 +191,8 @@ def process(district_data, level = "national"):
             dI_pc_p1 = policy['dT']/(N_district * T_ratio)
             dD_pc_p1 = policy['dD']/N_district
             pi       = policy['pi'] 
-            q_p1v1   = policy['q1']
             q_p1v0   = policy['q0']
+            qf_p1v0  = policy['qf0']
             D_p1     = policy["Dj"]
         rc_hat_p1v0 = rc_hat(state, district, dI_pc_p1, dD_pc_p1)
         c_p1v0 = np.transpose(
@@ -178,15 +203,20 @@ def process(district_data, level = "national"):
         LS = ((D_p0[-1] - D_p0[0])) - (D_p1[-1] - D_p1[0])
         VSL = policy_VSL(LS, age_weight, c_p0v0)
         TEV_p1, dTEV_health, dTEV_cons, dTEV_priv =\
-            policy_TEV(pi, q_p1v1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0)
+            policy_TEV(pi, 1, q_p1v0, q_p0v0, c_p1v1, c_p1v0, c_p0v0)
         q_bar = weighted_q(pi, q_p1v1, q_p1v0)
-        VSLY_p1 = policy_VSLY(pi, q_p1v1, q_p1v0, c_p0v0)
+        VSLY_p1 = policy_VSLY(pi, 1,      q_p1v0,  c_p0v0)
+
         save_metrics("deaths_"            + p1_tag, (D_p1[-1] - D_p1[0]).sum(axis = 1))
         save_metrics("YLL_"               + p1_tag, (D_p1[-1] - D_p1[0]) @ state_years_life_remaining)
         save_metrics("per_capita_TEV_"    + p1_tag, TEV_p1)
-        save_metrics("per_capita_VSLY_"   + p1_tag, VSLY_p1)
+
+        save_metrics("per_capita_VSLY_" + p1_tag, VSLY_p1)
+        # save_metrics("per_capita_VSLY_"   + p1_tag, VSLY_p1)
+        # save_metrics("per_capita_nVSLY_"  + p1_tag, new_VSLY_p1)
         save_metrics("total_TEV_"         + p1_tag, TEV_p1  * N_jk)
-        save_metrics("total_VSLY_"        + p1_tag, VSLY_p1 * N_jk)
+        # save_metrics("total_VSLY_"        + p1_tag, VSLY_p1 * N_jk)
+        # save_metrics("total_nVSLY_"       + p1_tag, new_VSLY_p1 * N_jk)
         save_metrics("VSL_"               + p1_tag, VSL)
         save_metrics("c_p1v0_"            + p1_tag, c_p1v0)
         save_metrics("c_p1v1_"            + p1_tag, c_p1v1)
@@ -195,7 +225,10 @@ def process(district_data, level = "national"):
         save_metrics("q_bar_"             + p1_tag, q_bar)
         save_metrics("v0_"                + p1_tag, (1-pi) * q_p1v0)
         save_metrics("v1_"                + p1_tag,   (pi) * q_p1v1)
+        save_metrics("vf0_"               + p1_tag, (1-pi) * qf_p1v0)
+        save_metrics("vf1_"               + p1_tag,   (pi))
         save_metrics("proxyLLweight_"     + p1_tag, (1 - pi) * (1 - q_p1v0) + pi * (1 - q_p1v1))
+        save_metrics("proxyLLweightf_"    + p1_tag, (1 - pi) * (1 - qf_p1v0) + pi)
 
         if phi == 50 and vax_policy == "random":
             save_metrics("dTEV_health_" + p1_tag, age_weight * dTEV_health)

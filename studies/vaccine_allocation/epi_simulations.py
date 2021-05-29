@@ -35,6 +35,8 @@ def save_metrics(tag, policy, dst = epi_dst):
         pi = policy.pi,
         q0 = policy.q0,
         q1 = policy.q1, 
+        qf0 = policy.qfix0,
+        qf1 = policy.qfix1,
         Dj = policy.D
     )
 
