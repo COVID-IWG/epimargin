@@ -350,8 +350,9 @@ class Age_SIRVD(SIR):
         N_v  = np.clip((S_vm + S_vn + I_vn + D_vn + R_vn + R_vm), a_min = 0, a_max = self.N[0])
         N_nv = self.N[0] - N_v
         pi   = N_v/self.N[0]
-        q1 = np.nan_to_num(1 - np.nan_to_num((D_vn - self.D_vn[0])/(N_v .clip(0)), nan = 0, posinf = np.inf), posinf = 1)
-        q0 = np.nan_to_num(1 - np.nan_to_num((D    - self.D   [0])/(N_nv.clip(0)), nan = 0, posinf = np.inf), posinf = 1)
+
+        q1 = np.nan_to_num(1 - (D_vn - self.D_vn[0])/N_v , nan = 0, neginf = 1).clip(0, 1)
+        q0 = np.nan_to_num(1 - (D    - self.D   [0])/N_nv, nan = 0, neginf = 1).clip(0, 1)
 
         # update state vectors 
         self.Rt.append(Rt)

@@ -1,4 +1,3 @@
-import dask
 import numpy as np
 import pandas as pd
 from epimargin.models import Age_SIRVD
@@ -6,17 +5,15 @@ from epimargin.utils import annually, normalize, percent, years
 from studies.vaccine_allocation.commons import *
 from studies.vaccine_allocation.epi_simulations import districts_to_run, MORTALITY, prioritize
 
-import warnings
-warnings.filterwarnings("error")
 
 num_sims = 10
-phi = 1000 * percent * annually
+phi = 200 * percent * annually
 
 (
     state_code, 
     sero_0, N_0, sero_1, N_1, sero_2, N_2, sero_3, N_3, sero_4, N_4, sero_5, N_5, sero_6, N_6, N_tot, 
     Rt, Rt_upper, Rt_lower, S0, I0, R0, D0, dT0, dD0, V0, T_ratio
-) = districts_to_run.iloc[0]
+) = districts_to_run.query("district == 'Gopalganj'").iloc[0]
 
 Sj0 = np.array([(1 - sj) * Nj for (sj, Nj) in zip([sero_0, sero_1, sero_2, sero_3, sero_4, sero_5, sero_6], [N_0, N_1, N_2, N_3, N_4, N_5, N_6])])
 Sj0 = prioritize(V0, Sj0.copy()[None, :], MORTALITY)[0]

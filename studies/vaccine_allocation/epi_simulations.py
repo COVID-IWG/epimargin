@@ -11,7 +11,7 @@ warnings.filterwarnings("error")
 
 num_sims         = 1000
 simulation_range = 1 * years
-phi_points       = [_ * percent * annually for _ in (25, 50, 100, 200, 500, 1000)]
+phi_points       = [_ * percent * annually for _ in (25, 50, 100, 200)]
 # simulation_initial_conditions = pd.read_csv(data/f"all_india_coalesced_initial_conditions{simulation_start.strftime('%b%d')}.csv")\
 #     .drop(columns = ["Unnamed: 0"])\
 #     .set_index(["state", "district"])
@@ -20,7 +20,7 @@ simulation_initial_conditions = pd.read_csv(data/f"TN_BR_descaled_initial_condit
     .drop(columns = ["Unnamed: 0"])\
     .set_index(["state", "district"])
 rerun_states = ["Telangana", "Uttarakhand", "Jharkhand", "Arunachal Pradesh", "Nagaland", "Sikkim"] + coalesce_states
-districts_to_run = simulation_initial_conditions.query("district == 'Gopalganj'")
+districts_to_run = simulation_initial_conditions.query("state == 'Bihar'")
 num_age_bins     = 7
 seed             = 0
 
@@ -28,7 +28,7 @@ MORTALITY   = [6, 5, 4, 3, 2, 1, 0]
 CONTACT     = [1, 2, 3, 4, 0, 5, 6]
 CONSUMPTION = [4, 5, 6, 3, 2, 1, 0]
 
-def save_metrics(tag, policy, dst = epi_dst):
+def save_metrics(tag, policy, dst = None):
     np.savez_compressed(dst/f"{tag}.npz", 
         dT = policy.dT_total,
         dD = policy.dD_total,
