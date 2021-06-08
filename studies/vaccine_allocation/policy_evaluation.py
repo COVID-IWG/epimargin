@@ -179,8 +179,6 @@ def process(district_data, level = "national"):
     save_metrics("per_capita_VSLY_" + cf_tag, VSLY_p0)
     save_metrics("total_TEV_"  + cf_tag, N_jk *  TEV_p0)
     save_metrics("total_VSLY_" + cf_tag, N_jk * VSLY_p0)
-    save_metrics("age_weight_c_p0v0" + cf_tag, age_weight * c_p0v0)
-    save_metrics("c_p0v0"            + cf_tag, c_p0v0)
     
     for (phi, vax_policy) in product(
         [int(_*365*100) for _ in phi_points], 

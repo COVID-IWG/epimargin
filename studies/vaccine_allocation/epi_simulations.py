@@ -12,15 +12,11 @@ warnings.filterwarnings("error")
 num_sims         = 1000
 simulation_range = 1 * years
 phi_points       = [_ * percent * annually for _ in (25, 50, 100, 200)]
-# simulation_initial_conditions = pd.read_csv(data/f"all_india_coalesced_initial_conditions{simulation_start.strftime('%b%d')}.csv")\
-#     .drop(columns = ["Unnamed: 0"])\
-#     .set_index(["state", "district"])
-# simulation_initial_conditions = pd.read_csv(data/f"hf_initial_conditionsApr15.csv")\
-simulation_initial_conditions = pd.read_csv(data/f"TN_BR_descaled_initial_conditionsApr15.csv")\
+simulation_initial_conditions = pd.read_csv(data/f"all_india_coalesced_scaling_Apr15.csv")\
     .drop(columns = ["Unnamed: 0"])\
     .set_index(["state", "district"])
 rerun_states = ["Telangana", "Uttarakhand", "Jharkhand", "Arunachal Pradesh", "Nagaland", "Sikkim"] + coalesce_states
-districts_to_run = simulation_initial_conditions.query("state == 'Bihar'")
+districts_to_run = simulation_initial_conditions
 num_age_bins     = 7
 seed             = 0
 
@@ -28,15 +24,13 @@ MORTALITY   = [6, 5, 4, 3, 2, 1, 0]
 CONTACT     = [1, 2, 3, 4, 0, 5, 6]
 CONSUMPTION = [4, 5, 6, 3, 2, 1, 0]
 
-def save_metrics(tag, policy, dst = None):
+def save_metrics(tag, policy, dst = tev_src):
     np.savez_compressed(dst/f"{tag}.npz", 
         dT = policy.dT_total,
         dD = policy.dD_total,
         pi = policy.pi,
         q0 = policy.q0,
         q1 = policy.q1, 
-        qf0 = policy.qfix0,
-        qf1 = policy.qfix1,
         Dj = policy.D
     )
 
@@ -50,7 +44,7 @@ def process(district_data):
     (
         (state, district), state_code, 
         sero_0, N_0, sero_1, N_1, sero_2, N_2, sero_3, N_3, sero_4, N_4, sero_5, N_5, sero_6, N_6, N_tot, 
-        Rt, Rt_upper, Rt_lower, S0, I0, R0, D0, dT0, dD0, V0, T_ratio
+        Rt, Rt_upper, Rt_lower, S0, I0, R0, D0, dT0, dD0, V0, T_ratio, R_ratio
     ) = district_data
     try: 
         S0 = int(S0)
@@ -115,9 +109,10 @@ if __name__ == "__main__":
     else:
         failures = []
         for t in tqdm(districts_to_run.itertuples(), total = len(districts_to_run)):
-            try: 
-                process(t)
-            except Exception as e:
-                failures.append((e, t))
+            process(t)
+            # try: 
+            #     process(t)
+            # except Exception as e:
+            #     failures.append((e, t))
         for failure in failures:
             print(failure)

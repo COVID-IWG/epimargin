@@ -312,8 +312,8 @@ class Age_SIRVD(SIR):
         Rt = self.Rt0 * (S + S_vn).sum(axis = 1)/(N + S_vn + S_vm + I_vn + R_vn + R_vm).sum(axis = 1)
         b  = np.exp(self.gamma * (Rt - 1))
 
-        lambda_T = (self.b[-1] * self.dT[-1]).clip(0)
-        dT = self.rng.poisson(lambda_T)
+        lambda_T = (self.b[-1] * self.dT[-1])
+        dT = np.clip(self.rng.poisson(lambda_T), 0, S)
         self.upper_CI.append(poisson.ppf(    self.CI, lambda_T))
         self.lower_CI.append(poisson.ppf(1 - self.CI, lambda_T))
 

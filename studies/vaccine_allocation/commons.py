@@ -35,10 +35,11 @@ focus_states = ["Tamil Nadu", "Punjab", "Maharashtra", "Bihar", "West Bengal"]
 coalesce_states = ["Delhi", "Manipur", "Dadra And Nagar Haveli And Daman And Diu", "Andaman And Nicobar Islands"]
 
 # experiment_tag = "OD_IFR_Rtdownscale_fullstate"
-experiment_tag = "unitvaxhazard_OD_IFR"
+experiment_tag = "unitvaxhazard_TN_IFR"
 # epi_dst = tev_src = mkdir(ext/f"{experiment_tag}_epi_{num_sims}_{simulation_start.strftime('%b%d')}")
 # epi_dst = tev_src = mkdir(Path("/Volumes/dedomeno/covid/vax-nature/OD_IFR_Rtdownscale_fullstate_epi_1000_Apr15"))
-# tev_dst = fig_src = mkdir(ext/f"{experiment_tag}_tev_{num_sims}_{simulation_start.strftime('%b%d')}")
+epi_dst = tev_src = mkdir(Path("/Volumes/dedomeno/covid/vax-nature/all_india_coalesced_epi_1000_Apr15"))
+tev_dst = fig_src = mkdir(ext/f"{experiment_tag}_tev_{num_sims}_{simulation_start.strftime('%b%d')}")
 
 # misc
 survey_date = "October 23, 2020"
