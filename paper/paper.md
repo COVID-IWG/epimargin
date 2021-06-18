@@ -1,5 +1,5 @@
 ---
-title: '`epimargin`: A Toolkit for Epidemiological Estimation, Simulation, and Policy Evaluation'
+title: '`epimargin`: A Toolkit for Epidemiological Estimation, Prediction, and Policy Evaluation'
 tags:
   - Python
   - epidemiology
@@ -17,7 +17,7 @@ authors:
     affiliation: 1
   - name: Manasi Phadnis
     affiliation: 1
-  - name: Luis M. A. Bettencourt
+  - name: Luís M. A. Bettencourt
     orcid: 0000-0001-6176-5160
     affiliation: "1, 2, 3, 4"
 affiliations:
@@ -35,7 +35,7 @@ bibliography: paper.bib
 ---
 
 # Summary
-As pandemics (including the COVID-19 crisis at time of writing) pose threats to societies, public health officials, epidemiologists, and policymakers need tools to assess the impact of disease, as well as a framework for understanding the effects and tradeoffs of health policy decisions. The `epimargin` package provides functionality to answer those questions in a way that incorporates irreducible uncertainty in both the input data and complex dynamics of disease propagation.  
+As pandemics (including the COVID-19 crisis) pose threats to societies, public health officials, epidemiologists, and policymakers need improved tools to assess the impact of disease, as well as a framework for understanding the effects and tradeoffs of health policy decisions. The `epimargin` package provides functionality to answer these questions in a way that incorporates and quantifies irreducible uncertainty in both the input data and complex dynamics of disease propagation.  
 
 The `epimargin` software package primarily consists of: 
 
@@ -49,11 +49,11 @@ The software is implemented in the Python 3 programming language and is built us
 
 # Statement of need
 
-The `epimargin` software package is designed for the data-driven analysis of policy choices related to the spread of disease. It consists primarily of a set of estimators for key epidemiological metrics, a stochastic model for projecting disease dynamics, and evaluation tools for various policy scenarios. 
+The `epimargin` software package is designed for the data-driven analysis of policy choices related to the spread of disease. It consists primarily of a set of estimators for key epidemiological metrics, a stochastic model for predicting near-future disease dynamics, and evaluation tools for various policy scenarios. 
 
-Included with the package are connectors and download utilities for common sources of disease data for the COVID-19 pandemic (the pressing concern at time of writing), as well as a set of tools to prepare and clean data in a format amenable to analysis. It is widely understood that preprocessing epidemiological data is necessary to make inferences about disease progression [@gostic2020practical]. To that end, `epimargin` provides commonly-used preprocessing routines to encourage explicit documentation of data preparation, but is agnostic to which procedures are used due to the fact that all metadata required for certain preparations may not be uniformly available across geographies. 
+Included with the package are connectors and download utilities for common sources of disease data for the COVID-19 pandemic (the pressing concern at the time of writing), as well as a set of tools to prepare and clean data in a format amenable to analysis. It is widely understood that preprocessing epidemiological data is necessary to make inferences about disease progression [@gostic2020practical]. To that end, `epimargin` provides commonly-used preprocessing routines to encourage explicit documentation of data preparation, but is agnostic to which procedures are used due to the fact that all metadata required for certain preparations may not be uniformly available across geographies. 
 
-This same modularity extends to both the the estimation procedures and epidemiological models provided by `epimargin`. While the package includes a novel Bayesian estimator for key metrics, classical approaches based on rolling linear regressions and Markov chain Monte Carlo sampling are also included. The core model class in `epimargin` in which these estimates are used is known as a <i>compartmental</i> model: a modeled population is split into a number of mutually-exclusive compartments (uninfected, infected, recovered, vaccinated, etc) and flows between these compartments are estimated from empirical data. The exact choice of compartments and interactions is left to the modeler, but the package includes several commonly-used models, as well as variations customized for specific policy questions (such as large-scale migration during pandemics, or the effects of various vaccine distribution policies).
+This same modularity extends to both the estimation procedures and epidemiological models provided by `epimargin`. While the package includes a novel Bayesian estimator for key metrics, classical approaches based on rolling linear regressions and Markov chain Monte Carlo sampling are also included. The core model class in `epimargin` in which these estimates are used is known as a <i>compartmental</i> model: a modeled population is split into a number of mutually-exclusive compartments (uninfected, infected, recovered, vaccinated, etc) and flows between these compartments are estimated from empirical data. The exact choice of compartments and interactions is left to the modeler, but the package includes several commonly-used models, as well as variations customized for specific policy questions (such as large-scale migration during pandemics, or the effects of various vaccine distribution policies).
 
 Attempts to use a compartmental model to drive policy decisions often treat the systems under study as deterministic and vary parameters such as the reproductive rate across a range deemed appropriate by the study authors [@bubar2021model]. This methodology complicates incorporation of recent disease data and the development of theories for why the reproductive rate changes due to socioeconomic factors external to the model. The incorporation of stochasticity into the models from the outset allows for the quantification of uncertainty and the illustration of a range of outcomes for a given public health policy under consideration.
 
