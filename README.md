@@ -17,14 +17,17 @@ a public health policy analysis toolkit consisting of:
 - `studies` - specific applications to geographies and policy evaluation exercises
 
 # installation  
-
-## end user
 The `epimargin` package is available on PyPI and can be installed via `pip`: 
     
     pip install epimargin
 
-## development 
-To contribute, clone the repository, install the development dependencies, and install the package in editable mode: 
+# support and issues 
+Please [file an issue on Github](https://github.com/COVID-IWG/epimargin/issues/new/choose) if you run into any problems with the software.
+
+# contributions and development 
+Contributions are always welcome! Please fork the repository and open a new pull request for any new features.
+
+For development, clone the repository, install the development dependencies, and install the package in editable mode: 
 
     git clone https://github.com/COVID-IWG/covid-metrics-infra 
     cd covid-metrics-infra 
