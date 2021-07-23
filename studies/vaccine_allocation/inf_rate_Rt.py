@@ -6,11 +6,10 @@ from studies.vaccine_allocation.commons import *
 ts = case_death_timeseries(download = False)
 district_age_pop = pd.read_csv(data/"all_india_sero_pop.csv").set_index(["state", "district"])
 
-simulation_start = pd.Timestamp("Jun 15, 2021")
+
 # supplement: Rt distribution
 
-# simulation_initial_conditions = pd.read_csv(data/f"all_india_coalesced_initial_conditions{simulation_start.strftime('%b%d')}.csv")\
-simulation_initial_conditions = pd.read_csv(data / "all_india_coalesced_scaling_Jun15.csv")\
+simulation_initial_conditions = pd.read_csv(data/f"all_india_coalesced_initial_conditions{simulation_start.strftime('%b%d')}.csv")\
     .drop(columns = ["Unnamed: 0"])\
     .set_index(["state", "district"])
 
@@ -61,7 +60,7 @@ plt.legend(
     loc = "lower center", bbox_to_anchor = (0.5, 1))
 plt.gca().xaxis.set_major_formatter(plt.bY_FMT)
 plt.gca().xaxis.set_minor_formatter(plt.bY_FMT)
-plt.xlim(left = pd.Timestamp("March 1, 2020"), right = pd.Timestamp("June 15, 2021"))
+plt.xlim(left = pd.Timestamp("March 1, 2020"), right = pd.Timestamp("April 15, 2021"))
 plt.ylim(bottom = 0)
 plt.PlotDevice().ylabel("per-capita infection rate\n").xlabel("\ndate")
 plt.show()

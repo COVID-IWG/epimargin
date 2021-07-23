@@ -27,7 +27,7 @@ Please [file an issue on Github](https://github.com/COVID-IWG/epimargin/issues/n
 # contributions and development 
 Contributions are always welcome! Please fork the repository and open a new pull request for any new features.
 
-For development, we recommending installing the development dependencies, and then installing the package in editable mode: 
+For development, clone the repository, install the development dependencies, and install the package in editable mode: 
 
     git clone https://github.com/COVID-IWG/covid-metrics-infra 
     cd covid-metrics-infra 
@@ -35,7 +35,7 @@ For development, we recommending installing the development dependencies, and th
     pip install -r requirements.txt
     pip install -e . 
 
-We also recommend using a virtual environment for development.
+We recommend using a virtual environment for development.
 
 # tutorial 
 In this tutorial, we will download a timeseries of daily confirmed COVID-19 cases in Mumbai from COVID19India.org, estimate the reproductive rate for the city over time, plug these estimates into a compartmental model, and compare two policy scenarios by running the compartmental model forward. The entire tutorial can be found in the `studies/tutorial` directory.

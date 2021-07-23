@@ -13,7 +13,7 @@ from tqdm import tqdm
 """ Common data loading/cleaning functions and constants """
 
 data = Path("./data").resolve()
-# ext  = Path("/Volumes/dedomeno/covid/vax-nature").resolve()
+ext  = Path("/Volumes/dedomeno/covid/vax-nature").resolve()
 
 USD = 1/72
 
@@ -27,20 +27,19 @@ infectious_period = 1/gamma
 smooth = notched_smoothing(window)
 
 # simulation parameters
-# simulation_start = pd.Timestamp("April 15, 2021")
-simulation_start = pd.Timestamp("June 15, 2021")
+simulation_start = pd.Timestamp("April 15, 2021")
 
 num_sims = 1000
 focus_states = ["Tamil Nadu", "Punjab", "Maharashtra", "Bihar", "West Bengal"]
 # states to evaluate at state level (no district level data)
-coalesce_states = ["Delhi", "Manipur", "Dadra And Nagar Haveli And Daman And Diu", "Andaman And Nicobar Islands", "Telangana"]
+coalesce_states = ["Delhi", "Manipur", "Dadra And Nagar Haveli And Daman And Diu", "Andaman And Nicobar Islands"]
 
 # experiment_tag = "OD_IFR_Rtdownscale_fullstate"
 experiment_tag = "unitvaxhazard_TN_IFR"
 # epi_dst = tev_src = mkdir(ext/f"{experiment_tag}_epi_{num_sims}_{simulation_start.strftime('%b%d')}")
 # epi_dst = tev_src = mkdir(Path("/Volumes/dedomeno/covid/vax-nature/OD_IFR_Rtdownscale_fullstate_epi_1000_Apr15"))
-# epi_dst = tev_src = mkdir(Path("/Volumes/dedomeno/covid/vax-nature/all_india_coalesced_epi_1000_Apr15"))
-# tev_dst = fig_src = mkdir(ext/f"{experiment_tag}_tev_{num_sims}_{simulation_start.strftime('%b%d')}")
+epi_dst = tev_src = mkdir(Path("/Volumes/dedomeno/covid/vax-nature/all_india_coalesced_epi_1000_Apr15"))
+tev_dst = fig_src = mkdir(ext/f"{experiment_tag}_tev_{num_sims}_{simulation_start.strftime('%b%d')}")
 
 # misc
 survey_date = "October 23, 2020"
@@ -130,7 +129,7 @@ def get_state_timeseries(
     states = "*", 
     download: bool = False, 
     aggregation_cols = ["detected_state", "detected_district"], 
-    last_API_file: int = 30) -> pd.DataFrame:
+    last_API_file: int = 27) -> pd.DataFrame:
     """ load state- and district-level data, downloading source files if specified """
     paths = {"v3": [data_path(i) for i in (1, 2)], "v4": [data_path(i) for i in range(3, last_API_file)]}
     if download:
@@ -146,7 +145,7 @@ def get_state_timeseries(
             "Recovered":    "dR"
         })
 
-def case_death_timeseries(states = "*", download = False, aggregation_cols = ["detected_state", "detected_district"], last_API_file: int = 30):
+def case_death_timeseries(states = "*", download = False, aggregation_cols = ["detected_state", "detected_district"], last_API_file: int = 26):
     """ assemble a list of daily deaths and cases for consumption prediction """
     ts = get_state_timeseries(states, download)
     ts_index = pd.date_range(start = ts.index.get_level_values(-1).min(), end = ts.index.get_level_values(-1).max(), freq = "D")
@@ -293,9 +292,10 @@ def assemble_initial_conditions(states = "*", coalesce_states = coalesce_states,
         Rt_upper = Rt_upper_timeseries.get(simulation_start, Rt_upper_timeseries[max(Rt_upper_timeseries.keys())]) if Rt_upper_timeseries else 0
         Rt_lower = Rt_lower_timeseries.get(simulation_start, Rt_lower_timeseries[max(Rt_lower_timeseries.keys())]) if Rt_lower_timeseries else 0
 
+
         rows.append((state_name_lookup[state], state, district, 
             sero_0, N_0, sero_1, N_1, sero_2, N_2, sero_3, N_3, sero_4, N_4, sero_5, N_5, sero_6, N_6, N_tot, 
-            Rt, Rt_upper, Rt_lower, S0, I0, R0, D0, dT0, dD0, V0, T_ratio, R_ratio
+            0, 0, 0, S0, I0, R0, D0, dT0, dD0, V0, T_ratio, R_ratio
         ))
         progress.update(1)
     out = pd.DataFrame(rows, 
@@ -310,19 +310,19 @@ if __name__ == "__main__":
     #     .to_csv(
     #         data/"focus_states_simulation_initial_conditions.csv")
     # assemble_initial_conditions()\
-    ts, initial_conditions = assemble_initial_conditions(download = True, simulation_start = pd.Timestamp("June 29, 2021"))
-    # initial_conditions.to_csv(data/f"all_india_coalesced_scaling_{simulation_start.strftime('%b%d')}.csv")
+    ts, initial_conditions = assemble_initial_conditions(download = True)
+    initial_conditions.to_csv(data/f"all_india_coalesced_scaling_{simulation_start.strftime('%b%d')}.csv")
 
-    scaled_ts = ts\
-        .reset_index()\
-        .rename(lambda s: s.replace("detected_", "").replace("status_change_", ""), axis = 1)\
-        .set_index(["state", "district"])\
-    .join(initial_conditions.set_index(["state", "district"])[["T_ratio", "R_ratio"]])\
-    .assign(
-        dT_scaled = lambda df: df["T_ratio"] * df["dT"],
-        dR_scaled = lambda df: df["R_ratio"] * df["dR"]
-    ).drop(columns = ["T_ratio", "R_ratio"])
-    scaled_ts.to_csv(data / "TNsero_scaled_timeseries_all_india_Jun29.csv")
+    # scaled_ts = ts\
+    #     .reset_index()\
+    #     .rename(lambda s: s.replace("detected_", "").replace("status_change_", ""), axis = 1)\
+    #     .set_index(["state", "district"])\
+    # .join(initial_conditions.set_index(["state", "district"])[["T_ratio", "R_ratio"]])\
+    # .assign(
+    #     dT_scaled = lambda df: df["T_ratio"] * df["dT"],
+    #     dR_scaled = lambda df: df["R_ratio"] * df["dR"]
+    # ).drop(columns = ["T_ratio", "R_ratio"])
+    # scaled_ts.to_csv(data / "TNsero_scaled_timeseries_all_india_May04.csv")
 
     # assemble_initial_conditions(states = ["Tamil Nadu", "Bihar"], download = True)\
     #     .to_csv(data/f"TN_BR_descaled_initial_conditions{simulation_start.strftime('%b%d')}.csv")

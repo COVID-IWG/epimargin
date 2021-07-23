@@ -21,14 +21,13 @@ figs.mkdir(exist_ok=True)
 # define data versions for api files
 paths = {
     "v3": [data_path(i) for i in (1, 2)],
-    "v4": [data_path(i) for i in range(3, 31)]
+    "v4": [data_path(i) for i in range(3, 27)]
 }
 
 for target in paths['v3'] + paths['v4']:
     try: 
         download_data(data, target)
-    except Exception as e:
-        print("error", target, e)
+    except:
         pass 
 
 df = load_all_data(
@@ -47,7 +46,7 @@ for state in states:
     print("  + running estimation...")
     (
         dates,
-        Rt_pred, Rt_CI_upper, Rt_CI_lower,
+        Rt_pred, RR_CI_upper, RR_CI_lower,
         T_pred, T_CI_upper, T_CI_lower,
         total_cases, new_cases_ts,
         anomalies, anomaly_dates
@@ -55,8 +54,8 @@ for state in states:
     estimates = pd.DataFrame(data = {
         "dates": dates,
         "Rt_pred": Rt_pred,
-        "Rt_CI_upper": Rt_CI_upper,
-        "Rt_CI_lower": Rt_CI_lower,
+        "RR_CI_upper": RR_CI_upper,
+        "RR_CI_lower": RR_CI_lower,
         "T_pred": T_pred,
         "T_CI_upper": T_CI_upper,
         "T_CI_lower": T_CI_lower,
@@ -65,7 +64,7 @@ for state in states:
     })
     print("  + Rt today:", Rt_pred[-5:])
 
-    plt.Rt(dates, Rt_pred, Rt_CI_lower, Rt_CI_upper, CI)\
+    plt.Rt(dates, Rt_pred, RR_CI_lower, RR_CI_upper, CI)\
         .ylabel("Estimated $R_t$")\
         .xlabel("Date")\
         .title(state)\
@@ -82,7 +81,7 @@ for district in tn_ts.index.get_level_values(0).unique()[19:]:
     print("  + running estimation...")
     (
         dates,
-        Rt_pred, Rt_CI_upper, Rt_CI_lower,
+        Rt_pred, RR_CI_upper, RR_CI_lower,
         T_pred, T_CI_upper, T_CI_lower,
         total_cases, new_cases_ts,
         anomalies, anomaly_dates
@@ -90,8 +89,8 @@ for district in tn_ts.index.get_level_values(0).unique()[19:]:
     estimates = pd.DataFrame(data = {
         "dates": dates,
         "Rt_pred": Rt_pred,
-        "Rt_CI_upper": Rt_CI_upper,
-        "Rt_CI_lower": Rt_CI_lower,
+        "RR_CI_upper": RR_CI_upper,
+        "RR_CI_lower": RR_CI_lower,
         "T_pred": T_pred,
         "T_CI_upper": T_CI_upper,
         "T_CI_lower": T_CI_lower,
@@ -102,7 +101,7 @@ for district in tn_ts.index.get_level_values(0).unique()[19:]:
     print("  + Rt today:", Rt_pred[-1])
 
     plt.figure()
-    plt.Rt(dates, Rt_pred, Rt_CI_lower, Rt_CI_upper, CI)\
+    plt.Rt(dates, Rt_pred, RR_CI_lower, RR_CI_upper, CI)\
         .ylabel("Estimated $R_t$")\
         .xlabel("Date")\
         .title(district)\
@@ -117,7 +116,7 @@ for district in mh_ts.index.get_level_values(0).unique()[-3:]:
     print("  + running estimation...")
     (
         dates,
-        Rt_pred, Rt_CI_upper, Rt_CI_lower,
+        Rt_pred, RR_CI_upper, RR_CI_lower,
         T_pred, T_CI_upper, T_CI_lower,
         total_cases, new_cases_ts,
         anomalies, anomaly_dates
@@ -125,8 +124,8 @@ for district in mh_ts.index.get_level_values(0).unique()[-3:]:
     estimates = pd.DataFrame(data = {
         "dates": dates,
         "Rt_pred": Rt_pred,
-        "Rt_CI_upper": Rt_CI_upper,
-        "Rt_CI_lower": Rt_CI_lower,
+        "RR_CI_upper": RR_CI_upper,
+        "RR_CI_lower": RR_CI_lower,
         "T_pred": T_pred,
         "T_CI_upper": T_CI_upper,
         "T_CI_lower": T_CI_lower,
@@ -137,7 +136,7 @@ for district in mh_ts.index.get_level_values(0).unique()[-3:]:
     print("  + Rt today:", Rt_pred[-1])
 
     plt.figure()
-    plt.Rt(dates, Rt_pred, Rt_CI_lower, Rt_CI_upper, CI)\
+    plt.Rt(dates, Rt_pred, RR_CI_lower, RR_CI_upper, CI)\
         .ylabel("Estimated $R_t$")\
         .xlabel("Date")\
         .title(district)\
@@ -154,7 +153,7 @@ for district in mp_ts.index.get_level_values(0).unique():
     try:
         (
             dates,
-            Rt_pred, Rt_CI_upper, Rt_CI_lower,
+            Rt_pred, RR_CI_upper, RR_CI_lower,
             T_pred, T_CI_upper, T_CI_lower,
             total_cases, new_cases_ts,
             anomalies, anomaly_dates
@@ -165,8 +164,8 @@ for district in mp_ts.index.get_level_values(0).unique():
     estimates = pd.DataFrame(data = {
         "dates": dates,
         "Rt_pred": Rt_pred,
-        "Rt_CI_upper": Rt_CI_upper,
-        "Rt_CI_lower": Rt_CI_lower,
+        "RR_CI_upper": RR_CI_upper,
+        "RR_CI_lower": RR_CI_lower,
         "T_pred": T_pred,
         "T_CI_upper": T_CI_upper,
         "T_CI_lower": T_CI_lower,
@@ -177,7 +176,7 @@ for district in mp_ts.index.get_level_values(0).unique():
     print("  + Rt today:", Rt_pred[-1])
 
     plt.figure()
-    plt.Rt(dates, Rt_pred, Rt_CI_lower, Rt_CI_upper, CI)\
+    plt.Rt(dates, Rt_pred, RR_CI_lower, RR_CI_upper, CI)\
         .ylabel("Estimated $R_t$")\
         .xlabel("Date")\
         .title(district)\
