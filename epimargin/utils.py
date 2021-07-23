@@ -16,10 +16,10 @@ annually = 1/years
 million  = 1e6
 
 def cwd() -> Path:
-    argv0 = sys.argv[0]
-    if argv0.endswith("ipython"):
-        return Path(".").resolve()
-    return Path(argv0).resolve().parent
+    try:
+        return Path(__file__).resolve().parent
+    except NameError:
+        return Path.cwd()
         
 def fmt_params(**kwargs) -> str:
     """  get useful experiment tag from a dictionary of experiment settings """
