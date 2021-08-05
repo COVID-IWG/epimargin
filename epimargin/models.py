@@ -231,10 +231,10 @@ class Age_SIRVD():
         population:          int,           # unit population
         dT0:        Optional[int]  = None,  # last change in cases, None -> Poisson random intro 
         Rt0:                 float = 1.9,   # initial reproductive rate,
-        S0:                  np.array = np.zeros(), # initial susceptibles
-        I0:                  np.array = np.zeros(), # initial infected
-        R0:                  np.array = np.zeros(), # initial recovered
-        D0:                  np.array = np.zeros(), # initial dead
+        S0:                  np.array = np.array(0), # initial susceptibles
+        I0:                  np.array = np.array(0), # initial infected
+        R0:                  np.array = np.array(0), # initial recovered
+        D0:                  np.array = np.array(0), # initial dead
         infectious_period:   int   = 5,     # how long disease is communicable in days 
         introduction_rate:   float = 5.0,   # parameter for new community transmissions (lambda) 
         mortality:           float = 0.02,  # I -> D transition probability 
