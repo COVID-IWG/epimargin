@@ -440,20 +440,11 @@ class NetworkedSIR():
                     unit.__setattr__(attr, val)
         return self 
 
-    def aggregate(self, curves: Union[Sequence[str], str] = ["Rt", "b", "S", "I", "R", "D", "P", "beta"]) -> Union[Dict[str, Sequence[float]], Sequence[float]]:
-        if isinstance(curves, str):
-            single_curve = curves
-            curves = [curves]
-        else: 
-            single_curve = False
-        aggs = { 
+    def aggregate(self, curves: Union[Sequence[str], str] = ["Rt", "b", "S", "I", "R", "D", "P", "beta"]) -> Dict[str, Sequence[float]]:
+        return { 
             curve: list(map(sum, zip(*(unit.__getattribute__(curve) for unit in self.units))))
             for curve in curves
         }
-
-        if single_curve:
-            return aggs[single_curve]
-        return aggs
 
 class SEIR():
     """ stochastic SEIR model without external introductions """

@@ -1,20 +1,20 @@
 from abc import abstractmethod
 from itertools import product
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
+from scipy.stats import multinomial as Multinomial
 from sklearn.metrics import auc
 
-from scipy.stats import multinomial as Multinomial
-
-from .models import SIR
+from .models import SIR, NetworkedSIR
 from .utils import weeks
+
 
 def AUC(curve):
     return auc(x = range(len(curve)), y = curve)
 
 # Adaptive Control policies
-def simulate_lockdown(model: SIR, lockdown_period: int, total_time: int, Rt0_mandatory: Dict[str, float], Rt0_voluntary: Dict[str, float], lockdown: np.matrix, migrations: np.matrix) -> SIR:
+def simulate_lockdown(model: NetworkedSIR, lockdown_period: int, total_time: int, Rt0_mandatory: Dict[str, float], Rt0_voluntary: Dict[str, float], lockdown: np.matrix, migrations: np.matrix) -> NetworkedSIR:
     """ simulate a lockdown where stringency is assumed to be reflected by Rt0_mandatory, with a return to Rt0_voluntary (and possible migration) once lockdown is over """
     return model.set_parameters(Rt0 = Rt0_mandatory)\
         .run(lockdown_period,  migrations = lockdown)\
@@ -22,7 +22,7 @@ def simulate_lockdown(model: SIR, lockdown_period: int, total_time: int, Rt0_man
         .run(total_time - lockdown_period, migrations = migrations)
 
 def simulate_adaptive_control(
-    model: SIR, 
+    model: NetworkedSIR, 
     initial_run: int, 
     total_time: int, 
     lockdown: np.matrix, 
@@ -31,7 +31,7 @@ def simulate_adaptive_control(
     beta_v: Dict[str, float], 
     beta_m: Dict[str, float], 
     evaluation_period: int = 2*weeks, 
-    adjacency: Optional[np.matrix] = None) -> SIR:
+    adjacency: Optional[np.matrix] = None) -> NetworkedSIR:
     """ simulate the Malani et al. adaptive lockdown policy where districts are assigned to lockdown stringency buckets based on Rt """
     n = len(model)
     model.set_parameters(Rt0 = R_m)\
@@ -40,7 +40,10 @@ def simulate_adaptive_control(
     gantt = []
     last_category = dict()
     while days_run < total_time:
-        Gs, Ys, Os, Rs = set(), set(), set(), set()
+        Gs: Set[int] = set()
+        Ys: Set[int] = set()
+        Os: Set[int] = set()
+        Rs: Set[int] = set()
         categories = dict(enumerate([Gs, Ys, Os, Rs]))
         category_transitions = {}
         for (i, unit) in enumerate(model):
@@ -88,10 +91,10 @@ def simulate_adaptive_control(
         model.run(evaluation_period, phased_migration)
         days_run += evaluation_period
 
-    model.gantt = gantt 
+    model.gantt = gantt # type: ignore
     return model 
 
-def simulate_adaptive_control_MHA(model: SIR, initial_run: int, total_time: int, lockdown: np.matrix, migrations: np.matrix, R_m: Dict[str, float], beta_v: Dict[str, float], beta_m: Dict[str, float], evaluation_period = 2*weeks):
+def simulate_adaptive_control_MHA(model: NetworkedSIR, initial_run: int, total_time: int, lockdown: np.matrix, migrations: np.matrix, R_m: Dict[str, float], beta_v: Dict[str, float], beta_m: Dict[str, float], evaluation_period = 2*weeks):
     """ simulates the version of adaptive control suggested by the Indian Ministry of Home Affairs, where the trigger is based on infection count doubling time """
     n = len(model)
     model.set_parameters(Rt0 = R_m)\
@@ -100,7 +103,10 @@ def simulate_adaptive_control_MHA(model: SIR, initial_run: int, total_time: int,
     gantt = []
     last_category = dict()
     while days_run < total_time:
-        Gs, Ys, Os, Rs = set(), set(), set(), set()
+        Gs: Set[int] = set()
+        Ys: Set[int] = set()
+        Os: Set[int] = set()
+        Rs: Set[int] = set()
         categories = dict(enumerate([Gs, Ys, Os, Rs]))
         category_transitions = {}
         for (i, unit) in enumerate(model):
@@ -151,26 +157,26 @@ def simulate_adaptive_control_MHA(model: SIR, initial_run: int, total_time: int,
         model.run(evaluation_period, phased_migration)
         days_run += evaluation_period
 
-    model.gantt = gantt 
+    model.gantt = gantt # type: ignore
     return model 
 
 def simulate_PID_controller(
-    model: SIR, 
+    model: NetworkedSIR, 
     initial_run: int, 
     total_time: int,
     Rtarget: float = 0.9,
     kP: float = 0.05, 
     kI: float = 0.5,
     kD: float = 0,
-    Dt: float = 1.0) -> SIR:
+    Dt: float = 1.0) -> NetworkedSIR:
     """ implements a hypothetical proportional-integral-derivative control policy where the error term is Rt magnitude above 1 """
     # initial run without PID 
     model.run(initial_run)
     
     # set up PID running variables
-    integral   = 0
-    derivative = 0
-    u = 0
+    integral   = 0.0
+    derivative = 0.0
+    u = 0.0
     prev_error = model[0].Rt[-1]
 
     z = np.zeros((len(model), len(model)))
@@ -200,7 +206,7 @@ class VaccinationPolicy():
         return self.__class__.__name__.lower()
 
     @abstractmethod
-    def distribute_doses(self, model: SIR, *kwargs) -> Tuple[np.array]:
+    def distribute_doses(self, model: SIR, num_sims: int) -> Tuple[np.array, ...]:
         pass 
 
     def exhausted(self, model) -> bool:
@@ -218,7 +224,7 @@ class RandomVaccineAssignment(VaccinationPolicy):
         super().__init__(bin_populations, effectiveness, daily_doses)
         self.age_ratios = age_ratios
 
-    def distribute_doses(self, model: SIR, num_sims: int = 10000) -> Tuple[np.array]:
+    def distribute_doses(self, model: SIR, num_sims: int = 10000) -> Tuple[np.array, ...]:
         if self.exhausted(model):
             return (np.zeros(self.age_ratios.shape), np.zeros(self.age_ratios.shape), np.zeros(self.age_ratios.shape))
         dV = (model.S[-1]/model.N[-1]) * self.daily_doses * self.effectiveness
@@ -243,7 +249,7 @@ class PrioritizedAssignment(VaccinationPolicy):
     def name(self) -> str:
         return f"{self.label}prioritized"
 
-    def distribute_doses(self, model: SIR, num_sims: int = 10_000) -> Tuple[np.array]:
+    def distribute_doses(self, model: SIR, num_sims: int = 10_000) -> Tuple[np.array, ...]:
         if self.exhausted(model):
             return (None, None, None)
         dV = (model.S[-1]/model.N[-1]) * self.daily_doses * self.effectiveness
@@ -252,7 +258,7 @@ class PrioritizedAssignment(VaccinationPolicy):
 
         dVx = np.zeros(self.bin_populations.shape)
         bin_idx, age_bin = next(((i, age_bin) for (i, age_bin) in enumerate(self.prioritization) if self.bin_populations[age_bin] > 0), (None, None))
-        if age_bin is not None:
+        if age_bin is not None and bin_idx is not None:
             if self.bin_populations[age_bin] > self.daily_doses:
                 self.bin_populations[age_bin] -= self.daily_doses
                 dVx[age_bin] = self.daily_doses
