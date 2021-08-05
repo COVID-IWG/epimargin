@@ -6,7 +6,7 @@ import numpy as np
 from scipy.stats import multinomial as Multinomial
 from sklearn.metrics import auc
 
-from .models import SIR, NetworkedSIR
+from .models import SIR, NetworkedSIR, Age_SIRVD
 from .utils import weeks
 
 
@@ -206,7 +206,7 @@ class VaccinationPolicy():
         return self.__class__.__name__.lower()
 
     @abstractmethod
-    def distribute_doses(self, model: SIR, num_sims: int) -> Tuple[np.array, ...]:
+    def distribute_doses(self, model: Age_SIRVD, num_sims: int) -> Tuple[np.array, ...]:
         pass 
 
     def exhausted(self, model) -> bool:
@@ -224,12 +224,12 @@ class RandomVaccineAssignment(VaccinationPolicy):
         super().__init__(bin_populations, effectiveness, daily_doses)
         self.age_ratios = age_ratios
 
-    def distribute_doses(self, model: SIR, num_sims: int = 10000) -> Tuple[np.array, ...]:
+    def distribute_doses(self, model: Age_SIRVD, num_sims: int = 10000) -> Tuple[np.array, ...]:
         if self.exhausted(model):
             return (np.zeros(self.age_ratios.shape), np.zeros(self.age_ratios.shape), np.zeros(self.age_ratios.shape))
         dV = (model.S[-1]/model.N[-1]) * self.daily_doses * self.effectiveness
         model.S[-1] -= dV
-        model.parallel_forward_epi_step(num_sims = num_sims)
+        model.parallel_forward_epi_step(0, num_sims = num_sims)
         distributed_doses = Multinomial.rvs(self.daily_doses, self.age_ratios)
         effective_doses   = self.effectiveness * distributed_doses
         immunizing_doses  = (model.S[-1].mean()/model.N[-1].mean()) * effective_doses
@@ -249,12 +249,12 @@ class PrioritizedAssignment(VaccinationPolicy):
     def name(self) -> str:
         return f"{self.label}prioritized"
 
-    def distribute_doses(self, model: SIR, num_sims: int = 10_000) -> Tuple[np.array, ...]:
+    def distribute_doses(self, model: Age_SIRVD, num_sims: int = 10_000) -> Tuple[np.array, ...]:
         if self.exhausted(model):
             return (None, None, None)
         dV = (model.S[-1]/model.N[-1]) * self.daily_doses * self.effectiveness
         model.S[-1] -= dV
-        model.parallel_forward_epi_step(num_sims = num_sims)
+        model.parallel_forward_epi_step(0, num_sims = num_sims)
 
         dVx = np.zeros(self.bin_populations.shape)
         bin_idx, age_bin = next(((i, age_bin) for (i, age_bin) in enumerate(self.prioritization) if self.bin_populations[age_bin] > 0), (None, None))

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, Iterator, Optional, Sequence, Tuple, Union
+from typing import Dict, Iterator, Optional, Sequence, Tuple, Union, List
 
 import geopandas as gpd
 import numpy as np
@@ -124,7 +124,7 @@ class SIR():
     # parallel poisson draws for infection
     def parallel_forward_epi_step(self, dB: int = 0, num_sims = 10000): 
         # get previous state 
-        S, I, R, D, N = (vector[-1].copy() for vector in (self.S, self.I, self.R, self.D, self.N))
+        S, I, R, D, N = (vector[-1] for vector in (self.S, self.I, self.R, self.D, self.N))
 
         # update state 
         Rt = self.Rt0 * S/N
@@ -148,9 +148,9 @@ class SIR():
 
         I -= (num_dead + num_recov)
 
-        S = S.clip(0)
-        I = I.clip(0)
-        D = D.clip(0)
+        S = max(0, S)
+        I = max(0, I)
+        D = max(0, D)
 
         N = S + I + R
         beta = (num_cases * N)/(b * S * I)
@@ -172,15 +172,15 @@ class SIR():
     # parallel binomial draws for infection
     def parallel_forward_binom_step(self, dB: int = 0, num_sims = 10000): 
         # get previous state 
-        S, I, R, D, N = (vector[-1].copy() for vector in (self.S, self.I, self.R, self.D, self.N))
+        S, I, R, D, N = (vector[-1] for vector in (self.S, self.I, self.R, self.D, self.N))
 
         # update state 
         Rt = self.Rt0 * S/N
         p = self.gamma * Rt * I/N
 
-        num_cases = binom.rvs(n = S.astype(int), p = p, size = num_sims)
-        self.upper_CI.append(binom.ppf(self.CI,     n = S.astype(int), p = p))
-        self.lower_CI.append(binom.ppf(1 - self.CI, n = S.astype(int), p = p))
+        num_cases = binom.rvs(n = S, p = p, size = num_sims)
+        self.upper_CI.append(binom.ppf(self.CI,     n = S, p = p))
+        self.lower_CI.append(binom.ppf(1 - self.CI, n = S, p = p))
 
         I += num_cases
         S -= num_cases
@@ -195,12 +195,11 @@ class SIR():
 
         I -= (num_dead + num_recov)
 
-        S = S.clip(0)
-        I = I.clip(0)
-        D = D.clip(0)
+        S = max(0, S)
+        I = max(0, I)
+        D = max(0, D)
 
         N = S + I + R
-        # beta = (num_cases * N)/(b * S * I)
 
         # update state vectors 
         self.Rt.append(Rt)
@@ -222,17 +221,20 @@ class SIR():
     def __repr__(self) -> str:
         return f"[{self.name}]"
 
-class Age_SIRVD(SIR):
-    """ age-structured compartmental model with a vaccinated class for each age bin """
+class Age_SIRVD():
+    """ age-structured compartmental model with a vaccinated class for each age bin 
+    note that the underlying parallelizing mechanism is different from that of SIR and NetworkedSIR
+
+    """
     def __init__(self,
         name:                str,           # name of unit
         population:          int,           # unit population
         dT0:        Optional[int]  = None,  # last change in cases, None -> Poisson random intro 
         Rt0:                 float = 1.9,   # initial reproductive rate,
-        S0:                  int   = 0,     # initial susceptible
-        I0:                  int   = 0,     # initial infected
-        R0:                  int   = 0,     # initial recovered
-        D0:                  int   = 0,     # initial dead
+        S0:                  np.array = np.zeros(), # initial susceptibles
+        I0:                  np.array = np.zeros(), # initial infected
+        R0:                  np.array = np.zeros(), # initial recovered
+        D0:                  np.array = np.zeros(), # initial dead
         infectious_period:   int   = 5,     # how long disease is communicable in days 
         introduction_rate:   float = 5.0,   # parameter for new community transmissions (lambda) 
         mortality:           float = 0.02,  # I -> D transition probability 
@@ -245,7 +247,36 @@ class Age_SIRVD(SIR):
         ve:                  float = 0.7,   # vaccine effectiveness
         random_seed:         int   = 0      # random seed,  
     ):
-        super().__init__(name, population, dT0=dT0, Rt0=Rt0, I0=I0, R0=R0, D0=D0, infectious_period=infectious_period, introduction_rate=introduction_rate, mortality=mortality, mobility=mobility, upper_CI=upper_CI, lower_CI=lower_CI, CI=CI, random_seed=random_seed)
+        self.name  = name 
+        self.pop0  = population
+        self.gamma = 1.0/infectious_period
+        self.ll    = introduction_rate
+        self.m     = mortality
+        self.mu    = mobility
+        self.Rt0   = Rt0
+        self.CI    = CI 
+
+        # state and delta vectors 
+        if dT0 is None:
+            dT0 = np.random.poisson(self.ll) # initial number of new cases 
+        self.dT = [dT0] # case change rate, initialized with the first introduction, if any
+        self.Rt = [Rt0]
+        self.b  = [np.exp(self.gamma * (Rt0 - 1.0))]
+        self.S  = [S0 if S0 is not None else population - R0 - D0 - I0]
+        self.I  = [I0] 
+        self.R  = [R0]
+        self.D  = [D0]
+        self.dR = [0]
+        self.dD = [0]
+        self.N  = [population - D0] # total population = S + I + R 
+        self.beta = [Rt0 * self.gamma] # initial contact rate 
+        self.total_cases = [I0] # total cases 
+        self.upper_CI = [upper_CI]
+        self.lower_CI = [lower_CI]
+
+        np.random.seed(random_seed)
+
+
         self.N = [S0 + I0 + R0]
         shape = (sims, bins) = S0.shape
         
@@ -276,7 +307,7 @@ class Age_SIRVD(SIR):
 
         self.dT_total = [np.zeros(sims)]
         self.dD_total = [np.zeros(sims)]
-        self.dV = []
+        self.dV: List[np.array] = []
 
         self.rng = np.random.default_rng(random_seed)
 
