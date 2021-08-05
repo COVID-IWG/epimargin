@@ -1,7 +1,8 @@
+from build.lib.epimargin.models import NetworkedSIR
 import datetime
 from collections import namedtuple
 from pathlib import Path
-from typing import Optional, Sequence, Tuple
+from typing import Optional, Sequence, Tuple, List, Dict
 
 import matplotlib as mpl
 import matplotlib.dates as mdates
@@ -11,7 +12,6 @@ import pandas as pd
 import seaborn as sns
 import tikzplotlib
 from matplotlib.patheffects import Normal, Stroke
-from matplotlib.pyplot import *
 
 from .models import SIR
 
@@ -55,15 +55,6 @@ SIM_PALETTE = ["#437034", "#7D4343", "#43587D", "#7D4370"]
 def rebuild_font_cache():
     import matplotlib.font_manager
     matplotlib.font_manager._rebuild()
-
-def despine(**kwargs):
-    pass 
-
-def grid(flag):
-    if flag:
-        pass
-    else:
-        pass
 
 # container class for different theme
 Aesthetics = namedtuple(
@@ -301,7 +292,7 @@ class PlotDevice():
         plt.show(**kwargs)
         return self 
 
-def plot_SIRD(model: SIR, layout = (1,  4)) -> PlotDevice:
+def plot_SIRD(model: NetworkedSIR, layout = (1,  4)) -> PlotDevice:
     """ plot all 4 available curves (S, I, R, D) for a given SIR  model """
     fig, axes = plt.subplots(layout[0], layout[1], sharex = True, sharey = True)
     t = list(range(len(model.Rt)))
@@ -315,7 +306,7 @@ def plot_SIRD(model: SIR, layout = (1,  4)) -> PlotDevice:
     fig.legend([s, i, r, d], labels = ["S", "I", "R", "D"], loc =  "center right", borderaxespad = 0.1)
     return PlotDevice(fig)
 
-def plot_curve(models: Sequence[SIR], labels: Sequence[str], curve: str = "I"):
+def plot_curve(models: Sequence[NetworkedSIR], labels: Sequence[str], curve: str = "I"):
     """ plot specific epidemic curve """
     fig = plt.figure()
     for (model, label) in zip(models, labels):
@@ -368,7 +359,7 @@ def predictions(date_range, model, color, bounds = [2.5, 97.5], curve = "dT"):
     return [(range_marker, median_marker), model.name]
 
 def simulations(
-    simulation_results: Sequence[Tuple[SIR]], 
+    simulation_results: Sequence[Tuple[NetworkedSIR]], 
     labels: Sequence[str], 
     historical: Optional[pd.Series] = None, 
     historical_label: str = "Empirical Case Data", 
@@ -384,18 +375,18 @@ def simulations(
     num_sims   = len(simulation_results)
     total_time = len(policy_outcomes[0][0])
 
-    ranges = [{"max": [], "min": [], "mdn": [], "avg": []} for _ in range(len(policy_outcomes))]
+    ranges: List[Dict[str, List]] = [{"max": [], "min": [], "mdn": [], "avg": []} for _ in range(len(policy_outcomes))]
 
     for (i, policy) in enumerate(policy_outcomes):
-        for t in range(total_time):
-            curve_sorted = sorted([curve[t] for curve in policy])
+        for _ in range(total_time):
+            curve_sorted = sorted([curve[_] for curve in policy])
             ranges[i]["min"].append(curve_sorted[0])
             ranges[i]["max"].append(curve_sorted[-1])
             ranges[i]["mdn"].append(curve_sorted[num_sims//2])
             ranges[i]["avg"].append(np.mean(curve_sorted))
 
     legends = []
-    legend_labels  = []
+    legend_labels = []
     if historical is not None:
         p, = plt.plot(historical.index, historical, 'k-', alpha = 0.8, zorder = 10)
         t  = [historical.index.max() + datetime.timedelta(days = n) for n in range(total_time)]
@@ -478,7 +469,7 @@ def daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dat
     plt.ylim(bottom = 0, top = top)
     legends += [anomalies_marker]
     labels  += ["anomalies"]
-    xlim(left = dates[0], right = end)
+    plt.xlim(left = dates[0], right = end)
     plt.legend(legends, labels, prop = {'size': 14}, framealpha = theme.framealpha, handlelength = theme.handlelength, loc = "best")
     plt.gca().xaxis.set_major_formatter(DATE_FMT)
     plt.gca().xaxis.set_minor_formatter(DATE_FMT)
@@ -544,5 +535,5 @@ def double_choropleth_v(*args, **kwargs):
     kwargs["arrangement"] = (2, 1)
     return double_choropleth(*args, **kwargs)
 
-double_choropleth.horizontal = double_choropleth
-double_choropleth.vertical   = double_choropleth_v
+double_choropleth.horizontal = double_choropleth   # type: ignore
+double_choropleth.vertical   = double_choropleth_v # type: ignore

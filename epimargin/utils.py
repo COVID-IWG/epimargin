@@ -32,7 +32,7 @@ def mkdir(p: Path, exist_ok: bool = True) -> Path:
     p.mkdir(exist_ok = exist_ok)
     return p
 
-def setup(**kwargs) -> Tuple[Path]:
+def setup(**kwargs) -> Tuple[Path, ...]:
     root = cwd()
     if len(sys.argv) > 2:
         parser = argparse.ArgumentParser()

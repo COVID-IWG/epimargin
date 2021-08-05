@@ -22,7 +22,7 @@ def rollingOLS(totals: pd.DataFrame, window: int = 3, infectious_period: float =
     model   = RollingOLS.from_formula(formula = "logdelta ~ time", window = window, data = totals)
     rolling = model.fit(method = "lstsq")
     
-    growthrates = rolling.params.join(rolling.bse, rsuffix="_stderr")
+    growthrates = pd.DataFrame(rolling.params).join(rolling.bse, rsuffix="_stderr")
     growthrates["rsq"] = rolling.rsquared
     growthrates.rename(lambda s: s.replace("time", "gradient").replace("const", "intercept"), axis = 1, inplace = True)
 
