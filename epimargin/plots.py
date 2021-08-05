@@ -11,7 +11,6 @@ import pandas as pd
 import seaborn as sns
 import tikzplotlib
 from matplotlib.patheffects import Normal, Stroke
-from matplotlib.pyplot import *
 
 from .models import SIR
 
@@ -55,15 +54,6 @@ SIM_PALETTE = ["#437034", "#7D4343", "#43587D", "#7D4370"]
 def rebuild_font_cache():
     import matplotlib.font_manager
     matplotlib.font_manager._rebuild()
-
-def despine(**kwargs):
-    pass 
-
-def grid(flag):
-    if flag:
-        pass
-    else:
-        pass
 
 # container class for different theme
 Aesthetics = namedtuple(
@@ -478,7 +468,7 @@ def daily_cases(dates, T_pred, T_CI_upper, T_CI_lower, new_cases_ts, anomaly_dat
     plt.ylim(bottom = 0, top = top)
     legends += [anomalies_marker]
     labels  += ["anomalies"]
-    xlim(left = dates[0], right = end)
+    plt.xlim(left = dates[0], right = end)
     plt.legend(legends, labels, prop = {'size': 14}, framealpha = theme.framealpha, handlelength = theme.handlelength, loc = "best")
     plt.gca().xaxis.set_major_formatter(DATE_FMT)
     plt.gca().xaxis.set_minor_formatter(DATE_FMT)

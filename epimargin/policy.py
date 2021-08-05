@@ -191,8 +191,10 @@ def simulate_PID_controller(
 # Vaccination policies
 class VaccinationPolicy():
     """ parent class to hold vaccination policy state """
-    def __init__(self, bin_populations: np.array) -> None:
+    def __init__(self, bin_populations: np.array, effectiveness: float, daily_doses: int) -> None:
         self.bin_populations = bin_populations
+        self.daily_doses = daily_doses
+        self.effectiveness = effectiveness
 
     def name(self) -> str:
         return self.__class__.__name__.lower()
@@ -213,10 +215,8 @@ class VaccinationPolicy():
 class RandomVaccineAssignment(VaccinationPolicy):
     """ assigns vaccines to members of the population randomly """
     def __init__(self, daily_doses: int, effectiveness: float, bin_populations: np.array, age_ratios: np.array):
-        self.daily_doses = daily_doses 
+        super().__init__(bin_populations, effectiveness, daily_doses)
         self.age_ratios = age_ratios
-        self.effectiveness = effectiveness
-        self.bin_populations = bin_populations
 
     def distribute_doses(self, model: SIR, num_sims: int = 10000) -> Tuple[np.array]:
         if self.exhausted(model):
@@ -236,10 +236,8 @@ class RandomVaccineAssignment(VaccinationPolicy):
 class PrioritizedAssignment(VaccinationPolicy):
     """ assigns vaccines to members of the population based on a prioritized ordering of subpopulations """
     def __init__(self, daily_doses: int, effectiveness: float, bin_populations: np.array, prioritization: List[int], label: str):
-        self.daily_doses     = daily_doses
-        self.bin_populations = bin_populations
-        self.prioritization  = prioritization
-        self.effectiveness   = effectiveness
+        super().__init__(bin_populations, effectiveness, daily_doses)
+        self.prioritization = prioritization
         self.label = label
 
     def name(self) -> str:
@@ -248,7 +246,6 @@ class PrioritizedAssignment(VaccinationPolicy):
     def distribute_doses(self, model: SIR, num_sims: int = 10_000) -> Tuple[np.array]:
         if self.exhausted(model):
             return (None, None, None)
-            # return (np.zeros(self.age_ratios.shape), np.zeros(self.age_ratios.shape), np.zeros(self.age_ratios.shape))
         dV = (model.S[-1]/model.N[-1]) * self.daily_doses * self.effectiveness
         model.S[-1] -= dV
         model.parallel_forward_epi_step(num_sims = num_sims)
