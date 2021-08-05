@@ -3,11 +3,8 @@ import pandas as pd
 from epimargin.estimators import analytical_MPVS
 from studies.vaccine_allocation.commons import *
 
-ts = case_death_timeseries(download = False)
+ts = case_death_timeseries(download = True)
 district_age_pop = pd.read_csv(data/"all_india_sero_pop.csv").set_index(["state", "district"])
-
-
-# supplement: Rt distribution
 
 simulation_initial_conditions = pd.read_csv(data/f"all_india_coalesced_initial_conditions{simulation_start.strftime('%b%d')}.csv")\
     .drop(columns = ["Unnamed: 0"])\
@@ -72,19 +69,20 @@ vax = load_vax_data()\
     [pd.Timestamp("Jan 1, 2021"):simulation_start]\
     .drop(labels = [pd.Timestamp("2021-03-15")]) # handle NAN
 
-plt.plot(vax.index, vax["Tamil Nadu"]/N_TN, color = TN_color, label = "Tamil Nadu", linewidth = 2)
-plt.plot(vax.index, vax["Total"]     /N_TT, color = IN_color, label = "India"     , linewidth = 2)
+plt.plot(vax.index, 100 *  vax["Tamil Nadu"]/N_TN, color = TN_color, label = "Tamil Nadu", linewidth = 2)
+plt.plot(vax.index, 100 *  vax["Total"]     /N_TT, color = IN_color, label = "India"     , linewidth = 2)
 plt.xticks(fontsize = "20", rotation = 0)
-plt.yticks(fontsize = "20")
+ticks = list(range(0, 21, 5))
+plt.yticks(fontsize = "20", ticks = ticks, labels = [f"{i}%" for i in ticks])
 plt.legend(
     fontsize = "20", ncol = 4,     
     framealpha = 1, handlelength = 0.75,
     loc = "lower center", bbox_to_anchor = (0.5, 1))
 plt.gca().xaxis.set_major_formatter(plt.DATE_FMT)
 plt.gca().xaxis.set_minor_formatter(plt.DATE_FMT)
-plt.xlim(left = pd.Timestamp("Jan 1, 2021"), right = pd.Timestamp("April 1, 2021"))
-plt.ylim(bottom = 0, top = 0.05)
-plt.PlotDevice().ylabel("per-capita vaccination rate\n").xlabel("\ndate")
+plt.xlim(left = pd.Timestamp("Jan 1, 2021"), right = pd.Timestamp("June 15, 2021"))
+plt.ylim(bottom = 0)
+plt.PlotDevice().ylabel("vaccination rate\n").xlabel("\ndate")
 plt.show()
 
 # fig 1C: probability of death 
@@ -156,12 +154,14 @@ plt.PlotDevice().xlabel("\ndate").ylabel("incremental death probability (percent
 plt.show()
 
 # supplement: Rt distribution (state)
-state_ts = ts.sum(level = [0, 2]).sort_index().drop(labels = 
-    ["State Unassigned", "Lakshadweep", "Ladakh", "Andaman And Nicobar Islands", "Goa"] + 
-    ["Sikkim", "Chandigarh", "Mizoram", "Puducherry", "Arunachal Pradesh", 
-    "Nagaland", "Manipur", "Meghalaya", "Tripura", "Himachal Pradesh"] + 
-    ["Dadra And Nagar Haveli And Daman And Diu"]
-)
+# state_ts = ts.sum(level = [0, 2]).sort_index().drop(labels = 
+#     ["State Unassigned", "Lakshadweep", "Ladakh", "Andaman And Nicobar Islands", "Goa"] + 
+#     ["Sikkim", "Chandigarh", "Mizoram", "Puducherry", "Arunachal Pradesh", 
+#     "Nagaland", "Manipur", "Meghalaya", "Tripura", "Himachal Pradesh"] + 
+#     ["Dadra And Nagar Haveli And Daman And Diu"]
+# )
+
+state_ts = ts.sum(level = [0, 2]).sort_index().loc[district_age_pop.index.get_level_values(0).unique()]
 
 india_ts = ts.sum(level = -1)
 
