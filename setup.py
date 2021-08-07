@@ -25,6 +25,6 @@ setup(
         "seaborn",
         "tikzplotlib",
         "geopandas",
-        "semver==2.12.0"
+        "semver==2.11.0"
     ]
 )
