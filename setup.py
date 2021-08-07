@@ -25,6 +25,7 @@ setup(
         "seaborn",
         "tikzplotlib",
         "geopandas",
+        "scikit-learn",
         "semver==2.11.0"
     ]
 )
