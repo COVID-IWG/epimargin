@@ -14,7 +14,7 @@ from epimargin.etl import download_data
 from epimargin.smoothing import notched_smoothing
 
 # a snapshot of this csv is checked into the repo at data/tutorial_timeseries.csv in case you run into download problems
-download_data(data, "districts.csv", "https://api.covid19india.org/csv/latest/") 
+download_data(data, "districts.csv", "https://api.covid19india.org/csv/latest/")
 
 daily_reports = pd.read_csv(data / "districts.csv", parse_dates = ["Date"])\
     .rename(str.lower, axis = 1)\
@@ -32,13 +32,13 @@ smoothed_cases = pd.Series(
     index = daily_cases.index
 )
 
-# plot raw and cleaned data 
+# plot raw and cleaned data
 beg = "December 15, 2020"
 end = "March 1, 2021"
 training_cases = smoothed_cases[beg:end]
 
-plt.scatter(daily_cases[beg:end].index, daily_cases[beg:end].values, color = "black", s = 5, alpha = 0.5, label = "raw case count data")
-plt.plot(training_cases.index, training_cases.values, color = "black", linewidth = 2, label = "notch-filtered, smoothed case count data")
+plt.plt.scatter(daily_cases[beg:end].index, daily_cases[beg:end].values, color = "black", s = 5, alpha = 0.5, label = "raw case count data")
+plt.plt.plot(training_cases.index, training_cases.values, color = "black", linewidth = 2, label = "notch-filtered, smoothed case count data")
 plt.PlotDevice()\
     .l_title("case timeseries for Mumbai")\
     .axis_labels(x = "date", y = "daily cases")\
@@ -49,7 +49,7 @@ plt.PlotDevice()\
     .save(figs / "fig_1.svg")\
     .show()
 
-# estimate Rt 
+# estimate Rt
 from epimargin.estimators import analytical_MPVS
 
 (dates, Rt, Rt_CI_upper, Rt_CI_lower, *_) = analytical_MPVS(training_cases, smoother, infectious_period = 10, totals = False)
@@ -72,23 +72,23 @@ dT0 = smoothed_cases[end]
 S0  = N0 - I0 - R0 - D0
 Rt0 = Rt[-1] * N0 / S0
 no_lockdown = SIR(
-    name = "no lockdown", 
-    population = N0, 
+    name = "no lockdown",
+    population = N0,
     dT0 = np.ones(num_sims) * dT0, Rt0 = np.ones(num_sims) * Rt0, I0 = np.ones(num_sims) * I0, R0 = np.ones(num_sims) * R0, D0 = np.ones(num_sims) * D0, S0 = np.ones(num_sims) * S0, infectious_period = 10
 )
 lockdown = SIR(
-    name = "partial lockdown", 
-    population = N0, 
+    name = "partial lockdown",
+    population = N0,
     dT0 = np.ones(num_sims) * dT0, Rt0 = np.ones(num_sims) * 0.75 * Rt0, I0 = np.ones(num_sims) * I0, R0 = np.ones(num_sims) * R0, D0 = np.ones(num_sims) * D0, S0 = np.ones(num_sims) * S0, infectious_period = 10
 )
 
-# run models forward 
+# run models forward
 simulation_range = 7
 for _ in range(simulation_range):
     lockdown   .parallel_forward_epi_step(num_sims = num_sims)
     no_lockdown.parallel_forward_epi_step(num_sims = num_sims)
 
-# compare policies 
+# compare policies
 test_cases = smoothed_cases["February 15, 2021":pd.Timestamp(end) + pd.Timedelta(days = simulation_range)]
 date_range = pd.date_range(start = end, periods = simulation_range + 1, freq = "D")
 legend_entries = [plt.predictions(date_range, model, color) for (model, color) in zip([lockdown, no_lockdown], cycle(plt.SIM_PALETTE))]
