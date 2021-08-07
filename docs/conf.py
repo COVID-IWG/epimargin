@@ -23,9 +23,6 @@ except ImportError:
     # sphinx version < 3
     from sphinx.apidoc import main as apidoc_main
 
-cwd = Path(__file__).parent
-module = cwd / '..' / 'epimargin'
-apidoc_main(['-e', '-o', str(cwd), str(module), '--force'])
 
 # -- Project information -----------------------------------------------------
 
@@ -50,13 +47,22 @@ autosectionlabel_prefix_document = True
 autosectionlabel_maxdepth = 2
 
 autoclass_content = "both"
+
 autodoc_default_options = {
     "member-order": "bysource",
-    #  "special-members": "__init__",
+    "special-members": "__init__",
     "undoc-members": True,
     "show_inheritance": True,
     "inherited-members": True,
 }
+
+# hack to generate apidoc automatically.
+cwd = Path(__file__).parent
+module = cwd / ".." / "epimargin"
+os.environ["SPHINX_APIDOC_OPTIONS"] = ",".join(
+    [f"{k}={v}" for k, v in autodoc_default_options.items()]
+)
+apidoc_main(["-e", "-o", str(cwd), str(module), "--force"])
 
 autosummary_generate = True
 
@@ -67,7 +73,6 @@ templates_path = ["_templates"]
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
-
 
 
 # -- Options for HTML output -------------------------------------------------
