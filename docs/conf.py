@@ -12,8 +12,20 @@
 #
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.abspath(".."))
+
+try:
+    # version > 3.0
+    from sphinx.ext.apidoc import main as apidoc_main
+except ImportError:
+    # sphinx version < 3
+    from sphinx.apidoc import main as apidoc_main
+
+cwd = Path(__file__).parent
+module = cwd / '..' / 'epimargin'
+apidoc_main(['-e', '-o', str(cwd), str(module), '--force'])
 
 # -- Project information -----------------------------------------------------
 
