@@ -28,4 +28,4 @@ jobs:
 
       - name: Run tutorial
         run: |
-          cd studies/tutorial/ && python tutorial.py
+          cd docs/tutorial/ && python tutorial.py
