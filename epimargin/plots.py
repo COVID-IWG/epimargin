@@ -11,6 +11,7 @@ import pandas as pd
 import seaborn as sns
 import tikzplotlib
 from matplotlib.patheffects import Normal, Stroke
+from matplotlib.pyplot import *
 
 from .models import NetworkedSIR
 
