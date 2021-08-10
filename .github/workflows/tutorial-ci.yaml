@@ -23,4 +23,4 @@ jobs:
           python -m pip install tqdm
       - name: Run tutorial
         run: |
-          cd docs/tutorial/ && python tutorial.py
+          cd docs/ && python tutorial.py
