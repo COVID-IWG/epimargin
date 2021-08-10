@@ -295,15 +295,15 @@ class PlotDevice():
 def plot_SIRD(model: NetworkedSIR, layout = (1,  4)) -> PlotDevice:
     """ plot all 4 available curves (S, I, R, D) for a given SIR  model """
     fig, axes = plt.subplots(layout[0], layout[1], sharex = True, sharey = True)
-    t = list(range(len(model.Rt)))
+    t = list(range(len(model[0].Rt)))
     for (ax, model) in zip(axes.flat, model.units):
-        s = ax.semilogy(t, model.S, alpha=0.75, label="Susceptibles")
-        i = ax.semilogy(t, model.I, alpha=0.75, label="Infectious", )
-        d = ax.semilogy(t, model.D, alpha=0.75, label="Deaths",     )
-        r = ax.semilogy(t, model.R, alpha=0.75, label="Recovered",  )
+        s, = ax.semilogy(t, model.S, alpha=0.75, label="Susceptibles")
+        i, = ax.semilogy(t, model.I, alpha=0.75, label="Infectious", )
+        d, = ax.semilogy(t, model.D, alpha=0.75, label="Deaths",     )
+        r, = ax.semilogy(t, model.R, alpha=0.75, label="Recovered",  )
         ax.label_outer()
     
-    fig.legend([s, i, r, d], labels = ["S", "I", "R", "D"], loc =  "center right", borderaxespad = 0.1)
+    fig.legend([s, i, r, d], ["S", "I", "R", "D"], loc = "center right", borderaxespad = 0.1)
     return PlotDevice(fig)
 
 def plot_curve(models: Sequence[NetworkedSIR], labels: Sequence[str], curve: str = "I"):
