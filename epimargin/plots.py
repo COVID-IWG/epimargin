@@ -1,8 +1,7 @@
-from build.lib.epimargin.models import NetworkedSIR
 import datetime
 from collections import namedtuple
 from pathlib import Path
-from typing import Optional, Sequence, Tuple, List, Dict
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import matplotlib as mpl
 import matplotlib.dates as mdates
@@ -13,7 +12,8 @@ import seaborn as sns
 import tikzplotlib
 from matplotlib.patheffects import Normal, Stroke
 
-from .models import SIR
+from .models import NetworkedSIR
+
 
 def normalize_dates(dates):
     try: 
