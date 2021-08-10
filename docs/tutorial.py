@@ -47,11 +47,7 @@ plt.PlotDevice()\
     .format_xaxis()\
     .size(9.5, 6)\
     .save(figs / "fig_1.svg")\
-<<<<<<< HEAD
     .show(block = False)
-=======
-    .show()
->>>>>>> master
 
 # estimate Rt 
 from epimargin.estimators import analytical_MPVS
@@ -63,11 +59,7 @@ plt.Rt(dates[1:], Rt[1:], Rt_CI_upper[1:], Rt_CI_lower[1:], 0.95, legend_loc = "
     .adjust(bottom = 0.15, left = 0.15)\
     .size(9.5, 6)\
     .save(figs / "fig_2.svg")\
-<<<<<<< HEAD
     .show(block = False)
-=======
-    .show()
->>>>>>> master
 
 # set up model
 from epimargin.models import SIR
@@ -115,8 +107,4 @@ plt.PlotDevice()\
     .size(9.5, 6)\
     .format_xaxis()\
     .save(figs / "fig_3.svg")\
-<<<<<<< HEAD
     .show(block = False)
-=======
-    .show()
->>>>>>> master
