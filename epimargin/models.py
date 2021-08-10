@@ -8,6 +8,12 @@ from scipy.spatial import distance_matrix
 from scipy.stats import poisson, binom
 from .utils import normalize, fillna
 
+def _max(*args):
+    try: 
+        return max(*args)
+    except ValueError: 
+        return 
+
 """
 Stochastic epidemiological models for forward simulation.
 """
@@ -148,9 +154,9 @@ class SIR():
 
         I -= (num_dead + num_recov)
 
-        S = max(0, S)
-        I = max(0, I)
-        D = max(0, D)
+        S = S.clip(0)
+        I = I.clip(0)
+        D = D.clip(0)
 
         N = S + I + R
         beta = (num_cases * N)/(b * S * I)
@@ -195,9 +201,9 @@ class SIR():
 
         I -= (num_dead + num_recov)
 
-        S = max(0, S)
-        I = max(0, I)
-        D = max(0, D)
+        S = S.clip(0)
+        I = I.clip(0)
+        D = D.clip(0)
 
         N = S + I + R
 
