@@ -12,7 +12,7 @@ a public health policy analysis toolkit consisting of:
     - urban-rural migration and reverse-migration flows
     - multiple vaccine allocation prioritizations 
 
-For examples of how the package is used, see the [epimargin-studies](https://github.com/COVID-IWG/epimargin-studies) repository.
+For examples of how the package is used, see the docs folder (featuring a [toy example](https://github.com/COVID-IWG/epimargin/blob/master/docs/toy_example.py) and a [full tutorial](https://github.com/COVID-IWG/epimargin/blob/master/docs/tutorial.py)), or the [epimargin-studies](https://github.com/COVID-IWG/epimargin-studies) repository. 
 
 # installation  
 The `epimargin` package is available on PyPI and can be installed via `pip`: 
