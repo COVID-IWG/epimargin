@@ -16,7 +16,11 @@ from .utils import days
 
 logger = logging.getLogger(__name__)
 
-def rollingOLS(totals: pd.DataFrame, window: int = 3, infectious_period: float = 4.5) -> pd.DataFrame:
+def rollingOLS(
+    totals: pd.DataFrame,           # total cumulative cases
+    window: int = 3,                # smoothing window size
+    infectious_period: float = 4.5  # infectious period in days
+) -> pd.DataFrame:
     """ legacy rolling regression-based implementation of Bettencourt/Ribeiro method """
     # run rolling regressions and get parameters
     model   = RollingOLS.from_formula(formula = "logdelta ~ time", window = window, data = totals)
@@ -38,23 +42,21 @@ def rollingOLS(totals: pd.DataFrame, window: int = 3, infectious_period: float =
     return growthrates
 
 def analytical_MPVS(
-        infection_ts: pd.DataFrame, 
-        smoothing: Callable,
+        timeseries: pd.DataFrame,          # timeseries of (cumulative | daily) (cases | deaths)
+        smoothing: Callable,               # smoothing function
         alpha: float = 3.0,                # shape 
         beta:  float = 2.0,                # rate
         CI:    float = 0.95,               # confidence interval 
         infectious_period: int = 5*days,   # inf period = 1/gamma,
         variance_shift: float = 0.99,      # how much to scale variance parameters by when anomaly detected 
-        totals: bool = True                # are these case totals or daily new cases?
+        totals: bool = True                # are these totals or daily new counts?
     ):
     """Estimates Rt ~ Gamma(alpha, 1/beta), and implements an analytical expression for a mean-preserving variance increase whenever case counts fall outside the CI defined by a negative binomial distribution"""
-    # infection_ts = infection_ts.copy(deep = True)
-    dates = infection_ts.index
+    dates = timeseries.index
     if totals:
-        # daily_cases = np.diff(infection_ts.clip(lower = 0)).clip(min = 0) # infection_ts clipped because COVID19India API does weird stuff
-        daily_cases = infection_ts.clip(lower = 0).diff().clip(lower = 0).iloc[1:]
+        daily_cases = timeseries.clip(lower = 0).diff().clip(lower = 0).iloc[1:]
     else: 
-        daily_cases = infection_ts 
+        daily_cases = timeseries 
     total_cases = np.cumsum(smoothing(np.squeeze(daily_cases)))
 
     v_alpha, v_beta = [], []
@@ -152,7 +154,15 @@ def analytical_MPVS(
         anomalies, anomaly_dates
     )
 
-def parametric_scheme_mcmc(daily_cases, CI = 0.95, gamma = 0.2, chains = 4, tune = 1000, draws = 1000, **kwargs):
+def parametric_scheme_mcmc(
+    daily_cases, # daily case counts
+    CI = 0.95,   # confidence interval
+    gamma = 0.2, # inverse infectious period
+    chains = 4, 
+    tune = 1000, 
+    draws = 1000, 
+    **kwargs
+):
     """ Implements the Bettencourt/Soman parametric scheme via MCMC sampling """
     if isinstance(daily_cases, (pd.DataFrame, pd.Series)):
         case_values = daily_cases.values
@@ -171,7 +181,15 @@ def parametric_scheme_mcmc(daily_cases, CI = 0.95, gamma = 0.2, chains = 4, tune
         trace = pm.sample(model = mcmc_model, chains = chains, tune = tune, draws = draws, cores = 1, **kwargs)
         return (mcmc_model, trace, pm.summary(trace, hdi_prob = CI))
 
-def branching_random_walk(daily_cases, CI = 0.95, gamma = 0.2, chains = 4, tune = 1000, draws = 1000, **kwargs):
+def branching_random_walk(
+    daily_cases, # daily case counts
+    CI = 0.95,   # confidence interval
+    gamma = 0.2, # inverse infectious period
+    chains = 4, 
+    tune = 1000, 
+    draws = 1000, 
+    **kwargs
+):
     """ estimate Rt using a random walk for branch parameter, adapted from old Rt.live code """
     if isinstance(daily_cases, (pd.DataFrame, pd.Series)):
         case_values = daily_cases.values
