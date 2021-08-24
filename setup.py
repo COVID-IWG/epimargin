@@ -18,7 +18,7 @@ setup(
         "pandas",
         "matplotlib",
         "arviz",
-        "pymc3",
+        "pymc3==3.11.2",
         "statsmodels",
         "flat-table",
         "requests",

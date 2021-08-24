@@ -37,7 +37,7 @@ def setup(**kwargs) -> Tuple[Path, ...]:
     if len(sys.argv) > 2:
         parser = argparse.ArgumentParser()
         parser.add_argument("--level", type=str)
-        flags = parser.parse_args()
+        flags = parser.parse_args(args = [] if len(sys.argv) == 1 else sys.argv[1:])
         kwargs["level"] = flags.level
     logging.basicConfig(**kwargs)
     logging.getLogger('flat_table').addFilter(lambda _: 0)

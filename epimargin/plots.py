@@ -90,9 +90,9 @@ substack_settings = Aesthetics(
 )
 
 theme = default_settings = Aesthetics(
-    title   = {"size": 28, "family": "Helvetica Neue", "weight": "500"},
-    label   = {"size": 20, "family": "Helvetica Neue", "weight": "500"},
-    note    = {"size": 14, "family": "Helvetica Neue", "weight": "500"},
+    title   = {"size": 28, "family": "Helvetica Neue", "weight": "regular"},
+    label   = {"size": 20, "family": "Helvetica Neue", "weight": "regular"},
+    note    = {"size": 14, "family": "Helvetica Neue", "weight": "regular"},
     ticks   = {"size": 10, "family": "Helvetica Neue"},
     style   = "whitegrid",
     palette = "bright",
@@ -103,9 +103,9 @@ theme = default_settings = Aesthetics(
 )
 
 minimal_settings = Aesthetics(
-    title   = {"size": 28, "family": "Helvetica Neue", "weight": "500"},
-    label   = {"size": 20, "family": "Helvetica Neue", "weight": "500"},
-    note    = {"size": 14, "family": "Helvetica Neue", "weight": "500"},
+    title   = {"size": 28, "family": "Helvetica Neue", "weight": "regular"},
+    label   = {"size": 20, "family": "Helvetica Neue", "weight": "regular"},
+    note    = {"size": 14, "family": "Helvetica Neue", "weight": "regular"},
     ticks   = {"size": 12, "family": "Helvetica Neue"},
     style   = "white",
     palette = "bright",
