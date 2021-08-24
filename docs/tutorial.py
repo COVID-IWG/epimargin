@@ -1,11 +1,20 @@
 # preliminary set up
 from itertools import cycle
+import sys
 
 import epimargin.plots as plt
 import numpy as np
 import pandas as pd
 from epimargin.utils import setup
 
+# don't block plots when running in headless mode in CI
+if "headless" in sys.argv:
+    sys.argv.remove("headless")
+    block_figs = False
+else:
+    block_figs = True
+
+# set up directories and set plot theme
 (data, figs) = setup()
 plt.set_theme("minimal")
 
@@ -47,7 +56,7 @@ plt.PlotDevice()\
     .format_xaxis()\
     .size(9.5, 6)\
     .save(figs / "fig_1.svg")\
-    .show(block = False)
+    .show(block = block_figs)
 
 # estimate Rt 
 from epimargin.estimators import analytical_MPVS
@@ -59,7 +68,7 @@ plt.Rt(dates[1:], Rt[1:], Rt_CI_upper[1:], Rt_CI_lower[1:], 0.95, legend_loc = "
     .adjust(bottom = 0.15, left = 0.15)\
     .size(9.5, 6)\
     .save(figs / "fig_2.svg")\
-    .show(block = False)
+    .show(block = block_figs)
 
 # set up model
 from epimargin.models import SIR
@@ -107,4 +116,4 @@ plt.PlotDevice()\
     .size(9.5, 6)\
     .format_xaxis()\
     .save(figs / "fig_3.svg")\
-    .show(block = False)
+    .show(block = block_figs)
