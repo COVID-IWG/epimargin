@@ -17,7 +17,7 @@ from .utils import days
 logger = logging.getLogger(__name__)
 
 def rollingOLS(
-    totals: pd.DataFrame,           # total cumulative cases
+    totals: pd.DataFrame,           # total cumulative cases, indexed by date or by integer index
     window: int = 3,                # smoothing window size
     infectious_period: float = 4.5  # infectious period in days
 ) -> pd.DataFrame:
@@ -42,7 +42,7 @@ def rollingOLS(
     return growthrates
 
 def analytical_MPVS(
-        timeseries: pd.DataFrame,          # timeseries of (cumulative | daily) (cases | deaths)
+        timeseries: pd.DataFrame,          # timeseries of (cumulative | daily) (cases | deaths), indexed by date or by integer index
         smoothing: Callable,               # smoothing function
         alpha: float = 3.0,                # shape 
         beta:  float = 2.0,                # rate
@@ -92,7 +92,7 @@ def analytical_MPVS(
             if old_new_cases == 0:
                 logger.debug("old_new_cases at time %s: 0", i)
             T_pred.append(0)
-            T_CI_upper.append(10) # <- where does this come from?
+            T_CI_upper.append(10)
             T_CI_lower.append(0)
             new_cases_ts.append(0)
 
@@ -115,8 +115,6 @@ def analytical_MPVS(
                     anomalies.append(new_cases)
                     anomaly_dates.append(dates[i])
                 
-                # logger.debug("anomaly identified at time %s: %s < %s < %s, r: %s, p: %s, annealing iteration: %s", i, T_lower, new_cases, T_upper, _nr, _np, counter+1)
-                # nnp = 0.95 *_np # <- where does this come from 
                 _nr = variance_shift * _nr * ((1-_np)/(1-variance_shift*_np) )
                 _np = variance_shift * _np 
                 T_upper = nbinom.ppf(CI,   _nr, _np)

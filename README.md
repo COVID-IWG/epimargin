@@ -97,7 +97,7 @@ Next, download data on daily COVID19 cases in the city of Mumbai from COVID19Ind
 
 ![raw and cleaned case count timeseries data](./docs/fig_1.svg)
 
-NOTE: a copy of the reference timeseries for all districts available through the API is checked into the `studies/tutorial/data` folder in case you run into download issues or if the upstream API changes.
+NOTE: a copy of the reference timeseries for all districts available through the API is checked into the `docs/data` folder in case you run into download issues or if the upstream API changes.
 
 ## 3. estimate the reproductive rate, <i>R<sub>t</sub></i>
 From these data, we can estimate the reproductive rate, or the number of secondary infections caused by a single active infection. A pandemic is under control if the reproductive rate stays below 1. A number of estimation procedures are provided; we show the Bettencourt/Soman estimator as an example:
