@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name = 'epimargin',
-    version = '0.6.1',
+    version = '0.6.2',
     packages = find_packages(),
     author = "COVID International Working Group",
     description = "Toolkit for estimating epidemiological metrics and evaluating public health and economic policies.",
