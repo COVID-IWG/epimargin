@@ -18,7 +18,7 @@ colorama==0.4.3
 commonmark==0.9.1
 cycler==0.10.0
 Cython==0.29.21
-dask==2021.4.1
+dask==2021.10.0
 decorator==4.4.2
 descartes==1.1.0
 docutils==0.17.1
