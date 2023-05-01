@@ -25,7 +25,7 @@ docutils==0.17.1
 fastprogress==0.2.3
 Fiona==1.8.17
 flake8==3.8.3
-Flask==1.1.2
+Flask==2.3.2
 flat-table==1.1.1
 fsspec==2021.4.0
 GDAL==3.1.3
